@@ -1,0 +1,31 @@
+FFmpeg 9.0.2 LGPLv3+ Static Build for LocalConvert
+Architecture: Apple Silicon (arm64)
+License: LGPL version 3 or later
+
+Configure Flags:
+--prefix=/tmp/LocalConvert-FFmpeg \
+--enable-static \
+--disable-shared \
+--pkg-config-flags="--static" \
+--enable-pthreads \
+--enable-version3 \
+--cc=clang \
+--extra-cflags="-I/opt/homebrew/include" \
+--extra-ldflags="-L/tmp/static-libs" \
+--extra-libs="-lmpg123" \
+--enable-videotoolbox \
+--enable-audiotoolbox \
+--enable-neon \
+--enable-libmp3lame \
+--enable-libopus \
+--enable-libvpx \
+--disable-ffplay \
+--disable-doc \
+--disable-debug
+
+Static components linked into binaries:
+- libmp3lame (LGPL) + libmpg123 (LGPL)
+- libopus (BSD 3-Clause)
+- libvpx (BSD 3-Clause)
+- VideoToolbox & AudioToolbox (Apple macOS native system frameworks)
+- Zero Homebrew runtime shared libraries (no /opt/homebrew dylibs required)

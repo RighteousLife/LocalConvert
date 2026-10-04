@@ -1,0 +1,66 @@
+# ====================================================================
+# LocalConvert — .gitignore
+# macOS / Xcode / Swift / Developer environment ignore file
+# ====================================================================
+
+# macOS System Files
+.DS_Store
+.AppleDouble
+.LSOverride
+Icon
+._*
+.Spotlight-V100
+.Trashes
+
+# Xcode Build Artifacts & User Data
+build/
+DerivedData/
+*.xcuserstate
+project.xcworkspace/xcuserdata/
+xcuserdata/
+*.xcscmblueprint
+*.xccheckout
+*.dia
+*.profraw
+*.profdata
+*.dSYM/
+*.ipa
+*.pkg
+
+# Swift Package Manager & Dependency Artifacts
+.build/
+.swiftpm/
+Packages/
+Package.resolved
+*.xcresult/
+Pods/
+Carthage/Build/
+
+# Release Staging & Packaging Artifacts
+dist/
+release/
+*.dmg
+
+
+# Editor & Tool Temporary Files
+.idea/
+.vscode/
+*.swp
+*~
+*.bak
+*.orig
+
+# Python Bytecode & Runtime Cache
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Ephemeral runtime scratch directories
+/tmp/LocalConvert-*
+*.tmp
+
+# Heavy External Runtimes (>100MB per-file exceeds GitHub standard push limit)
+# Distributed via GitHub Releases or Git LFS (see docs/DEPENDENCIES.md)
+LocalConvert/Resources/LibreOffice/
+

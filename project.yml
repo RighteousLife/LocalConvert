@@ -1,0 +1,123 @@
+name: LocalConvert
+options:
+  bundleIdPrefix: com.localconvert
+  deploymentTarget:
+    macOS: "15.0"
+  xcodeVersion: "27.0"
+  createIntermediateGroups: true
+  generateEmptyDirectories: false
+  defaultConfig: Debug
+
+settings:
+  base:
+    SWIFT_VERSION: "6.0"
+    MACOSX_DEPLOYMENT_TARGET: "15.0"
+    MARKETING_VERSION: "1.0.0"
+    CURRENT_PROJECT_VERSION: "1"
+    SWIFT_STRICT_CONCURRENCY: complete
+    ENABLE_USER_SCRIPT_SANDBOXING: false
+
+targets:
+  LocalConvert:
+    type: application
+    platform: macOS
+    info:
+      path: LocalConvert/Info.plist
+      properties:
+        CFBundleURLTypes:
+          - CFBundleURLName: com.localconvert.url
+            CFBundleURLSchemes:
+              - localconvert
+        NSServices:
+          - NSMenuItem:
+              default: "Convert with LocalConvert"
+            NSMessage: handleServicesConvert
+            NSPortName: LocalConvert
+            NSRequiredContext:
+              NSTextContent: FilePath
+            NSSendFileTypes:
+              - public.item
+        CFBundleDocumentTypes:
+          - CFBundleTypeName: Supported Conversion Files
+            CFBundleTypeRole: Viewer
+            LSHandlerRank: Alternate
+            LSItemContentTypes:
+              - public.item
+    sources:
+      - path: LocalConvert
+        excludes:
+          - "**/.DS_Store"
+          - "**/Info.plist"
+          - "Frameworks/**"
+          - "Resources/**"
+    postBuildScripts:
+      - name: Copy Bundled Binaries and Runtime
+        script: |
+          set -e
+          FFMPEG_DST="${TARGET_BUILD_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}/ffmpeg"
+          mkdir -p "${FFMPEG_DST}"
+          cp -p "${SRCROOT}/LocalConvert/Resources/ffmpeg/ffmpeg" "${FFMPEG_DST}/ffmpeg"
+          cp -p "${SRCROOT}/LocalConvert/Resources/ffmpeg/ffprobe" "${FFMPEG_DST}/ffprobe"
+          cp -p "${SRCROOT}/LocalConvert/Resources/ffmpeg/FFmpeg-LICENSE.txt" "${FFMPEG_DST}/FFmpeg-LICENSE.txt"
+          cp -p "${SRCROOT}/LocalConvert/Resources/ffmpeg/FFmpeg-BUILDCONF.txt" "${FFMPEG_DST}/FFmpeg-BUILDCONF.txt"
+          chmod +x "${FFMPEG_DST}/ffmpeg" "${FFMPEG_DST}/ffprobe"
+          /usr/bin/codesign --force --sign - --timestamp=none "${FFMPEG_DST}/ffmpeg"
+          /usr/bin/codesign --force --sign - --timestamp=none "${FFMPEG_DST}/ffprobe"
+
+          LIBREOFFICE_SRC="${SRCROOT}/LocalConvert/Resources/LibreOffice"
+          LIBREOFFICE_DST="${TARGET_BUILD_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}/LibreOffice"
+          if [ -d "${LIBREOFFICE_SRC}" ]; then
+            mkdir -p "${LIBREOFFICE_DST}"
+            rsync -a --delete --exclude='__pycache__' --exclude='*.pyc' "${LIBREOFFICE_SRC}/" "${LIBREOFFICE_DST}/"
+            find "${LIBREOFFICE_DST}" -name "__pycache__" -exec rm -rf {} + 2>/dev/null || true
+            find "${LIBREOFFICE_DST}" -name "*.pyc" -delete 2>/dev/null || true
+            chmod +x "${LIBREOFFICE_DST}/Contents/MacOS/soffice"
+            /usr/bin/codesign --force --sign - --timestamp=none "${LIBREOFFICE_DST}/Contents/MacOS/soffice"
+          fi
+    dependencies:
+      - framework: LocalConvert/Frameworks/libwebp.dylib
+        embed: true
+        codeSign: true
+      - framework: LocalConvert/Frameworks/libsharpyuv.dylib
+        embed: true
+        codeSign: true
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.localconvert.app
+        PRODUCT_NAME: LocalConvert
+        INFOPLIST_KEY_CFBundleDisplayName: LocalConvert
+        INFOPLIST_KEY_NSHumanReadableCopyright: "Copyright © 2026 LocalConvert. All rights reserved."
+        INFOPLIST_KEY_LSApplicationCategoryType: "public.app-category.utilities"
+        INFOPLIST_FILE: "$(SRCROOT)/LocalConvert/Info.plist"
+        GENERATE_INFOPLIST_FILE: true
+        CODE_SIGN_STYLE: Automatic
+        COMBINE_HIDPI_IMAGES: true
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        ENABLE_HARDENED_RUNTIME: true
+        ENABLE_TESTING_SEARCH_PATHS: true
+        # WebP C bridge (bundled libwebp.dylib in Contents/Frameworks/)
+        SWIFT_OBJC_BRIDGING_HEADER: "LocalConvert/LocalConvert-Bridging-Header.h"
+        HEADER_SEARCH_PATHS: "$(inherited) $(SRCROOT)/LocalConvert/Frameworks/include"
+        LIBRARY_SEARCH_PATHS: "$(inherited) $(SRCROOT)/LocalConvert/Frameworks"
+        LD_RUNPATH_SEARCH_PATHS: "$(inherited) @executable_path/../Frameworks"
+
+  LocalConvertTests:
+    type: bundle.unit-test
+    platform: macOS
+    sources:
+      - path: LocalConvertTests
+        excludes:
+          - "**/.DS_Store"
+    dependencies:
+      - target: LocalConvert
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.localconvert.tests
+        PRODUCT_NAME: LocalConvertTests
+        GENERATE_INFOPLIST_FILE: true
+        TEST_HOST: "$(BUILT_PRODUCTS_DIR)/LocalConvert.app/Contents/MacOS/LocalConvert"
+        BUNDLE_LOADER: "$(TEST_HOST)"
+        HEADER_SEARCH_PATHS: "$(inherited) $(SRCROOT)/LocalConvert/Frameworks/include"
+        LIBRARY_SEARCH_PATHS: "$(inherited) $(SRCROOT)/LocalConvert/Frameworks"
+        LD_RUNPATH_SEARCH_PATHS: "$(inherited) @executable_path/../Frameworks @loader_path/../Frameworks"
+
