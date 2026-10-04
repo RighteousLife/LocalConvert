@@ -1,7 +1,7 @@
 # LocalConvert
 
 <p align="center">
-  <img src="LocalConvert/Assets.xcassets/AppIcon.appiconset/AppIcon-512.png" alt="LocalConvert Icon" width="128" height="128" />
+  <img src="LocalConvert/Assets.xcassets/AppIcon.appiconset/icon_512x512.png" alt="LocalConvert Icon" width="128" height="128" />
 </p>
 
 <p align="center">
@@ -95,7 +95,7 @@ LocalConvert integrates with standard macOS workflows:
 
 ## Distribution Model
 
-- **Source Repository**: Contains the Swift application source code, unit/integration test suites, configuration, scripts, and documentation (< 5 MB).
+- **Source Repository**: Contains the Swift application source code, unit/integration test suites, configuration, scripts, documentation, and smaller bundled dependencies. The large LibreOffice runtime is intentionally excluded from Git history.
 - **Large Runtime Binaries**: The full headless LibreOffice runtime (~720 MB total, containing `libmergedlo.dylib` at ~137 MB) exceeds GitHub's standard per-file size limits. It is distributed via GitHub Release assets rather than tracked in standard Git history.
 - **Application Distribution**: Pre-built, codesigned application bundles and disk images (`LocalConvert.dmg`) including all bundled runtimes are published on GitHub Releases.
 
