@@ -1,164 +1,239 @@
 # LocalConvert
 
 <p align="center">
-  <img src="LocalConvert/Assets.xcassets/AppIcon.appiconset/icon_512x512.png" alt="LocalConvert Icon" width="128" height="128" />
+  <img src="LocalConvert/Assets.xcassets/AppIcon.appiconset/icon_512x512.png" alt="LocalConvert icon" width="128" height="128" />
 </p>
 
 <p align="center">
-  <strong>Native macOS application for local, private, and lightning-fast file conversion.</strong><br />
-  100% offline on-device processing. No cloud uploads. No external subscriptions. No tracking.
+  <strong>Native, private, offline file conversion for Apple Silicon Macs.</strong><br />
+  Convert, optimize, edit, and organize your files entirely on your Mac.
 </p>
 
 <p align="center">
-  <a href="https://github.com/RighteousLife/LocalConvert/releases/latest">Download Latest Release</a> •
-  <a href="#features">Features</a> •
-  <a href="#supported-formats">Supported Formats</a> •
-  <a href="#installation">Installation</a> •
-  <a href="#architecture">Architecture</a> •
-  <a href="#licensing">Licensing</a>
+  <a href="https://github.com/RighteousLife/LocalConvert/releases/latest">Latest Release</a> ·
+  <a href="https://github.com/RighteousLife/LocalConvert/releases/tag/v1.0.0">v1.0.0</a> ·
+  <a href="#features">Features</a> ·
+  <a href="#supported-formats">Formats</a> ·
+  <a href="#installation">Installation</a> ·
+  <a href="#building-from-source">Build</a>
 </p>
 
 ---
 
-## Overview
+## Why LocalConvert?
 
-**LocalConvert** is a native macOS application written in Swift and SwiftUI for converting files across images, office documents, spreadsheets, presentations, PDFs, audio, and video.
+LocalConvert is a native macOS application built with **Swift and SwiftUI** for converting and working with images, PDFs, Office documents, audio, and video.
 
-Conversions are performed entirely on your local Mac. The application does not contain network clients, upload endpoints, or telemetry for conversion workflows. 
+Your files stay on your Mac. LocalConvert does not upload conversion data to a cloud service and does not require Homebrew, Python, or separate command-line tools for the released application.
 
-All required conversion runtimes—including **libwebp**, static **FFmpeg & ffprobe**, and headless **LibreOffice**—are bundled within the application distribution. End users do not need Homebrew, Python, or command-line utilities installed on their system.
-
----
+**LocalConvert 1.0.0 is available as a self-contained Apple Silicon DMG.**
 
 ## Download
 
-Get the official Release DMG for Apple Silicon Macs:
+### LocalConvert 1.0.0
 
-- 📦 **[Download LocalConvert 1.0.0 (Apple Silicon DMG)](https://github.com/RighteousLife/LocalConvert/releases/download/v1.0.0/LocalConvert-1.0.0-arm64.dmg)**
-- 🔒 **[SHA256 Checksums](https://github.com/RighteousLife/LocalConvert/releases/download/v1.0.0/SHA256SUMS.txt)**
+- **[Download the Apple Silicon DMG](https://github.com/RighteousLife/LocalConvert/releases/download/v1.0.0/LocalConvert-1.0.0-arm64.dmg)**
+- **[Verify the SHA-256 checksum](https://github.com/RighteousLife/LocalConvert/releases/download/v1.0.0/SHA256SUMS.txt)**
+- **[View the full release](https://github.com/RighteousLife/LocalConvert/releases/tag/v1.0.0)**
 
----
+**Requirements:** Apple Silicon Mac (arm64), macOS 15.0 or later.
+
+> **Distribution note:** The current GitHub release is **ad-hoc signed and not notarized by Apple**. macOS may therefore require manual approval the first time the application is opened. See [Installation](#installation).
 
 ## Features
 
-- **Images & Compression**: Convert between PNG, JPG, WebP, HEIC, TIFF, BMP, GIF, AVIF, SVG, and ICNS. Features lossy/lossless WebP tuning, target size bounding (e.g. Discord 25MB), resizing, and cropping.
-- **PDF Toolbox**: Merge PDFs, Split pages, Extract specific page ranges, Delete pages, Reorder pages, Rotate pages, and convert Images to PDF.
-- **Office & Documents**: High-fidelity conversion of DOCX, XLSX, PPTX, DOC, XLS, PPT, ODT, ODS, ODP, RTF, CSV, and HTML to PDF, plus PDF to Word/PowerPoint/Excel.
-- **Audio & Video**: Convert and transcode MP4, MOV, MKV, WebM, AVI, MP3, WAV, FLAC, M4A, AAC, OGG, OPUS, and AIFF. Supports Apple VideoToolbox hardware acceleration and audio extraction.
-- **Metadata Editor**: View, edit, and strip EXIF, IPTC, TIFF, QuickTime, ID3, and PDF metadata tags for privacy.
-- **Batch Processing & Jobs Center**: Convert multiple files in parallel with configurable concurrency limits, live progress indicators, before/after size comparisons, and retry support.
-- **Conversion History**: Searchable history with category filters, source file repeat actions, and technical error logs.
-- **Finder Integration**: Right-click any file in Finder → Quick Actions / Services → Convert with LocalConvert. Drag and drop folders to recursively discover supported files.
-- **Privacy & Diagnostics**: Diagnostic logs folder management and regex-sanitized error reporting preventing credential or password leakage.
+### Image conversion & optimization
 
----
+- PNG, JPG/JPEG, WebP, HEIC, TIFF, BMP, GIF, AVIF, SVG, ICNS, and RAW/DNG workflows
+- Lossy and lossless WebP encoding
+- Output-quality controls
+- Target file size optimization with achievable-target feedback
+- Resize by dimensions, percentage, or edge
+- Crop with common aspect ratios or a custom rectangle
+- Image-to-PDF conversion
+- Batch processing
+
+### PDF Toolbox
+
+- Merge multiple PDFs
+- Split pages and ranges
+- Split multi-up/slide-style PDF pages
+- Extract, delete, reorder, and rotate pages
+- Compress PDFs
+- PDF ↔ image workflows
+- PDF → DOCX, PPTX, and XLSX
+- Password-protected PDF handling
+
+### Office & documents
+
+- DOCX, DOC, XLSX, XLS, PPTX, PPT
+- ODT, ODS, ODP, RTF
+- CSV, TSV, HTML
+- Office → PDF through bundled LibreOffice
+- PDF → editable Office formats where supported
+- Native CSV ↔ TSV conversion
+
+### Audio & video
+
+- Audio: MP3, WAV, FLAC, M4A, AAC, OGG, OPUS, AIFF
+- Video: MP4, MOV, MKV, WebM, AVI, WMV, M4V
+- Video → GIF
+- Audio extraction
+- Route-aware soft-subtitle handling on compatible containers
+- Apple VideoToolbox acceleration where supported
+
+### Metadata
+
+- View and edit supported image, audio, video, PDF, and Office metadata
+- EXIF/IPTC/TIFF/XMP workflows where supported
+- ID3, Vorbis/comment, QuickTime, and PDF metadata
+- Artwork editing for supported audio formats
+- Remove supported metadata for privacy
+
+### Jobs, presets & history
+
+- Multi-file conversion queue
+- Configurable concurrency
+- Live progress and batch summaries
+- Before/after file-size comparison
+- Retry and cancellation
+- Saved presets
+- Searchable conversion history
+- Repeat previous conversions
+- Technical error details with sensitive-value redaction
+
+### macOS integration
+
+- Finder Quick Actions and Services
+- Drag-and-drop files and folders
+- Smart folder import for supported files
+- Custom `localconvert://` URL handoff
+- Native macOS keyboard shortcuts
+- Optional menu bar integration
+- Light/Dark appearance support
+- Accessibility labels and native macOS controls
 
 ## Supported Formats
 
-| Category | Input Formats | Output Formats | Processing Engine |
-|---|---|---|---|
-| **Images** | PNG, JPG/JPEG, WEBP, HEIC, TIFF, BMP, GIF, AVIF, SVG, ICNS, RAW/DNG | PNG, JPG/JPEG, WEBP, HEIC, TIFF, BMP, GIF, AVIF, PDF, ICNS | Native ImageIO / libwebp |
-| **PDF Tools** | PDF, PNG, JPG, TIFF, WebP, HEIC | PDF, PNG, JPG, TIFF, DOCX, PPTX, XLSX | PDFKit / PDFToolboxEngine / LibreOffice |
-| **Office & Docs** | DOCX, DOC, XLSX, XLS, PPTX, PPT, ODT, ODS, ODP, RTF, CSV, TSV, HTML | PDF, DOCX, XLSX, PPTX, CSV, TSV | Bundled LibreOffice sandbox / Native Text Engine |
-| **Audio** | MP3, WAV, FLAC, M4A, AAC, OGG, OPUS, AIFF | MP3, WAV, FLAC, M4A, AAC, OGG, OPUS, AIFF | Bundled FFmpeg 9.0.2 static binary |
-| **Video** | MP4, MOV, MKV, WEBM, AVI, WMV, M4V | MP4, MOV, MKV, WEBM, AVI, WMV, GIF, MP3, WAV, FLAC, M4A | Bundled FFmpeg 9.0.2 / Apple VideoToolbox |
+| Category | Input | Output |
+|---|---|---|
+| **Images** | PNG, JPG/JPEG, WebP, HEIC, TIFF, BMP, GIF, AVIF, SVG, ICNS, DNG/RAW | PNG, JPG/JPEG, WebP, HEIC, TIFF, BMP, GIF, AVIF, PDF, ICNS |
+| **PDF** | PDF, PNG, JPG, TIFF, WebP, HEIC | PDF, PNG, JPG, TIFF, DOCX, PPTX, XLSX |
+| **Office & documents** | DOCX, DOC, XLSX, XLS, PPTX, PPT, ODT, ODS, ODP, RTF, CSV, TSV, HTML | PDF, DOCX, XLSX, PPTX, CSV, TSV |
+| **Audio** | MP3, WAV, FLAC, M4A, AAC, OGG, OPUS, AIFF, CAF, ALAC, AC-3 | MP3, WAV, FLAC, M4A, AAC, OGG, OPUS, AIFF, CAF, ALAC, AC-3 |
+| **Video** | MP4, MOV, MKV, WebM, AVI, WMV, M4V, 3GP/3G2, MTS/M2TS | MP4, MOV, MKV, WebM, AVI, GIF, MP3 and supported audio outputs |
 
----
+> LocalConvert intentionally focuses on **consumer and Apple-ecosystem formats**. Professional/broadcast formats such as ProRes RAW, REDCODE RAW, XAVC/XDCAM, and broadcast MXF are outside the project's scope.
 
 ## Installation
 
-### System Requirements
-- **Hardware**: Apple Silicon Mac (M1, M2, M3, M4 or later)
-- **Architecture**: `arm64` (Intel Macs are not supported)
-- **Operating System**: macOS 15.0 (Sequoia) or later
-- **Dependencies**: None (self-contained DMG)
+1. Download `LocalConvert-1.0.0-arm64.dmg` from [GitHub Releases](https://github.com/RighteousLife/LocalConvert/releases/latest).
+2. Open the DMG.
+3. Drag **LocalConvert** to **Applications**.
+4. Open LocalConvert from Applications or Spotlight.
 
-### Setup Instructions
-1. Download **`LocalConvert-1.0.0-arm64.dmg`** from [Releases](https://github.com/RighteousLife/LocalConvert/releases/latest).
-2. Open the downloaded DMG.
-3. Drag **LocalConvert** into your **Applications** folder.
-4. Launch **LocalConvert** from Applications or Spotlight.
+Because the current release is ad-hoc signed and not notarized, macOS may block the first launch.
 
-> [!NOTE]
-> LocalConvert is an open-source **ad-hoc signed, non-notarized** application distributed directly via GitHub Releases. It is **not notarized by Apple**, so macOS may require a manual first-launch approval.
->
-> If macOS blocks the first launch:
-> 1. Right-click (or Control-click) **LocalConvert.app** in Applications.
-> 2. Choose **Open**.
-> 3. Confirm **Open** in the macOS security dialog.
->
-> This is expected for the current open-source distribution model. This release should **not** be described as Apple-notarized or Gatekeeper-approved.
+If that happens:
 
----
+1. Right-click (or Control-click) **LocalConvert.app** in Applications.
+2. Choose **Open**.
+3. Confirm **Open** in the macOS security dialog.
+
+This is expected for the current open-source distribution model. The release should not be interpreted as Apple-notarized or Gatekeeper-approved.
 
 ## Keyboard Shortcuts
 
 | Shortcut | Action |
 |---|---|
-| `⌘O` | Add Files... |
+| `⌘O` | Add Files |
 | `⌘↩` | Start Conversion |
 | `Esc` | Cancel Active Conversion |
 | `⌘⇧R` | Repeat Last Conversion |
-| `⌘1` | Switch to Convert Tab |
-| `⌘2` | Switch to Jobs Center |
-| `⌘3` | Switch to PDF Toolbox |
-| `⌘4` | Switch to Metadata Editor |
-| `⌘5` | Switch to Presets |
-| `⌘6` | Switch to History |
-| `⌘,` | Open Settings |
-| `⌘Q` | Quit LocalConvert |
+| `⌘1` | Convert |
+| `⌘2` | Jobs Center |
+| `⌘3` | PDF Toolbox |
+| `⌘4` | Metadata Editor |
+| `⌘5` | Presets |
+| `⌘6` | History |
+| `⌘,` | Settings |
+| `⌘Q` | Quit |
 
----
+## Privacy & Security
+
+- Conversion processing is designed to remain on-device.
+- The released application has **no Homebrew runtime dependency**.
+- FFmpeg/ffprobe, libwebp, and LibreOffice runtimes are bundled with the distribution.
+- Office subprocesses use isolated temporary profiles and watchdogs.
+- Sensitive values are redacted from technical error details.
+- Password-protected PDF credentials are handled ephemerally and are not persisted by the application workflow.
+- No telemetry or conversion-data upload service is included.
 
 ## Building from Source
 
 ### Prerequisites
-- macOS 15.0+ with Xcode 16.0+ (Command Line Tools installed)
-- [XcodeGen](https://github.com/yonaskolb/XcodeGen) (`brew install xcodegen`)
 
-### Build & Run
+- macOS 15.0+
+- Xcode 16.0+
+- Apple Silicon Mac
+- XcodeGen
+
+XcodeGen can be installed separately with Homebrew:
+
 ```bash
-# 1. Clone repository
+brew install xcodegen
+```
+
+### Build & test
+
+```bash
 git clone https://github.com/RighteousLife/LocalConvert.git
 cd LocalConvert
 
-# 2. Verify bundled runtimes and dynamic libraries
 ./scripts/verify-dependencies.sh
-
-# 3. Generate Xcode project
 xcodegen generate
 
-# 4. Run test suite
 xcodebuild test \
   -project LocalConvert.xcodeproj \
   -scheme LocalConvert \
   -destination 'platform=macOS,arch=arm64'
 
-# 5. Build Release configuration
 xcodebuild -project LocalConvert.xcodeproj \
   -scheme LocalConvert \
   -configuration Release \
   -destination 'platform=macOS,arch=arm64' build
 ```
 
----
+The source repository intentionally does **not** track the large LibreOffice runtime. See [docs/DEPENDENCIES.md](docs/DEPENDENCIES.md) and [scripts/setup-runtime.sh](scripts/setup-runtime.sh) for the development/runtime setup.
 
-## Architecture & Security
+## Architecture
 
-- **Process Isolation**: External subprocesses (LibreOffice, FFmpeg) run within ephemeral sandboxed directories (`/tmp/LocalConvert-*`) that are purged immediately upon completion or cancellation.
-- **Credential Sanitization**: The internal `ErrorDetailsFormatter` sanitizes all error output, redacting passwords and sensitive tokens before writing to clipboard, history, or logs.
-- **Zero Homebrew Runtime Dependencies**: Bundled static binaries and dynamic libraries ensure total portability and zero system pollution.
+LocalConvert is organized around capability-driven conversion and shared application services:
 
----
+- `ConversionRegistry` — actual source/target conversion capabilities
+- `ConversionManager` / `ConversionQueue` — jobs, progress, cancellation, and concurrency
+- `OutputManager` — output destinations and collision handling
+- `PresetManager` — saved preset persistence and validation
+- `HistoryManager` — conversion history
+- `MetadataManager` — metadata providers and capability discovery
+- Native ImageIO/CoreGraphics/PDFKit where appropriate
+- Bundled FFmpeg/ffprobe for media conversion
+- Bundled LibreOffice for Office conversion
+
+For more detail, see [ARCHITECTURE.md](ARCHITECTURE.md).
 
 ## Licensing
 
-LocalConvert application source code is licensed under the [MIT License](LICENSE).
+LocalConvert source code is licensed under the **MIT License**.
 
-### Third-Party Software Acknowledgements
-LocalConvert bundles and interacts with third-party open-source components governed by their respective licenses:
-- **libwebp & libsharpyuv** (Google LLC) — BSD 3-Clause License
-- **FFmpeg & ffprobe** (FFmpeg Project) — LGPLv3+ with Apple VideoToolbox
-- **LibreOffice** (The Document Foundation) — Mozilla Public License 2.0 (MPLv2)
+Third-party components retain their respective licenses:
 
-For complete license texts, build flags, and attributions, see [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
+- **libwebp / libsharpyuv** — BSD 3-Clause
+- **FFmpeg / ffprobe** — LGPLv3+
+- **LibreOffice** — MPL 2.0 plus applicable third-party licenses
+
+See [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) for license texts, build information, and attribution details.
+
+## Release Notes
+
+- [LocalConvert 1.0.0](docs/RELEASE_NOTES_1.0.0.md)
