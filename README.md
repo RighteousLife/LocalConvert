@@ -80,10 +80,14 @@ Get the official Release DMG for Apple Silicon Macs:
 4. Launch **LocalConvert** from Applications or Spotlight.
 
 > [!NOTE]
-> LocalConvert is an open-source, ad-hoc signed application distributed directly via GitHub Releases. When opening for the first time on macOS, if prompted by Gatekeeper:
+> LocalConvert is an open-source **ad-hoc signed, non-notarized** application distributed directly via GitHub Releases. It is **not notarized by Apple**, so macOS may require a manual first-launch approval.
+>
+> If macOS blocks the first launch:
 > 1. Right-click (or Control-click) **LocalConvert.app** in Applications.
-> 2. Click **Open** from the context menu.
-> 3. Click **Open** in the confirmation dialog.
+> 2. Choose **Open**.
+> 3. Confirm **Open** in the macOS security dialog.
+>
+> This is expected for the current open-source distribution model. This release should **not** be described as Apple-notarized or Gatekeeper-approved.
 
 ---
 
