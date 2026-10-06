@@ -5,6 +5,7 @@ import os.log
 
 enum OutputLocation: String, Sendable, CaseIterable, Identifiable {
     case sameFolder = "Same folder as original"
+    case lastUsedFolder = "Last used folder"
     case askEveryTime = "Ask every time"
     case customFolder = "Choose output folder"
     
@@ -19,6 +20,7 @@ struct OutputManager: Sendable {
     
     private static let outputLocationKey = "com.localconvert.outputLocation"
     private static let customOutputDirKey = "com.localconvert.customOutputDir"
+    private static let lastUsedOutputDirKey = "com.localconvert.lastUsedOutputDir"
     
     /// Resolves the output directory based on the user's preference
     static func resolveOutputDirectory(
@@ -29,6 +31,11 @@ struct OutputManager: Sendable {
         switch preference {
         case .sameFolder:
             return inputURL.deletingLastPathComponent()
+        case .lastUsedFolder:
+            if let lastUsed = lastUsedDirectory, isOutputDirectoryValid(lastUsed) {
+                return lastUsed
+            }
+            return inputURL.deletingLastPathComponent()
         case .customFolder:
             if let custom = customDirectory, isOutputDirectoryValid(custom) {
                 return custom
@@ -37,6 +44,22 @@ struct OutputManager: Sendable {
         case .askEveryTime:
             // UI layer handles interactive dialog; fallback to same folder
             return inputURL.deletingLastPathComponent()
+        }
+    }
+    
+    /// Last used output directory saved from previous successful conversions
+    static var lastUsedDirectory: URL? {
+        get {
+            guard let path = UserDefaults.standard.string(forKey: lastUsedOutputDirKey) else { return nil }
+            let url = URL(fileURLWithPath: path)
+            return isOutputDirectoryValid(url) ? url : nil
+        }
+        set {
+            if let newValue {
+                UserDefaults.standard.set(newValue.path, forKey: lastUsedOutputDirKey)
+            } else {
+                UserDefaults.standard.removeObject(forKey: lastUsedOutputDirKey)
+            }
         }
     }
     

@@ -8,8 +8,12 @@ struct FileOptionsView: View {
     let fileName: String
     @Environment(\.dismiss) private var dismiss
     
+    private var isImageOptions: Bool {
+        descriptors.contains(where: { $0.id == "imageQuality" || $0.id == "webpLossless" })
+    }
+    
     var body: some View {
-        VStack(alignment: .leading, spacing: 16) {
+        VStack(alignment: .leading, spacing: 0) {
             // Header
             HStack {
                 VStack(alignment: .leading, spacing: 2) {
@@ -27,32 +31,38 @@ struct FileOptionsView: View {
                 }
                 .keyboardShortcut(.defaultAction)
             }
-            .padding(.bottom, 4)
+            .padding(.horizontal, 20)
+            .padding(.top, 16)
+            .padding(.bottom, 12)
             
             Divider()
             
-            // Dynamic Options List
-            VStack(alignment: .leading, spacing: 16) {
-                ForEach(descriptors) { descriptor in
-                    VStack(alignment: .leading, spacing: 6) {
-                        Text(descriptor.title)
-                            .font(.subheadline)
-                            .fontWeight(.medium)
-                        
-                        Text(descriptor.description)
-                            .font(.caption2)
-                            .foregroundStyle(.secondary)
-                        
-                        renderControl(for: descriptor)
+            ScrollView {
+                VStack(alignment: .leading, spacing: 16) {
+                    if isImageOptions {
+                        ImageOptimizationSectionView(options: $options)
+                    } else {
+                        // Dynamic Options List
+                        ForEach(descriptors) { descriptor in
+                            VStack(alignment: .leading, spacing: 6) {
+                                Text(descriptor.title)
+                                    .font(.subheadline)
+                                    .fontWeight(.medium)
+                                
+                                Text(descriptor.description)
+                                    .font(.caption2)
+                                    .foregroundStyle(.secondary)
+                                
+                                renderControl(for: descriptor)
+                            }
+                            .padding(.vertical, 2)
+                        }
                     }
-                    .padding(.vertical, 2)
                 }
+                .padding(20)
             }
-            
-            Spacer()
         }
-        .padding(20)
-        .frame(minWidth: 320, idealWidth: 360, minHeight: 240)
+        .frame(minWidth: 340, idealWidth: 380, minHeight: 280, maxHeight: 520)
     }
     
     // MARK: - Control Renderer
@@ -60,6 +70,20 @@ struct FileOptionsView: View {
     @ViewBuilder
     private func renderControl(for descriptor: ConversionOptionDescriptor) -> some View {
         switch descriptor.kind {
+        case .preset(let presets):
+            Picker("", selection: Binding(
+                get: { options.preset ?? .custom },
+                set: { 
+                    options.preset = $0
+                    options.applyPreset()
+                }
+            )) {
+                ForEach(presets, id: \.self) { preset in
+                    Text(preset.rawValue).tag(preset)
+                }
+            }
+            .pickerStyle(.menu)
+            
         case .qualityPreset(let presets):
             if descriptor.id == "mediaQuality" {
                 Picker("", selection: Binding(
@@ -85,6 +109,18 @@ struct FileOptionsView: View {
                 }
                 .pickerStyle(.menu)
             }
+            
+        case .targetSize(let sizes):
+            Picker("", selection: Binding(
+                get: { options.targetFileSizeMB },
+                set: { options.targetFileSizeMB = $0 }
+            )) {
+                Text("Off (No limit)").tag(Double?.none)
+                ForEach(sizes.compactMap { $0 }, id: \.self) { size in
+                    Text("\(Int(size)) MB").tag(Double?.some(size))
+                }
+            }
+            .pickerStyle(.menu)
             
         case .dpiPreset(let dpis):
             Picker("", selection: Binding(

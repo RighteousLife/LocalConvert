@@ -9,12 +9,8 @@ struct FileRowView: View {
     
     var body: some View {
         HStack(spacing: 12) {
-            // File Icon
-            Image(systemName: file.detectedFormat?.systemImage ?? "doc.questionmark")
-                .font(.title2)
-                .foregroundStyle(file.detectedFormat != nil ? Color.accentColor : Color.secondary)
-                .frame(width: 32)
-                .accessibilityHidden(true)
+            // File Icon / Bounded Thumbnail
+            FileThumbnailView(file: file)
             
             // File Name, Source Format, and File Size
             VStack(alignment: .leading, spacing: 2) {
@@ -30,9 +26,9 @@ struct FileRowView: View {
                         Text(format.displayName)
                             .font(.caption2)
                             .fontWeight(.medium)
-                            .padding(.horizontal, 4)
-                            .padding(.vertical, 1)
-                            .background(Color.secondary.opacity(0.15))
+                            .padding(.horizontal, 5)
+                            .padding(.vertical, 1.5)
+                            .background(Color.secondary.opacity(0.12))
                             .clipShape(RoundedRectangle(cornerRadius: 3))
                     } else {
                         Text("Unknown Format")
@@ -55,9 +51,8 @@ struct FileRowView: View {
             
             // Right Side: Format Selection & Status
             HStack(spacing: 10) {
-                // If not currently in a running/completed job status, show Format Selector & Options button
+                // If currently in a running/completed job status, show Output Format Badge and Job Status
                 if let jobStatus = findJobStatus(), isJobInProgressOrDone(jobStatus) {
-                    // Show Output Format Badge and Job Status
                     if let format = file.selectedOutputFormat {
                         HStack(spacing: 4) {
                             Image(systemName: "arrow.right")
@@ -79,6 +74,13 @@ struct FileRowView: View {
                                 .foregroundStyle(.secondary)
                             
                             Picker("", selection: outputFormatBinding) {
+                                if !recentFormatsForFile.isEmpty {
+                                    Section(header: Text("Recent")) {
+                                        ForEach(recentFormatsForFile) { format in
+                                            Text(format.fileExtension.uppercased()).tag(Optional(format))
+                                        }
+                                    }
+                                }
                                 ForEach(groupedOutputFormats, id: \.group) { section in
                                     Section(header: Text(section.group.rawValue)) {
                                         ForEach(section.formats) { format in
@@ -139,19 +141,32 @@ struct FileRowView: View {
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 8)
-        .background {
-            RoundedRectangle(cornerRadius: 8)
-                .fill(Color(nsColor: .controlBackgroundColor))
-                .shadow(color: .black.opacity(0.04), radius: 1, y: 1)
-        }
+        .background(Color(nsColor: .controlBackgroundColor).opacity(0.5))
+        .clipShape(RoundedRectangle(cornerRadius: 6))
     }
     
     // MARK: - Bindings & Helpers
     
+    private var recentFormatsForFile: [FileFormat] {
+        let recents = AppSettings.shared.recentOutputFormats.filter { file.availableOutputFormats.contains($0) }
+        return Array(recents.prefix(4))
+    }
+    
     private var optionsBinding: Binding<ConversionOptions> {
         Binding(
             get: { file.options },
-            set: { appState.updateOptions(for: file.id, options: $0) }
+            set: { newOptions in
+                if newOptions.preset != file.options.preset,
+                   let newPreset = newOptions.preset,
+                   let inputCategory = file.detectedFormat?.category,
+                   let targetFormat = newPreset.targetOutputFormat(for: inputCategory) {
+                    
+                    if file.availableOutputFormats.contains(targetFormat) {
+                        appState.updateOutputFormat(for: file.id, format: targetFormat)
+                    }
+                }
+                appState.updateOptions(for: file.id, options: newOptions)
+            }
         )
     }
     
@@ -294,6 +309,43 @@ struct FileRowView: View {
                 .background(Color.secondary.opacity(0.12))
                 .clipShape(Capsule())
                 .accessibilityLabel("Conversion cancelled")
+        }
+    }
+}
+
+// MARK: - File Thumbnail View
+
+struct FileThumbnailView: View {
+    let file: DroppedFile
+    @State private var thumbnailImage: NSImage?
+    
+    var body: some View {
+        Group {
+            if let image = thumbnailImage {
+                Image(nsImage: image)
+                    .resizable()
+                    .aspectRatio(contentMode: .fit)
+                    .frame(width: 28, height: 28)
+                    .clipShape(RoundedRectangle(cornerRadius: 4))
+            } else {
+                Image(systemName: file.detectedFormat?.systemImage ?? "doc.questionmark")
+                    .font(.title3)
+                    .foregroundStyle(file.detectedFormat != nil ? Color.accentColor : Color.secondary)
+                    .frame(width: 28, height: 28)
+            }
+        }
+        .accessibilityHidden(true)
+        .task(id: file.url) {
+            if file.detectedFormat?.category == .image {
+                let url = file.url
+                let image = await Task.detached(priority: .userInitiated) { () -> NSImage? in
+                    if let cgImage = ImageProcessor.createThumbnail(from: url, maxPixelSize: 56) {
+                        return NSImage(cgImage: cgImage, size: NSSize(width: 28, height: 28))
+                    }
+                    return nil
+                }.value
+                self.thumbnailImage = image
+            }
         }
     }
 }

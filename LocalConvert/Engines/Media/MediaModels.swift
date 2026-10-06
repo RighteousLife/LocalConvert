@@ -48,6 +48,10 @@ struct MediaInfo: Sendable, Codable, Equatable {
         streams.filter { $0.streamType == .audio }
     }
     
+    var subtitleStreams: [MediaStreamInfo] {
+        streams.filter { $0.streamType == .subtitle }
+    }
+    
     var primaryVideoStream: MediaStreamInfo? {
         videoStreams.first
     }
@@ -62,6 +66,10 @@ struct MediaInfo: Sendable, Codable, Equatable {
     
     var hasAudio: Bool {
         !audioStreams.isEmpty
+    }
+    
+    var hasSubtitles: Bool {
+        !subtitleStreams.isEmpty
     }
     
     var isVideo: Bool {

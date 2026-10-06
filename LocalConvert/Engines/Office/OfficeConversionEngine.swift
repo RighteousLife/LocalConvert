@@ -124,82 +124,48 @@ class BaseLibreOfficeProvider: OfficeEngineProvider, @unchecked Sendable {
         
         progress(.determinate(0.3, message: "Converting document with LibreOffice..."))
         
-        let process = Process()
-        process.executableURL = URL(fileURLWithPath: sofficePath)
-        process.arguments = [
-            "-env:UserInstallation=file://\(tempProfile.path)",
-            "--headless",
-            "--convert-to", libreOfficeFormat,
-            "--outdir", tempOut.path,
-            input.path
-        ]
-        var env = ProcessInfo.processInfo.environment
-        env["PYTHONDONTWRITEBYTECODE"] = "1"
-        process.environment = env
+        _ = try await executeProcessWithWatchdog(
+            executablePath: sofficePath,
+            arguments: [
+                "-env:UserInstallation=file://\(tempProfile.path)",
+                "--headless",
+                "--convert-to", libreOfficeFormat,
+                "--outdir", tempOut.path,
+                input.path
+            ]
+        )
         
-        let errorPipe = Pipe()
-        let outputPipe = Pipe()
-        process.standardError = errorPipe
-        process.standardOutput = outputPipe
+        progress(.determinate(0.8, message: "Verifying output document..."))
         
-        try process.run()
+        let baseName = input.deletingPathExtension().lastPathComponent
+        let outputExt = outputFormat.fileExtension
+        let generatedTempURL = tempOut.appendingPathComponent("\(baseName).\(outputExt)")
         
-        return try await withTaskCancellationHandler {
-            await withCheckedContinuation { continuation in
-                process.terminationHandler = { _ in
-                    continuation.resume()
-                }
-            }
-            
-            try Task.checkCancellation()
-            
-            guard process.terminationStatus == 0 else {
-                let errorData = errorPipe.fileHandleForReading.readDataToEndOfFile()
-                let errorString = String(data: errorData, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines)
-                let safeError = errorString ?? "none"
-                logger.error("LibreOffice process failed (exit code \(process.terminationStatus)): \(safeError, privacy: .public)")
-                
+        guard FileManager.default.fileExists(atPath: generatedTempURL.path) else {
+            throw ConversionError.engineExecutionFailed(
+                "Conversion finished, but output file was not created by LibreOffice.",
+                underlyingError: nil
+            )
+        }
+        
+        let finalOutput = ConversionManager.outputURL(for: input, format: outputFormat, in: outputDirectory)
+        try FileManager.default.moveItem(at: generatedTempURL, to: finalOutput)
+        
+        // Validate PDF output
+        if outputFormat == .pdf {
+            guard let pdfDoc = PDFDocument(url: finalOutput), pdfDoc.pageCount > 0 else {
+                try? FileManager.default.removeItem(at: finalOutput)
                 throw ConversionError.engineExecutionFailed(
-                    "The document could not be converted. The file may be corrupted or password-protected.",
-                    underlyingError: errorString
-                )
-            }
-            
-            progress(.determinate(0.8, message: "Verifying output document..."))
-            
-            let baseName = input.deletingPathExtension().lastPathComponent
-            let outputExt = outputFormat.fileExtension
-            let generatedTempURL = tempOut.appendingPathComponent("\(baseName).\(outputExt)")
-            
-            guard FileManager.default.fileExists(atPath: generatedTempURL.path) else {
-                throw ConversionError.engineExecutionFailed(
-                    "Conversion finished, but output file was not created by LibreOffice.",
+                    "The document was converted, but the generated PDF is invalid or unreadable.",
                     underlyingError: nil
                 )
             }
-            
-            let finalOutput = ConversionManager.outputURL(for: input, format: outputFormat, in: outputDirectory)
-            try FileManager.default.moveItem(at: generatedTempURL, to: finalOutput)
-            
-            // Validate PDF output
-            if outputFormat == .pdf {
-                guard let pdfDoc = PDFDocument(url: finalOutput), pdfDoc.pageCount > 0 else {
-                    try? FileManager.default.removeItem(at: finalOutput)
-                    throw ConversionError.engineExecutionFailed(
-                        "The document was converted, but the generated PDF is invalid or unreadable.",
-                        underlyingError: nil
-                    )
-                }
-            }
-            
-            progress(.determinate(1.0, message: "Complete"))
-            logger.info("Office conversion succeeded: \(input.lastPathComponent) -> \(finalOutput.lastPathComponent)")
-            
-            return finalOutput
-        } onCancel: {
-            process.terminate()
-            try? FileManager.default.removeItem(at: tempRoot)
         }
+        
+        progress(.determinate(1.0, message: "Complete"))
+        logger.info("Office conversion succeeded: \(input.lastPathComponent) -> \(finalOutput.lastPathComponent)")
+        
+        return finalOutput
     }
     
     /// Handles PDF → Office conversions using appropriate LibreOffice import filters
@@ -220,7 +186,13 @@ class BaseLibreOfficeProvider: OfficeEngineProvider, @unchecked Sendable {
         }
         
         if pdfDoc.isLocked {
-            throw ConversionError.invalidInput("The PDF file is password-protected. Please unlock or decrypt the document before converting.")
+            if let pwd = options.customOptions["pdf_password"], !pwd.isEmpty {
+                guard pdfDoc.unlock(withPassword: pwd) else {
+                    throw ConversionError.invalidInput("Incorrect password for protected PDF document.")
+                }
+            } else {
+                throw ConversionError.invalidInput("The PDF file is password-protected. Please unlock or decrypt the document before converting.")
+            }
         }
         
         guard pdfDoc.pageCount > 0 else {
@@ -263,7 +235,7 @@ class BaseLibreOfficeProvider: OfficeEngineProvider, @unchecked Sendable {
         case .xlsx:
             // PDF → XLSX: Extract tabular data/text structure to CSV, then convert via LibreOffice Calc
             progress(.determinate(0.2, message: "Extracting tabular data from PDF..."))
-            let csvContent = try extractCSV(from: input)
+            let csvContent = try extractCSV(from: input, options: options)
             let tempCSV = tempRoot.appendingPathComponent("\(baseName).csv")
             try csvContent.write(to: tempCSV, atomically: true, encoding: .utf8)
             
@@ -309,13 +281,19 @@ class BaseLibreOfficeProvider: OfficeEngineProvider, @unchecked Sendable {
     }
     
     /// Extracts text/tabular data from a PDF document into CSV format for spreadsheet conversion
-    private func extractCSV(from pdfURL: URL) throws -> String {
+    private func extractCSV(from pdfURL: URL, options: ConversionOptions = .default) throws -> String {
         guard let pdfDoc = PDFDocument(url: pdfURL) else {
             throw ConversionError.invalidInput("The PDF file could not be opened. It may be corrupted or invalid.")
         }
         
         if pdfDoc.isLocked {
-            throw ConversionError.invalidInput("The PDF file is password-protected. Please unlock or decrypt the document before converting.")
+            if let pwd = options.customOptions["pdf_password"], !pwd.isEmpty {
+                guard pdfDoc.unlock(withPassword: pwd) else {
+                    throw ConversionError.invalidInput("Incorrect password for protected PDF document.")
+                }
+            } else {
+                throw ConversionError.invalidInput("The PDF file is password-protected. Please unlock or decrypt the document before converting.")
+            }
         }
         
         guard pdfDoc.pageCount > 0 else {
@@ -359,13 +337,20 @@ class BaseLibreOfficeProvider: OfficeEngineProvider, @unchecked Sendable {
         return rows.joined(separator: "\n") + "\n"
     }
     
-    /// Runs a LibreOffice process with given arguments and waits for completion
-    private func runLibreOffice(
-        sofficePath: String,
-        arguments: [String]
-    ) async throws {
+    // MARK: - Subprocess Watchdog & Execution
+    
+    static let defaultWatchdogTimeout: TimeInterval = 120.0
+    
+    private struct WatchdogTimeoutError: Error {}
+    
+    /// Runs a process with an active watchdog timeout and structured task cancellation
+    func executeProcessWithWatchdog(
+        executablePath: String,
+        arguments: [String],
+        timeout: TimeInterval = defaultWatchdogTimeout
+    ) async throws -> (stdout: Data, stderr: Data) {
         let process = Process()
-        process.executableURL = URL(fileURLWithPath: sofficePath)
+        process.executableURL = URL(fileURLWithPath: executablePath)
         process.arguments = arguments
         var env = ProcessInfo.processInfo.environment
         env["PYTHONDONTWRITEBYTECODE"] = "1"
@@ -376,42 +361,97 @@ class BaseLibreOfficeProvider: OfficeEngineProvider, @unchecked Sendable {
         process.standardError = errorPipe
         process.standardOutput = outputPipe
         
-        try process.run()
+        let outputTask = Task { () -> Data in
+            return outputPipe.fileHandleForReading.readDataToEndOfFile()
+        }
+        let errorTask = Task { () -> Data in
+            return errorPipe.fileHandleForReading.readDataToEndOfFile()
+        }
         
-        try await withTaskCancellationHandler {
-            await withCheckedContinuation { continuation in
-                process.terminationHandler = { _ in
-                    continuation.resume()
+        try process.run()
+        try? outputPipe.fileHandleForWriting.close()
+        try? errorPipe.fileHandleForWriting.close()
+        
+        return try await withTaskCancellationHandler {
+            do {
+                try await withThrowingTaskGroup(of: Void.self) { group in
+                    group.addTask {
+                        await withCheckedContinuation { continuation in
+                            process.terminationHandler = { _ in
+                                continuation.resume()
+                            }
+                        }
+                    }
+                    
+                    group.addTask {
+                        do {
+                            try await Task.sleep(nanoseconds: UInt64(timeout * 1_000_000_000))
+                            process.terminate()
+                            throw WatchdogTimeoutError()
+                        } catch is CancellationError {
+                            // Cancelled because process finished before watchdog timeout
+                        }
+                    }
+                    
+                    // Whichever completes first
+                    try await group.next()
+                    group.cancelAll()
                 }
-            }
-            
-            try Task.checkCancellation()
-            
-            let outputData = outputPipe.fileHandleForReading.readDataToEndOfFile()
-            let outputString = String(data: outputData, encoding: .utf8) ?? ""
-            
-            // Check for known error patterns in stdout (LibreOffice reports some errors there)
-            if outputString.contains("Error:") && outputString.contains("no export filter") {
+            } catch is WatchdogTimeoutError {
+                process.terminate()
+                _ = await outputTask.value
+                _ = await errorTask.value
                 throw ConversionError.engineExecutionFailed(
-                    "LibreOffice does not support this conversion format combination.",
-                    underlyingError: outputString.trimmingCharacters(in: .whitespacesAndNewlines)
+                    "Office conversion timed out after \(Int(timeout)) seconds. The document may be corrupted or contain hanging macros.",
+                    underlyingError: "Watchdog timeout exceeded (\(Int(timeout))s)"
                 )
+            } catch {
+                process.terminate()
+                _ = await outputTask.value
+                _ = await errorTask.value
+                throw error
             }
+            
+            let outputData = await outputTask.value
+            let errorData = await errorTask.value
             
             guard process.terminationStatus == 0 else {
-                let errorData = errorPipe.fileHandleForReading.readDataToEndOfFile()
+                let outputString = String(data: outputData, encoding: .utf8) ?? ""
                 let errorString = String(data: errorData, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines)
+                
+                if outputString.contains("Error:") && outputString.contains("no export filter") {
+                    throw ConversionError.engineExecutionFailed(
+                        "LibreOffice does not support this conversion format combination.",
+                        underlyingError: outputString.trimmingCharacters(in: .whitespacesAndNewlines)
+                    )
+                }
+                
                 let safeError = errorString ?? "none"
                 logger.error("LibreOffice process failed (exit code \(process.terminationStatus)): \(safeError, privacy: .public)")
                 
                 throw ConversionError.engineExecutionFailed(
-                    "The document could not be converted. The file may be corrupted or in an unsupported format.",
+                    "The document could not be converted. The file may be corrupted or password-protected.",
                     underlyingError: errorString
                 )
             }
+            
+            return (outputData, errorData)
         } onCancel: {
             process.terminate()
         }
+    }
+    
+    /// Runs a LibreOffice process with given arguments, watchdog timeout, and waits for completion
+    private func runLibreOffice(
+        sofficePath: String,
+        arguments: [String],
+        timeout: TimeInterval = defaultWatchdogTimeout
+    ) async throws {
+        _ = try await executeProcessWithWatchdog(
+            executablePath: sofficePath,
+            arguments: arguments,
+            timeout: timeout
+        )
     }
     
     /// Validates that a generated file is a valid ZIP archive containing the expected OpenXML entry
@@ -620,41 +660,89 @@ final class OfficeConversionEngine: ConversionEngine, @unchecked Sendable {
     }
     
     var supportedInputFormats: Set<FileFormat> {
-        [.docx, .xlsx, .pptx, .doc, .xls, .ppt, .odt, .ods, .odp, .rtf, .csv, .html, .pdf]
+        [.docx, .xlsx, .pptx, .doc, .xls, .ppt, .odt, .ods, .odp, .rtf, .csv, .tsv, .html, .pdf]
     }
     
     var supportedOutputFormats: Set<FileFormat> {
-        [.pdf, .docx, .xlsx, .pptx]
+        [.pdf, .docx, .xlsx, .pptx, .rtf, .csv, .tsv, .odt, .txt]
     }
     
     func canConvert(from input: FileFormat, to output: FileFormat) -> Bool {
+        if input == output { return false }
+        
         // Office → PDF conversions
+        let officeInputs: Set<FileFormat> = [.docx, .xlsx, .pptx, .doc, .xls, .ppt, .odt, .ods, .odp, .rtf, .csv, .tsv, .html]
         if output == .pdf {
-            let officeInputs: Set<FileFormat> = [.docx, .xlsx, .pptx, .doc, .xls, .ppt, .odt, .ods, .odp, .rtf, .csv, .html]
             return officeInputs.contains(input)
         }
+        
         // PDF → Office conversions
         if input == .pdf {
             let pdfOutputs: Set<FileFormat> = [.docx, .xlsx, .pptx]
             return pdfOutputs.contains(output)
         }
+        
+        // ODT expansions
+        if input == .odt && [.docx, .rtf].contains(output) { return true }
+        
+        // ODS expansions
+        if input == .ods && [.xlsx, .csv].contains(output) { return true }
+        
+        // ODP expansions
+        if input == .odp && output == .pptx { return true }
+        
+        // RTF expansions
+        if input == .rtf && [.docx, .odt, .txt].contains(output) { return true }
+        
+        // CSV / TSV to XLSX
+        if [.csv, .tsv].contains(input) && output == .xlsx { return true }
+        
+        // XLSX to CSV / TSV
+        if input == .xlsx && [.csv, .tsv].contains(output) { return true }
+        
         return false
     }
     
     func availableOutputFormats(for input: FileFormat) -> Set<FileFormat> {
-        let officeInputs: Set<FileFormat> = [.docx, .xlsx, .pptx, .doc, .xls, .ppt, .odt, .ods, .odp, .rtf, .csv, .html]
+        var formats = Set<FileFormat>()
+        let officeInputs: Set<FileFormat> = [.docx, .xlsx, .pptx, .doc, .xls, .ppt, .odt, .ods, .odp, .rtf, .csv, .tsv, .html]
+        
         if officeInputs.contains(input) {
-            return [.pdf]
+            formats.insert(.pdf)
         }
+        
         if input == .pdf {
-            return [.docx, .xlsx, .pptx]
+            formats.formUnion([.docx, .xlsx, .pptx])
+        } else if input == .odt {
+            formats.formUnion([.docx, .rtf])
+        } else if input == .ods {
+            formats.formUnion([.xlsx, .csv])
+        } else if input == .odp {
+            formats.insert(.pptx)
+        } else if input == .rtf {
+            formats.formUnion([.docx, .odt, .txt])
+        } else if input == .csv || input == .tsv {
+            formats.insert(.xlsx)
+        } else if input == .xlsx {
+            formats.formUnion([.csv, .tsv])
         }
-        return []
+        
+        return formats
     }
     
     func optionDescriptors(from input: FileFormat, to output: FileFormat) -> [ConversionOptionDescriptor] {
         guard canConvert(from: input, to: output) else { return [] }
         var descriptors: [ConversionOptionDescriptor] = []
+        
+        let validPresets: [ConversionPreset] = [.custom, .documentPDF, .documentEditable, .documentPrintArchive]
+        descriptors.append(
+            ConversionOptionDescriptor(
+                id: "preset",
+                title: "Smart Preset",
+                description: "Auto-configure settings for common use cases",
+                kind: .preset(validPresets)
+            )
+        )
         
         if input == .pdf && [FileFormat.docx, .xlsx, .pptx].contains(output) {
             descriptors.append(
@@ -682,12 +770,13 @@ final class OfficeConversionEngine: ConversionEngine, @unchecked Sendable {
     }
     
     func convert(
-        input: URL,
+        inputs: [URL],
         to outputFormat: FileFormat,
         outputDirectory: URL,
         options: ConversionOptions,
         progress: @Sendable (ConversionProgress) -> Void
     ) async throws -> ConversionResult {
+        guard let input = inputs.first else { throw ConversionError.invalidInput("No inputs") }
         let startTime = CFAbsoluteTimeGetCurrent()
         
         try Task.checkCancellation()

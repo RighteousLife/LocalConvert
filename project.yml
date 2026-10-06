@@ -10,6 +10,7 @@ options:
 
 settings:
   base:
+    ARCHS: "arm64"
     SWIFT_VERSION: "6.0"
     MACOSX_DEPLOYMENT_TARGET: "15.0"
     MARKETING_VERSION: "1.0.0"
@@ -24,6 +25,8 @@ targets:
     info:
       path: LocalConvert/Info.plist
       properties:
+        CFBundleIconFile: AppIcon
+        CFBundleIconName: AppIcon
         CFBundleURLTypes:
           - CFBundleURLName: com.localconvert.url
             CFBundleURLSchemes:
@@ -37,6 +40,62 @@ targets:
               NSTextContent: FilePath
             NSSendFileTypes:
               - public.item
+          - NSMenuItem:
+              default: "Convert to PDF"
+            NSMessage: handleConvertPDF
+            NSPortName: LocalConvert
+            NSRequiredContext:
+              NSTextContent: FilePath
+            NSSendFileTypes:
+              - public.item
+          - NSMenuItem:
+              default: "Convert to WebP"
+            NSMessage: handleConvertWebP
+            NSPortName: LocalConvert
+            NSRequiredContext:
+              NSTextContent: FilePath
+            NSSendFileTypes:
+              - public.item
+          - NSMenuItem:
+              default: "Convert to MP4"
+            NSMessage: handleConvertMP4
+            NSPortName: LocalConvert
+            NSRequiredContext:
+              NSTextContent: FilePath
+            NSSendFileTypes:
+              - public.item
+          - NSMenuItem:
+              default: "Extract Audio (LocalConvert)"
+            NSMessage: handleExtractAudio
+            NSPortName: LocalConvert
+            NSRequiredContext:
+              NSTextContent: FilePath
+            NSSendFileTypes:
+              - public.item
+          - NSMenuItem:
+              default: "Merge PDFs"
+            NSMessage: handleMergePDFs
+            NSPortName: LocalConvert
+            NSRequiredContext:
+              NSTextContent: FilePath
+            NSSendFileTypes:
+              - com.adobe.pdf
+          - NSMenuItem:
+              default: "Extract PDF Pages"
+            NSMessage: handleExtractPDF
+            NSPortName: LocalConvert
+            NSRequiredContext:
+              NSTextContent: FilePath
+            NSSendFileTypes:
+              - com.adobe.pdf
+          - NSMenuItem:
+              default: "Compress PDF"
+            NSMessage: handleCompressPDF
+            NSPortName: LocalConvert
+            NSRequiredContext:
+              NSTextContent: FilePath
+            NSSendFileTypes:
+              - com.adobe.pdf
         CFBundleDocumentTypes:
           - CFBundleTypeName: Supported Conversion Files
             CFBundleTypeRole: Viewer
@@ -63,6 +122,14 @@ targets:
           chmod +x "${FFMPEG_DST}/ffmpeg" "${FFMPEG_DST}/ffprobe"
           /usr/bin/codesign --force --sign - --timestamp=none "${FFMPEG_DST}/ffmpeg"
           /usr/bin/codesign --force --sign - --timestamp=none "${FFMPEG_DST}/ffprobe"
+
+          if [ -f "${SRCROOT}/LocalConvert/Resources/AppIcon.icns" ]; then
+            cp -p "${SRCROOT}/LocalConvert/Resources/AppIcon.icns" "${TARGET_BUILD_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}/AppIcon.icns"
+          fi
+
+          if [ -f "${SRCROOT}/LocalConvert/Resources/THIRD_PARTY_NOTICES.md" ]; then
+            cp -p "${SRCROOT}/LocalConvert/Resources/THIRD_PARTY_NOTICES.md" "${TARGET_BUILD_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}/THIRD_PARTY_NOTICES.md"
+          fi
 
           LIBREOFFICE_SRC="${SRCROOT}/LocalConvert/Resources/LibreOffice"
           LIBREOFFICE_DST="${TARGET_BUILD_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}/LibreOffice"
@@ -91,6 +158,7 @@ targets:
         INFOPLIST_FILE: "$(SRCROOT)/LocalConvert/Info.plist"
         GENERATE_INFOPLIST_FILE: true
         CODE_SIGN_STYLE: Automatic
+        CODE_SIGN_ENTITLEMENTS: "LocalConvert/LocalConvert.entitlements"
         COMBINE_HIDPI_IMAGES: true
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
         ENABLE_HARDENED_RUNTIME: true
@@ -100,6 +168,11 @@ targets:
         HEADER_SEARCH_PATHS: "$(inherited) $(SRCROOT)/LocalConvert/Frameworks/include"
         LIBRARY_SEARCH_PATHS: "$(inherited) $(SRCROOT)/LocalConvert/Frameworks"
         LD_RUNPATH_SEARCH_PATHS: "$(inherited) @executable_path/../Frameworks"
+      configs:
+        Debug:
+          CODE_SIGN_INJECT_BASE_ENTITLEMENTS: true
+        Release:
+          CODE_SIGN_INJECT_BASE_ENTITLEMENTS: false
 
   LocalConvertTests:
     type: bundle.unit-test
@@ -120,4 +193,18 @@ targets:
         HEADER_SEARCH_PATHS: "$(inherited) $(SRCROOT)/LocalConvert/Frameworks/include"
         LIBRARY_SEARCH_PATHS: "$(inherited) $(SRCROOT)/LocalConvert/Frameworks"
         LD_RUNPATH_SEARCH_PATHS: "$(inherited) @executable_path/../Frameworks @loader_path/../Frameworks"
+
+schemes:
+  LocalConvert:
+    build:
+      targets:
+        LocalConvert: all
+    test:
+      targets:
+        - name: LocalConvertTests
+    run:
+      targets:
+        - LocalConvert
+
+
 

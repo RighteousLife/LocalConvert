@@ -19,18 +19,22 @@ final class MediaConversionEngine: ConversionEngine, @unchecked Sendable {
     var supportedInputFormats: Set<FileFormat> {
         [
             // Audio
-            .mp3, .wav, .flac, .aac, .m4a, .ogg, .opus, .aiff,
+            .mp3, .wav, .flac, .aac, .m4a, .ogg, .opus, .aiff, .caf, .alac, .ac3,
             // Video
-            .mp4, .mov, .mkv, .webm, .avi, .wmv, .m4v
+            .mp4, .mov, .mkv, .webm, .avi, .wmv, .m4v, .threeGP, .mts, .m2ts,
+            // Animated Image
+            .gif
         ]
     }
     
     var supportedOutputFormats: Set<FileFormat> {
         [
             // Audio
-            .mp3, .wav, .flac, .m4a, .aac, .ogg, .opus,
+            .mp3, .wav, .flac, .m4a, .aac, .ogg, .opus, .aiff, .caf, .alac, .ac3,
             // Video
-            .mp4, .mov, .mkv, .webm, .avi
+            .mp4, .mov, .mkv, .webm, .avi,
+            // Animated Image
+            .gif
         ]
     }
     
@@ -61,6 +65,16 @@ final class MediaConversionEngine: ConversionEngine, @unchecked Sendable {
             return true
         }
         
+        // 4. GIF → Video
+        if input == .gif && outCat == .video {
+            return true
+        }
+        
+        // 5. Video → GIF
+        if inCat == .video && output == .gif {
+            return true
+        }
+        
         return false
     }
     
@@ -72,15 +86,21 @@ final class MediaConversionEngine: ConversionEngine, @unchecked Sendable {
         
         if inCat == .audio {
             // Audio outputs
-            let audioOutputs: Set<FileFormat> = [.mp3, .wav, .flac, .m4a, .aac, .ogg, .opus]
+            let audioOutputs: Set<FileFormat> = [.mp3, .wav, .flac, .m4a, .aac, .ogg, .opus, .aiff, .caf, .alac, .ac3]
             formats.formUnion(audioOutputs)
         } else if inCat == .video {
             // Video outputs
             let videoOutputs: Set<FileFormat> = [.mp4, .mov, .mkv, .webm, .avi]
             formats.formUnion(videoOutputs)
             // Audio extraction outputs
-            let audioOutputs: Set<FileFormat> = [.mp3, .wav, .flac, .m4a, .aac, .ogg, .opus]
+            let audioOutputs: Set<FileFormat> = [.mp3, .wav, .flac, .m4a, .aac, .ogg, .opus, .aiff, .caf, .alac, .ac3]
             formats.formUnion(audioOutputs)
+            // GIF output
+            formats.insert(.gif)
+        } else if input == .gif {
+            // GIF to Video outputs
+            let videoOutputs: Set<FileFormat> = [.mp4, .mov, .mkv, .webm, .avi]
+            formats.formUnion(videoOutputs)
         }
         
         formats.remove(input)
@@ -94,6 +114,33 @@ final class MediaConversionEngine: ConversionEngine, @unchecked Sendable {
         var descriptors: [ConversionOptionDescriptor] = []
         
         let isVideoOutput = output.category == .video
+        let isVideoInput = input.category == .video
+        
+        // Filter presets based on media type
+        var validPresets: [ConversionPreset] = [.custom, .smallFile]
+        if isVideoOutput {
+            validPresets.append(contentsOf: [.web, .maximumQuality, .videoMaximumCompatibility])
+        } else {
+            validPresets.append(contentsOf: [.web, .maximumQuality])
+        }
+        
+        if isVideoInput {
+            validPresets.append(.audioOnly)
+        }
+        
+        // Ensure uniqueness and consistent ordering
+        let orderedPresets: [ConversionPreset] = ConversionPreset.allCases.filter { validPresets.contains($0) }
+        
+        // Smart Presets
+        descriptors.append(
+            ConversionOptionDescriptor(
+                id: "preset",
+                title: "Smart Preset",
+                description: "Auto-configure settings for common use cases",
+                kind: .preset(orderedPresets)
+            )
+        )
+        
         descriptors.append(
             ConversionOptionDescriptor(
                 id: "mediaQuality",
@@ -114,6 +161,17 @@ final class MediaConversionEngine: ConversionEngine, @unchecked Sendable {
             )
         )
         
+        if isVideoOutput {
+            descriptors.append(
+                ConversionOptionDescriptor(
+                    id: "targetFileSizeMB",
+                    title: "Target File Size",
+                    description: "Constrain output size by adjusting bitrate",
+                    kind: .targetSize([nil, 8.0, 25.0, 50.0, 100.0, 500.0])
+                )
+            )
+        }
+        
         return descriptors
     }
     
@@ -126,12 +184,13 @@ final class MediaConversionEngine: ConversionEngine, @unchecked Sendable {
     // MARK: - Conversion Execution
     
     func convert(
-        input: URL,
+        inputs: [URL],
         to outputFormat: FileFormat,
         outputDirectory: URL,
         options: ConversionOptions,
         progress: @Sendable (ConversionProgress) -> Void
     ) async throws -> ConversionResult {
+        guard let input = inputs.first else { throw ConversionError.invalidInput("No inputs") }
         let startTime = CFAbsoluteTimeGetCurrent()
         
         let finalURL = try await provider.convert(

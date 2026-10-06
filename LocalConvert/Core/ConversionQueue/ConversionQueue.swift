@@ -1,4 +1,5 @@
 import Foundation
+import AppKit
 import os.log
 
 // MARK: - Conversion Queue
@@ -10,7 +11,9 @@ final class ConversionQueue: ObservableObject {
     private let logger = Logger(subsystem: "com.localconvert.app", category: "ConversionQueue")
     
     /// Maximum number of concurrent conversions
-    let maxConcurrent: Int
+    var maxConcurrent: Int {
+        AppSettings.shared.concurrentConversions.count
+    }
     
     @Published private(set) var pendingJobs: [ConversionJob] = []
     @Published private(set) var activeJobCount: Int = 0
@@ -25,10 +28,8 @@ final class ConversionQueue: ObservableObject {
     private let conversionManager: ConversionManager
     
     init(
-        maxConcurrent: Int = 3,
         conversionManager: ConversionManager
     ) {
-        self.maxConcurrent = maxConcurrent
         self.conversionManager = conversionManager
     }
     
@@ -90,20 +91,24 @@ final class ConversionQueue: ObservableObject {
             activeJobCount += 1
             
             conversionManager.submit(job: job) { [weak self] status in
-                Task { @MainActor in
-                    self?.handleJobCompletion(status: status)
-                }
+                self?.handleJobCompletion(job: job, status: status)
             }
         }
     }
     
-    private func handleJobCompletion(status: ConversionJobStatus) {
+    private func handleJobCompletion(job: ConversionJob, status: ConversionJobStatus) {
         activeJobCount = max(0, activeJobCount - 1)
         switch status {
-        case .completed:
+        case .completed(let result):
             completedCount += 1
-        case .failed:
+            if totalCount == 1 {
+                AppNotificationManager.shared.notifyJobCompleted(job: job, result: result)
+            }
+        case .failed(let err):
             failedCount += 1
+            if totalCount == 1 {
+                AppNotificationManager.shared.notifyJobFailed(job: job, error: err)
+            }
         case .cancelled:
             cancelledCount += 1
         case .waiting, .converting:
@@ -112,7 +117,43 @@ final class ConversionQueue: ObservableObject {
         processNext()
         
         if activeJobCount == 0 && pendingJobs.isEmpty {
+            if totalCount > 1 {
+                AppNotificationManager.shared.notifyBatchCompleted(
+                    total: totalCount,
+                    completed: completedCount,
+                    failed: failedCount,
+                    cancelled: cancelledCount
+                )
+            }
+            executeAfterConversionAction()
             onQueueCompleted?()
+        }
+    }
+    
+    private func executeAfterConversionAction() {
+        let action = AppSettings.shared.afterConversionAction
+        guard action != .doNothing else { return }
+        
+        let completedResults = conversionManager.activeJobs.compactMap { conversionManager.result(for: $0.id) }
+        guard !completedResults.isEmpty else { return }
+        
+        let outputURLs = completedResults.map { $0.outputURL }
+        
+        switch action {
+        case .doNothing:
+            break
+        case .revealInFinder:
+            NSWorkspace.shared.activateFileViewerSelecting(outputURLs)
+        case .openOutputFile:
+            if outputURLs.count == 1, let first = outputURLs.first {
+                NSWorkspace.shared.open(first)
+            } else if let firstDir = outputURLs.first?.deletingLastPathComponent() {
+                NSWorkspace.shared.open(firstDir)
+            }
+        case .openOutputFolder:
+            if let firstDir = outputURLs.first?.deletingLastPathComponent() {
+                NSWorkspace.shared.open(firstDir)
+            }
         }
     }
 }

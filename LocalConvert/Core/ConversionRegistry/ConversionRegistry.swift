@@ -60,9 +60,14 @@ final class ConversionRegistry: @unchecked Sendable {
     }
     
     /// Find the best engine for a conversion
-    func findEngine(from input: FileFormat, to output: FileFormat) -> (any ConversionEngine)? {
+    func findEngine(from input: FileFormat, to output: FileFormat, options: ConversionOptions? = nil) -> (any ConversionEngine)? {
         lock.withLock {
-            engines.first { $0.canConvert(from: input, to: output) }
+            if options?.customOptions["pdf_operation"] != nil {
+                if let pdfToolbox = engines.first(where: { $0.name == "PDFToolboxEngine" && $0.canConvert(from: input, to: output) }) {
+                    return pdfToolbox
+                }
+            }
+            return engines.first { $0.canConvert(from: input, to: output) }
         }
     }
     
@@ -82,5 +87,78 @@ final class ConversionRegistry: @unchecked Sendable {
     /// Returns all registered engines
     var registeredEngines: [any ConversionEngine] {
         lock.withLock { engines }
+    }
+    
+    // MARK: - Smart Recommendations & Capability Validation
+    
+    /// Returns smart recommended output formats for a given input format, strictly filtered by actual registry support.
+    func recommendedOutputFormats(for inputFormat: FileFormat) -> [FileFormat] {
+        let supported = supportedOutputFormats(for: inputFormat)
+        var recommendations: [FileFormat] = []
+        
+        switch inputFormat.category {
+        case .image:
+            let preferred: [FileFormat] = [.webp, .jpg, .png, .pdf, .avif]
+            for target in preferred where supported.contains(target) {
+                recommendations.append(target)
+            }
+        case .document:
+            let preferred: [FileFormat] = [.pdf, .docx, .xlsx, .pptx]
+            for target in preferred where supported.contains(target) {
+                recommendations.append(target)
+            }
+        case .video:
+            let preferred: [FileFormat] = [.mp4, .webm, .mp3, .m4a]
+            for target in preferred where supported.contains(target) {
+                recommendations.append(target)
+            }
+        case .audio:
+            let preferred: [FileFormat] = [.mp3, .m4a, .flac, .wav]
+            for target in preferred where supported.contains(target) {
+                recommendations.append(target)
+            }
+        case .archive:
+            break
+        }
+        
+        let remaining = supported.subtracting(recommendations).sorted { $0.displayName < $1.displayName }
+        recommendations.append(contentsOf: remaining)
+        return recommendations
+    }
+    
+    /// Returns all presets supported for a specific conversion route based on engine option descriptors.
+    func supportedPresets(from input: FileFormat, to output: FileFormat) -> [ConversionPreset] {
+        let descriptors = optionDescriptors(from: input, to: output)
+        for descriptor in descriptors {
+            if case .preset(let presets) = descriptor.kind {
+                return presets
+            }
+        }
+        return [.custom]
+    }
+    
+    /// Validates if a preset can be applied to a given input format, checking both target format and route support.
+    func isPresetSupported(_ preset: ConversionPreset, for inputFormat: FileFormat) -> Bool {
+        if preset == .custom { return true }
+        
+        switch preset {
+        case .videoMaximumCompatibility:
+            guard inputFormat.category == .video else { return false }
+            return canConvert(from: inputFormat, to: .mp4)
+        case .audioOnly:
+            guard inputFormat.category == .video else { return false }
+            return canConvert(from: inputFormat, to: .mp3)
+        case .documentPDF, .documentPrintArchive:
+            guard inputFormat.category == .document else { return false }
+            return canConvert(from: inputFormat, to: .pdf)
+        case .documentEditable:
+            guard inputFormat == .pdf else { return false }
+            return canConvert(from: inputFormat, to: .docx)
+        case .web, .maximumQuality, .smallFile, .appleDevice:
+            let supported = supportedOutputFormats(for: inputFormat)
+            return !supported.isEmpty
+        case .custom:
+            return true
+        }
     }
 }

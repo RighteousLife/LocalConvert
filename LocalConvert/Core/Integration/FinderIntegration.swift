@@ -209,6 +209,7 @@ final class FinderHandoffHandler: Sendable {
     private let logger = Logger(subsystem: "com.localconvert.app", category: "ServicesProvider")
     
     var onFilesReceived: (@MainActor ([URL]) -> Void)?
+    var onFilesReceivedWithAction: (@MainActor ([URL], String) -> Void)?
     
     override init() {
         super.init()
@@ -219,7 +220,67 @@ final class FinderHandoffHandler: Sendable {
         userData: String,
         error: AutoreleasingUnsafeMutablePointer<NSString?>
     ) {
-        logger.info("handleServicesConvert received Service invocation from Finder")
+        processService(pboard, action: "convert")
+    }
+    
+    @objc func handleConvertPDF(
+        _ pboard: NSPasteboard,
+        userData: String,
+        error: AutoreleasingUnsafeMutablePointer<NSString?>
+    ) {
+        processService(pboard, action: "pdf")
+    }
+    
+    @objc func handleConvertWebP(
+        _ pboard: NSPasteboard,
+        userData: String,
+        error: AutoreleasingUnsafeMutablePointer<NSString?>
+    ) {
+        processService(pboard, action: "webp")
+    }
+    
+    @objc func handleConvertMP4(
+        _ pboard: NSPasteboard,
+        userData: String,
+        error: AutoreleasingUnsafeMutablePointer<NSString?>
+    ) {
+        processService(pboard, action: "mp4")
+    }
+    
+    @objc func handleExtractAudio(
+        _ pboard: NSPasteboard,
+        userData: String,
+        error: AutoreleasingUnsafeMutablePointer<NSString?>
+    ) {
+        processService(pboard, action: "extract_audio")
+    }
+    
+    @objc func handleMergePDFs(
+        _ pboard: NSPasteboard,
+        userData: String,
+        error: AutoreleasingUnsafeMutablePointer<NSString?>
+    ) {
+        processService(pboard, action: "merge_pdfs")
+    }
+    
+    @objc func handleExtractPDF(
+        _ pboard: NSPasteboard,
+        userData: String,
+        error: AutoreleasingUnsafeMutablePointer<NSString?>
+    ) {
+        processService(pboard, action: "extract_pdf")
+    }
+    
+    @objc func handleCompressPDF(
+        _ pboard: NSPasteboard,
+        userData: String,
+        error: AutoreleasingUnsafeMutablePointer<NSString?>
+    ) {
+        processService(pboard, action: "compress_pdf")
+    }
+    
+    private func processService(_ pboard: NSPasteboard, action: String) {
+        logger.info("Service invoked for action: \(action, privacy: .public)")
         let urls = FinderHandoffHandler.extractPasteboardURLs(pboard)
         guard !urls.isEmpty else {
             logger.warning("No URLs extracted from Service pasteboard")
@@ -227,10 +288,12 @@ final class FinderHandoffHandler: Sendable {
         }
         
         NSApp.activate(ignoringOtherApps: true)
-        if let callback = self.onFilesReceived {
-            callback(urls)
+        if let callbackWithAction = self.onFilesReceivedWithAction {
+            callbackWithAction(urls, action)
+        } else if let callback = self.onFilesReceived {
+            callback(urls) // Fallback for old behavior
         } else {
-            AppState.shared?.addFiles(urls: urls)
+            AppState.shared?.handleQuickAction(urls: urls, action: action)
         }
     }
 }

@@ -126,7 +126,13 @@ class BaseFFmpegProvider: FFmpegProvider, @unchecked Sendable {
         
         // 5. Run process and stream progress via stdout
         return try await withTaskCancellationHandler {
+            let stderrTask = Task { () -> Data in
+                return stderrPipe.fileHandleForReading.readDataToEndOfFile()
+            }
+            
             try process.run()
+            try? stdoutPipe.fileHandleForWriting.close()
+            try? stderrPipe.fileHandleForWriting.close()
             
             for try await line in stdoutPipe.fileHandleForReading.bytes.lines {
                 try Task.checkCancellation()
@@ -143,14 +149,20 @@ class BaseFFmpegProvider: FFmpegProvider, @unchecked Sendable {
                 }
             }
             
-            process.waitUntilExit()
+            if process.isRunning {
+                await withCheckedContinuation { continuation in
+                    process.terminationHandler = { _ in
+                        continuation.resume()
+                    }
+                }
+            }
             try Task.checkCancellation()
             
+            let errorData = await stderrTask.value
             guard process.terminationStatus == 0 else {
-                let errorData = stderrPipe.fileHandleForReading.readDataToEndOfFile()
                 let errorString = String(data: errorData, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines)
-                
-                logger.error("FFmpeg conversion failed (exit code \(process.terminationStatus)): \(errorString ?? "none", privacy: .public)")
+                let safeError = errorString ?? "none"
+                logger.error("FFmpeg conversion failed (exit code \(process.terminationStatus)): \(safeError, privacy: .public)")
                 
                 throw ConversionError.engineExecutionFailed(
                     "The media file could not be converted. The source file may be corrupted or in an unsupported codec format.",
@@ -220,18 +232,39 @@ class BaseFFmpegProvider: FFmpegProvider, @unchecked Sendable {
             if sourceIsVideo {
                 args.append("-vn") // Strip video stream
             }
+            args.append("-sn")     // Strip subtitle streams from audio outputs
             args += audioEncodingArguments(for: outputFormat, options: options)
             
-        } else if targetCategory == .video {
-            // Video output (Video to Video)
-            let isStreamCopyable = canStreamCopy(inputInfo: inputInfo, targetFormat: outputFormat)
-            
-            if isStreamCopyable {
-                logger.info("Using stream copy for \(inputURL.lastPathComponent) -> \(outputFormat.rawValue)")
-                args += ["-c", "copy"]
+        } else if targetCategory == .video || outputFormat == .gif {
+            // Video or Animated Image output
+            if outputFormat == .gif {
+                // Video to GIF uses high quality palette filter and omits subtitles
+                args += [
+                    "-filter_complex", "[0:v] fps=15,scale=min(640\\,iw):-1:flags=lanczos,split [a][b];[a] palettegen=stats_mode=diff [p];[b][p] paletteuse=dither=bayer:bayer_scale=5:diff_mode=rectangle"
+                ]
             } else {
-                args += videoEncodingArguments(for: outputFormat, options: options)
-                args += audioEncodingArgumentsForVideo(targetFormat: outputFormat)
+                let isStreamCopyable = canStreamCopy(inputInfo: inputInfo, targetFormat: outputFormat)
+                
+                if isStreamCopyable {
+                    logger.info("Using stream copy for \(inputURL.lastPathComponent) -> \(outputFormat.rawValue)")
+                    args += ["-c", "copy"]
+                } else {
+                    args += videoEncodingArguments(for: outputFormat, options: options, duration: inputInfo.duration)
+                    args += audioEncodingArgumentsForVideo(targetFormat: outputFormat)
+                    
+                    // Route-aware subtitle preservation during video transcoding
+                    if inputInfo.hasSubtitles {
+                        if outputFormat == .mp4 || outputFormat == .mov {
+                            args += ["-c:s", "mov_text"]
+                        } else if outputFormat == .mkv {
+                            args += ["-c:s", "copy"]
+                        } else if outputFormat == .webm {
+                            args += ["-c:s", "webvtt"]
+                        } else {
+                            args += ["-sn"]
+                        }
+                    }
+                }
             }
         }
         
@@ -309,6 +342,22 @@ class BaseFFmpegProvider: FFmpegProvider, @unchecked Sendable {
         case .aiff:
             return ["-c:a", "pcm_s16be"]
             
+        case .caf:
+            return ["-c:a", "pcm_s16le"]
+            
+        case .alac:
+            return ["-c:a", "alac", "-f", "ipod"]
+            
+        case .ac3:
+            let bitrate: String
+            switch quality {
+            case .low: bitrate = "192k"
+            case .medium: bitrate = "384k"
+            case .high: bitrate = "448k"
+            case .maximum: bitrate = "640k"
+            }
+            return ["-c:a", "ac3", "-b:a", bitrate]
+            
         default:
             return ["-c:a", "libmp3lame"]
         }
@@ -316,8 +365,20 @@ class BaseFFmpegProvider: FFmpegProvider, @unchecked Sendable {
     
     // MARK: - Video Encoding Arguments
     
-    func videoEncodingArguments(for format: FileFormat, options: ConversionOptions) -> [String] {
+    func videoEncodingArguments(for format: FileFormat, options: ConversionOptions, duration: Double) -> [String] {
         let quality = options.effectiveMediaQuality
+        let evenScaleFilter = "scale=trunc(iw/2)*2:trunc(ih/2)*2"
+        
+        var targetVideoBitrate: String? = nil
+        if let targetMB = options.targetFileSizeMB, duration > 0 {
+            // Allocate 128kbps for audio, rest for video.
+            // Target bits = targetMB * 8 * 1024 * 1024
+            let targetBits = targetMB * 8388608.0
+            let audioBits = 128000.0 * duration
+            let videoBits = max(100000.0, targetBits - audioBits)
+            let videoBps = videoBits / duration
+            targetVideoBitrate = "\(Int(videoBps))"
+        }
         
         switch format {
         case .mp4, .mov, .mkv:
@@ -329,11 +390,19 @@ class BaseFFmpegProvider: FFmpegProvider, @unchecked Sendable {
             case .high: q = "75"
             case .maximum: q = "90"
             }
-            return [
+            
+            var args = [
                 "-c:v", "h264_videotoolbox",
-                "-q:v", q,
-                "-pix_fmt", "yuv420p"
+                "-pix_fmt", "yuv420p",
+                "-vf", evenScaleFilter
             ]
+            
+            if let bitrate = targetVideoBitrate {
+                args += ["-b:v", bitrate, "-maxrate", bitrate, "-bufsize", "\(Int(Double(bitrate)! * 2))"]
+            } else {
+                args += ["-q:v", q]
+            }
+            return args
             
         case .webm:
             // VP9 with CRF
@@ -344,12 +413,19 @@ class BaseFFmpegProvider: FFmpegProvider, @unchecked Sendable {
             case .high: crf = "25"
             case .maximum: crf = "18"
             }
-            return [
+            
+            var args = [
                 "-c:v", "libvpx-vp9",
-                "-crf", crf,
-                "-b:v", "0",
-                "-pix_fmt", "yuv420p"
+                "-pix_fmt", "yuv420p",
+                "-vf", evenScaleFilter
             ]
+            
+            if let bitrate = targetVideoBitrate {
+                args += ["-b:v", bitrate, "-maxrate", bitrate, "-bufsize", "\(Int(Double(bitrate)! * 2))"]
+            } else {
+                args += ["-crf", crf, "-b:v", "0"]
+            }
+            return args
             
         case .avi:
             return [

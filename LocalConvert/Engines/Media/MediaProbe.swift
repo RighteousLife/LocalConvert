@@ -29,8 +29,17 @@ struct MediaProbe: Sendable {
         process.standardOutput = stdoutPipe
         process.standardError = stderrPipe
         
+        let stdoutTask = Task { () -> Data in
+            return stdoutPipe.fileHandleForReading.readDataToEndOfFile()
+        }
+        let stderrTask = Task { () -> Data in
+            return stderrPipe.fileHandleForReading.readDataToEndOfFile()
+        }
+        
         do {
             try process.run()
+            try? stdoutPipe.fileHandleForWriting.close()
+            try? stderrPipe.fileHandleForWriting.close()
         } catch {
             throw ConversionError.engineExecutionFailed(
                 "Failed to execute ffprobe: \(error.localizedDescription)",
@@ -38,11 +47,17 @@ struct MediaProbe: Sendable {
             )
         }
         
-        let outputData = stdoutPipe.fileHandleForReading.readDataToEndOfFile()
-        process.waitUntilExit()
+        if process.isRunning {
+            await withCheckedContinuation { continuation in
+                process.terminationHandler = { _ in
+                    continuation.resume()
+                }
+            }
+        }
+        let outputData = await stdoutTask.value
+        let errorData = await stderrTask.value
         
         guard process.terminationStatus == 0 else {
-            let errorData = stderrPipe.fileHandleForReading.readDataToEndOfFile()
             let errorMsg = String(data: errorData, encoding: .utf8) ?? "Unknown ffprobe error"
             throw ConversionError.invalidInput("The media file could not be read or parsed by ffprobe: \(errorMsg)")
         }

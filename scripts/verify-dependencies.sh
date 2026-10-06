@@ -102,6 +102,29 @@ else
 fi
 
 echo ""
+echo "▶ Checking App Icon Metadata..."
+INFO_PLIST="${REPO_ROOT}/LocalConvert/Info.plist"
+if [[ -f "${INFO_PLIST}" ]]; then
+    if grep -q "CFBundleIconName" "${INFO_PLIST}" && grep -q "AppIcon" "${INFO_PLIST}"; then
+        echo "✅ CFBundleIconName is configured correctly in Info.plist"
+    else
+        echo "❌ CFBundleIconName missing or incorrect in Info.plist!"
+        FAILURES=$((FAILURES + 1))
+    fi
+else
+    echo "❌ Info.plist not found at ${INFO_PLIST}"
+    FAILURES=$((FAILURES + 1))
+fi
+
+APP_ICON_SET="${REPO_ROOT}/LocalConvert/Assets.xcassets/AppIcon.appiconset/Contents.json"
+if [[ -f "${APP_ICON_SET}" ]]; then
+    echo "✅ AppIcon asset directory and Contents.json found"
+else
+    echo "❌ AppIcon asset directory or Contents.json missing!"
+    FAILURES=$((FAILURES + 1))
+fi
+
+echo ""
 if [[ ${FAILURES} -eq 0 ]]; then
     echo "🎉 All checked dependencies and binary requirements passed audit!"
     exit 0

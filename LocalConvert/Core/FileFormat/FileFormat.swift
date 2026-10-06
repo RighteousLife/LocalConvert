@@ -3,7 +3,7 @@ import UniformTypeIdentifiers
 
 // MARK: - Format Category
 
-enum FormatCategory: String, Sendable, CaseIterable, Identifiable {
+enum FormatCategory: String, Sendable, CaseIterable, Identifiable, Codable {
     case document = "Documents"
     case image = "Images"
     case audio = "Audio"
@@ -25,7 +25,7 @@ enum FormatCategory: String, Sendable, CaseIterable, Identifiable {
 
 // MARK: - Format Group (UI Grouping)
 
-enum FormatGroup: String, Sendable, CaseIterable, Identifiable {
+enum FormatGroup: String, Sendable, CaseIterable, Identifiable, Codable {
     case images = "Images"
     case documents = "Documents"
     case spreadsheets = "Spreadsheets"
@@ -53,7 +53,7 @@ enum FormatGroup: String, Sendable, CaseIterable, Identifiable {
 
 // MARK: - File Format
 
-enum FileFormat: String, Sendable, Hashable, CaseIterable, Identifiable {
+enum FileFormat: String, Sendable, Hashable, CaseIterable, Identifiable, Codable {
     // Documents
     case pdf
     case docx
@@ -69,6 +69,7 @@ enum FileFormat: String, Sendable, Hashable, CaseIterable, Identifiable {
     case txt
     case html
     case csv
+    case tsv
     
     // Images
     case jpg
@@ -81,6 +82,10 @@ enum FileFormat: String, Sendable, Hashable, CaseIterable, Identifiable {
     case svg
     case ico
     case avif
+    case dng
+    case icns
+    case psd
+    case tga
     
     // Audio
     case mp3
@@ -91,6 +96,9 @@ enum FileFormat: String, Sendable, Hashable, CaseIterable, Identifiable {
     case ogg
     case opus
     case aiff
+    case caf
+    case alac
+    case ac3
     
     // Video
     case mp4
@@ -100,6 +108,9 @@ enum FileFormat: String, Sendable, Hashable, CaseIterable, Identifiable {
     case avi
     case wmv
     case m4v
+    case threeGP = "3gp"
+    case mts
+    case m2ts
     
     // Archives
     case zip
@@ -116,13 +127,13 @@ enum FileFormat: String, Sendable, Hashable, CaseIterable, Identifiable {
     
     var category: FormatCategory {
         switch self {
-        case .pdf, .docx, .xlsx, .pptx, .doc, .xls, .ppt, .odt, .ods, .odp, .rtf, .txt, .html, .csv:
+        case .pdf, .docx, .xlsx, .pptx, .doc, .xls, .ppt, .odt, .ods, .odp, .rtf, .txt, .html, .csv, .tsv:
             return .document
-        case .jpg, .png, .heic, .webp, .tiff, .bmp, .gif, .svg, .ico, .avif:
+        case .jpg, .png, .heic, .webp, .tiff, .bmp, .gif, .svg, .ico, .avif, .dng, .icns, .psd, .tga:
             return .image
-        case .mp3, .wav, .flac, .aac, .m4a, .ogg, .opus, .aiff:
+        case .mp3, .wav, .flac, .aac, .m4a, .ogg, .opus, .aiff, .caf, .alac, .ac3:
             return .audio
-        case .mp4, .mov, .mkv, .webm, .avi, .wmv, .m4v:
+        case .mp4, .mov, .mkv, .webm, .avi, .wmv, .m4v, .threeGP, .mts, .m2ts:
             return .video
         case .zip, .tar, .gz, .tgz, .sevenZ, .bz2, .xz:
             return .archive
@@ -137,15 +148,15 @@ enum FileFormat: String, Sendable, Hashable, CaseIterable, Identifiable {
             return .pdf
         case .docx, .doc, .odt, .rtf, .txt, .html:
             return .documents
-        case .xlsx, .xls, .ods, .csv:
+        case .xlsx, .xls, .ods, .csv, .tsv:
             return .spreadsheets
         case .pptx, .ppt, .odp:
             return .presentations
-        case .jpg, .png, .heic, .webp, .tiff, .bmp, .gif, .svg, .ico, .avif:
+        case .jpg, .png, .heic, .webp, .tiff, .bmp, .gif, .svg, .ico, .avif, .dng, .icns, .psd, .tga:
             return .images
-        case .mp3, .wav, .flac, .aac, .m4a, .ogg, .opus, .aiff:
+        case .mp3, .wav, .flac, .aac, .m4a, .ogg, .opus, .aiff, .caf, .alac, .ac3:
             return .audio
-        case .mp4, .mov, .mkv, .webm, .avi, .wmv, .m4v:
+        case .mp4, .mov, .mkv, .webm, .avi, .wmv, .m4v, .threeGP, .mts, .m2ts:
             return .video
         case .zip, .tar, .gz, .tgz, .sevenZ, .bz2, .xz:
             return .archives
@@ -157,6 +168,7 @@ enum FileFormat: String, Sendable, Hashable, CaseIterable, Identifiable {
     var fileExtension: String {
         switch self {
         case .sevenZ: return "7z"
+        case .threeGP: return "3gp"
         case .jpg: return "jpg" // Also accepts jpeg
         case .heic: return "heic" // Also accepts heif
         case .tgz: return "tgz" // Also accepts tar.gz
@@ -182,6 +194,7 @@ enum FileFormat: String, Sendable, Hashable, CaseIterable, Identifiable {
         case .txt: return "Plain Text"
         case .html: return "HTML"
         case .csv: return "CSV"
+        case .tsv: return "TSV"
         case .jpg: return "JPEG Image"
         case .png: return "PNG Image"
         case .heic: return "HEIC Image"
@@ -192,6 +205,10 @@ enum FileFormat: String, Sendable, Hashable, CaseIterable, Identifiable {
         case .svg: return "SVG Image"
         case .ico: return "Icon"
         case .avif: return "AVIF Image"
+        case .dng: return "DNG / Apple ProRAW"
+        case .icns: return "Apple Icon"
+        case .psd: return "Photoshop Document"
+        case .tga: return "TGA Image"
         case .mp3: return "MP3 Audio"
         case .wav: return "WAV Audio"
         case .flac: return "FLAC Audio"
@@ -200,6 +217,9 @@ enum FileFormat: String, Sendable, Hashable, CaseIterable, Identifiable {
         case .ogg: return "OGG Audio"
         case .opus: return "Opus Audio"
         case .aiff: return "AIFF Audio"
+        case .caf: return "Core Audio Format"
+        case .alac: return "Apple Lossless Audio"
+        case .ac3: return "Dolby Digital AC-3"
         case .mp4: return "MP4 Video"
         case .mov: return "QuickTime Video"
         case .mkv: return "MKV Video"
@@ -207,6 +227,9 @@ enum FileFormat: String, Sendable, Hashable, CaseIterable, Identifiable {
         case .avi: return "AVI Video"
         case .wmv: return "WMV Video"
         case .m4v: return "M4V Video"
+        case .threeGP: return "3GP Video"
+        case .mts: return "AVCHD Video (MTS)"
+        case .m2ts: return "Blu-ray Video (M2TS)"
         case .zip: return "ZIP Archive"
         case .tar: return "TAR Archive"
         case .gz: return "GZip Archive"
@@ -235,6 +258,7 @@ enum FileFormat: String, Sendable, Hashable, CaseIterable, Identifiable {
         case .txt: return "text/plain"
         case .html: return "text/html"
         case .csv: return "text/csv"
+        case .tsv: return "text/tab-separated-values"
         case .jpg: return "image/jpeg"
         case .png: return "image/png"
         case .heic: return "image/heic"
@@ -245,6 +269,10 @@ enum FileFormat: String, Sendable, Hashable, CaseIterable, Identifiable {
         case .svg: return "image/svg+xml"
         case .ico: return "image/x-icon"
         case .avif: return "image/avif"
+        case .dng: return "image/x-adobe-dng"
+        case .icns: return "image/x-icns"
+        case .psd: return "image/vnd.adobe.photoshop"
+        case .tga: return "image/x-tga"
         case .mp3: return "audio/mpeg"
         case .wav: return "audio/wav"
         case .flac: return "audio/flac"
@@ -253,6 +281,9 @@ enum FileFormat: String, Sendable, Hashable, CaseIterable, Identifiable {
         case .ogg: return "audio/ogg"
         case .opus: return "audio/opus"
         case .aiff: return "audio/aiff"
+        case .caf: return "audio/x-caf"
+        case .alac: return "audio/alac"
+        case .ac3: return "audio/ac3"
         case .mp4: return "video/mp4"
         case .mov: return "video/quicktime"
         case .mkv: return "video/x-matroska"
@@ -260,6 +291,9 @@ enum FileFormat: String, Sendable, Hashable, CaseIterable, Identifiable {
         case .avi: return "video/x-msvideo"
         case .wmv: return "video/x-ms-wmv"
         case .m4v: return "video/x-m4v"
+        case .threeGP: return "video/3gpp"
+        case .mts: return "video/mp2t"
+        case .m2ts: return "video/mp2t"
         case .zip: return "application/zip"
         case .tar: return "application/x-tar"
         case .gz: return "application/gzip"
@@ -288,6 +322,7 @@ enum FileFormat: String, Sendable, Hashable, CaseIterable, Identifiable {
         case .txt: return .plainText
         case .html: return .html
         case .csv: return .commaSeparatedText
+        case .tsv: return .tabSeparatedText
         case .jpg: return .jpeg
         case .png: return .png
         case .heic: return .heic
@@ -298,6 +333,10 @@ enum FileFormat: String, Sendable, Hashable, CaseIterable, Identifiable {
         case .svg: return .svg
         case .ico: return .ico
         case .avif: return UTType("public.avif")
+        case .dng: return UTType("com.adobe.raw-image") ?? UTType("public.dng")
+        case .icns: return .icns
+        case .psd: return UTType("com.adobe.photoshop-image")
+        case .tga: return UTType("com.truevision.tga-image") ?? UTType("public.targa-image")
         case .mp3: return .mp3
         case .wav: return .wav
         case .flac: return UTType("org.xiph.flac")
@@ -306,6 +345,9 @@ enum FileFormat: String, Sendable, Hashable, CaseIterable, Identifiable {
         case .ogg: return UTType("org.xiph.ogg-vorbis")
         case .opus: return UTType("org.xiph.opus")
         case .aiff: return .aiff
+        case .caf: return UTType("com.apple.coreaudio-format")
+        case .alac: return UTType("com.apple.m4a-audio") ?? UTType("public.alac")
+        case .ac3: return UTType("public.ac3-audio") ?? UTType("com.dolby.ac-3")
         case .mp4: return .mpeg4Movie
         case .mov: return .quickTimeMovie
         case .mkv: return UTType("org.matroska.mkv")
@@ -313,6 +355,9 @@ enum FileFormat: String, Sendable, Hashable, CaseIterable, Identifiable {
         case .avi: return .avi
         case .wmv: return UTType("com.microsoft.windows-media-wmv")
         case .m4v: return UTType("com.apple.m4v-video")
+        case .threeGP: return UTType("public.3gpp")
+        case .mts: return UTType("public.mpeg-2-transport-stream") ?? UTType("public.avchd-mpeg-2")
+        case .m2ts: return UTType("public.mpeg-2-transport-stream") ?? UTType("public.avchd-mpeg-2")
         case .zip: return .zip
         case .tar: return UTType("public.tar-archive")
         case .gz: return .gzip
@@ -339,6 +384,10 @@ enum FileFormat: String, Sendable, Hashable, CaseIterable, Identifiable {
         case "heif": return .heic
         case "tar.gz": return .tgz
         case "7z": return .sevenZ
+        case "3gp", "3gpp", "3g2": return .threeGP
+        case "targa": return .tga
+        case "eac3": return .ac3
+        case "aif", "aifc": return .aiff
         default:
             return FileFormat(rawValue: lowercased)
         }

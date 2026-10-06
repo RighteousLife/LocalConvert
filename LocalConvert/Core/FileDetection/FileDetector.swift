@@ -85,6 +85,22 @@ struct FileDetector: Sendable {
         ([0x66, 0x74, 0x79, 0x70], 4, .mp4),
         // AVI (RIFF....AVI )
         ([0x52, 0x49, 0x46, 0x46], 0, .avi), // Needs secondary check for AVI  at offset 8
+        // ICNS (icns)
+        ([0x69, 0x63, 0x6E, 0x73], 0, .icns),
+        // PSD (8BPS)
+        ([0x38, 0x42, 0x50, 0x53], 0, .psd),
+        // CAF (caff)
+        ([0x63, 0x61, 0x66, 0x66], 0, .caf),
+        // AC3 sync word
+        ([0x0B, 0x77], 0, .ac3),
+        // ICO (00 00 01 00)
+        ([0x00, 0x00, 0x01, 0x00], 0, .ico),
+        // RTF ({\rtf1)
+        ([0x7B, 0x5C, 0x72, 0x74, 0x66, 0x31], 0, .rtf),
+        // SVG (<svg)
+        ([0x3C, 0x73, 0x76, 0x67], 0, .svg),
+        // XML (<?xml) - often SVG
+        ([0x3C, 0x3F, 0x78, 0x6D, 0x6C], 0, .svg),
     ]
     
     // MARK: - Public API
@@ -121,6 +137,10 @@ struct FileDetector: Sendable {
         return result
     }
     
+    static func detectFormat(url: URL) -> FileFormat? {
+        FileDetector().detect(url: url).bestFormat
+    }
+    
     // MARK: - Detection Methods
     
     private func detectByExtension(url: URL) -> FileFormat? {
@@ -155,12 +175,21 @@ struct FileDetector: Sendable {
             }
         }
         
-        // Check HEIC/HEIF / MP4 / MOV / M4A (ftyp box)
+        // Check HEIC/HEIF / MP4 / MOV / M4A / 3GP (ftyp box)
         if bytes.count >= 12 && bytes[4] == 0x66 && bytes[5] == 0x74 && bytes[6] == 0x79 && bytes[7] == 0x70 {
             let brand = String(bytes: Array(bytes[8..<12]), encoding: .ascii)?.lowercased() ?? ""
             let ext = url.pathExtension.lowercased()
+            if brand.hasPrefix("3gp") || brand.hasPrefix("3g2") || brand.hasPrefix("3ge") || brand.hasPrefix("3gg") || ext == "3gp" || ext == "3gpp" || ext == "3g2" {
+                return .threeGP
+            }
+            if brand.hasPrefix("avif") || brand.hasPrefix("avis") {
+                return .avif
+            }
             if brand.hasPrefix("heic") || brand.hasPrefix("heif") || brand.hasPrefix("mif1") {
                 return .heic
+            }
+            if brand.hasPrefix("alac") || ext == "alac" {
+                return .alac
             }
             if brand.hasPrefix("m4a") || brand.hasPrefix("m4b") || ext == "m4a" {
                 return .m4a
@@ -174,6 +203,26 @@ struct FileDetector: Sendable {
             // Fallback for general MP4 containers
             if ext == "m4v" { return .m4v }
             return .mp4
+        }
+        
+        // Check MPEG transport stream sync byte 0x47 (MTS / M2TS)
+        if bytes.first == 0x47 {
+            let ext = url.pathExtension.lowercased()
+            if ext == "m2ts" {
+                return .m2ts
+            }
+            if ext == "mts" {
+                return .mts
+            }
+        }
+        
+        // Check TIFF / DNG
+        if (bytes.starts(with: [0x49, 0x49, 0x2A, 0x00]) || bytes.starts(with: [0x4D, 0x4D, 0x00, 0x2A])) {
+            let ext = url.pathExtension.lowercased()
+            if ext == "dng" {
+                return .dng
+            }
+            return .tiff
         }
         
         // Check EBML header (Matroska / WebM)

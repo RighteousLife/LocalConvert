@@ -58,12 +58,13 @@ final class PDFConversionEngine: ConversionEngine, @unchecked Sendable {
     }
     
     func convert(
-        input: URL,
+        inputs: [URL],
         to outputFormat: FileFormat,
         outputDirectory: URL,
         options: ConversionOptions,
         progress: @Sendable (ConversionProgress) -> Void
     ) async throws -> ConversionResult {
+        guard let input = inputs.first else { throw ConversionError.invalidInput("No inputs") }
         let startTime = CFAbsoluteTimeGetCurrent()
         
         try Task.checkCancellation()
@@ -82,6 +83,16 @@ final class PDFConversionEngine: ConversionEngine, @unchecked Sendable {
         
         guard let pdfDocument = PDFDocument(url: input) else {
             throw ConversionError.invalidInput("The PDF file could not be opened. It may be corrupted or invalid.")
+        }
+        
+        if pdfDocument.isLocked {
+            if let pwd = options.customOptions["pdf_password"], !pwd.isEmpty {
+                guard pdfDocument.unlock(withPassword: pwd) else {
+                    throw ConversionError.invalidInput("Incorrect password for protected PDF document '\(input.lastPathComponent)'.")
+                }
+            } else {
+                throw ConversionError.invalidInput("The PDF file '\(input.lastPathComponent)' is password-protected. Please provide a password.")
+            }
         }
         
         let pageCount = pdfDocument.pageCount

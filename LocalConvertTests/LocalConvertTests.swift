@@ -1073,7 +1073,7 @@ struct RealImageConversionTests {
         
         let input = try TestFixtureFactory.createJPEG(in: dir)
         let result = try await engine.convert(
-            input: input,
+            inputs: [input],
             to: .png,
             outputDirectory: dir,
             options: .default,
@@ -1093,7 +1093,7 @@ struct RealImageConversionTests {
         
         let input = try TestFixtureFactory.createPNG(in: dir)
         let result = try await engine.convert(
-            input: input,
+            inputs: [input],
             to: .jpg,
             outputDirectory: dir,
             options: .default,
@@ -1113,7 +1113,7 @@ struct RealImageConversionTests {
         
         let input = try TestFixtureFactory.createHEIC(in: dir)
         let result = try await engine.convert(
-            input: input,
+            inputs: [input],
             to: .jpg,
             outputDirectory: dir,
             options: .default,
@@ -1131,7 +1131,7 @@ struct RealImageConversionTests {
         
         let input = try TestFixtureFactory.createHEIC(in: dir)
         let result = try await engine.convert(
-            input: input,
+            inputs: [input],
             to: .png,
             outputDirectory: dir,
             options: .default,
@@ -1149,7 +1149,7 @@ struct RealImageConversionTests {
         
         let input = try TestFixtureFactory.createWebP(in: dir)
         let result = try await engine.convert(
-            input: input,
+            inputs: [input],
             to: .png,
             outputDirectory: dir,
             options: .default,
@@ -1167,7 +1167,7 @@ struct RealImageConversionTests {
         
         let input = try TestFixtureFactory.createWebP(in: dir)
         let result = try await engine.convert(
-            input: input,
+            inputs: [input],
             to: .jpg,
             outputDirectory: dir,
             options: .default,
@@ -1185,7 +1185,7 @@ struct RealImageConversionTests {
         
         let input = try TestFixtureFactory.createJPEG(in: dir)
         let result = try await engine.convert(
-            input: input,
+            inputs: [input],
             to: .pdf,
             outputDirectory: dir,
             options: .default,
@@ -1203,7 +1203,7 @@ struct RealImageConversionTests {
         
         let input = try TestFixtureFactory.createPNG(in: dir)
         let result = try await engine.convert(
-            input: input,
+            inputs: [input],
             to: .pdf,
             outputDirectory: dir,
             options: .default,
@@ -1221,7 +1221,7 @@ struct RealImageConversionTests {
         
         let input = try TestFixtureFactory.createHEIC(in: dir)
         let result = try await engine.convert(
-            input: input,
+            inputs: [input],
             to: .pdf,
             outputDirectory: dir,
             options: .default,
@@ -1247,7 +1247,7 @@ struct RealImageConversionTests {
             customOptions: [:]
         )
         let highResult = try await engine.convert(
-            input: input,
+            inputs: [input],
             to: .jpg,
             outputDirectory: dir,
             options: highOptions,
@@ -1264,7 +1264,7 @@ struct RealImageConversionTests {
             customOptions: [:]
         )
         let lowResult = try await engine.convert(
-            input: input,
+            inputs: [input],
             to: .jpg,
             outputDirectory: lowDir,
             options: lowOptions,
@@ -1283,7 +1283,7 @@ struct RealImageConversionTests {
         
         await #expect(throws: ConversionError.self) {
             try await engine.convert(
-                input: input,
+                inputs: [input],
                 to: .png,
                 outputDirectory: dir,
                 options: .default,
@@ -1299,7 +1299,7 @@ struct RealImageConversionTests {
         
         await #expect(throws: ConversionError.self) {
             try await engine.convert(
-                input: missing,
+                inputs: [missing],
                 to: .jpg,
                 outputDirectory: dir,
                 options: .default,
@@ -1323,7 +1323,7 @@ struct RealPDFConversionTests {
         
         let input = try TestFixtureFactory.createSinglePagePDF(in: dir)
         let result = try await engine.convert(
-            input: input,
+            inputs: [input],
             to: .png,
             outputDirectory: dir,
             options: .default,
@@ -1343,7 +1343,7 @@ struct RealPDFConversionTests {
         
         let input = try TestFixtureFactory.createSinglePagePDF(in: dir)
         let result = try await engine.convert(
-            input: input,
+            inputs: [input],
             to: .jpg,
             outputDirectory: dir,
             options: .default,
@@ -1362,7 +1362,7 @@ struct RealPDFConversionTests {
         
         let input = try TestFixtureFactory.createMultiPagePDF(in: dir, pages: 3)
         let result = try await engine.convert(
-            input: input,
+            inputs: [input],
             to: .png,
             outputDirectory: dir,
             options: .default,
@@ -1387,7 +1387,7 @@ struct RealPDFConversionTests {
         
         let input = try TestFixtureFactory.createMultiPagePDF(in: dir, pages: 2)
         let result = try await engine.convert(
-            input: input,
+            inputs: [input],
             to: .tiff,
             outputDirectory: dir,
             options: .default,
@@ -1416,7 +1416,7 @@ struct RealPDFConversionTests {
             customOptions: [:]
         )
         let lowResult = try await engine.convert(
-            input: input,
+            inputs: [input],
             to: .png,
             outputDirectory: dir,
             options: lowDPIOptions,
@@ -1433,7 +1433,7 @@ struct RealPDFConversionTests {
             customOptions: [:]
         )
         let highResult = try await engine.convert(
-            input: input,
+            inputs: [input],
             to: .png,
             outputDirectory: highDir,
             options: highDPIOptions,
@@ -1459,7 +1459,7 @@ struct RealPDFConversionTests {
         
         await #expect(throws: ConversionError.self) {
             try await engine.convert(
-                input: corrupt,
+                inputs: [corrupt],
                 to: .png,
                 outputDirectory: dir,
                 options: .default,
@@ -1487,15 +1487,15 @@ struct BatchConversionQueueTests {
         }
         
         let manager = ConversionManager(registry: registry)
-        let queue = ConversionQueue(maxConcurrent: 2, conversionManager: manager)
+        let queue = ConversionQueue(conversionManager: manager)
         
         let file1 = try TestFixtureFactory.createPNG(in: dir, name: "file1.png")
         let file2 = try TestFixtureFactory.createPNG(in: dir, name: "file2.png")
         let file3 = try TestFixtureFactory.createPNG(in: dir, name: "file3.png")
         
-        let job1 = ConversionJob(inputURL: file1, inputFormat: .png, outputFormat: .jpg, outputDirectory: dir)
-        let job2 = ConversionJob(inputURL: file2, inputFormat: .png, outputFormat: .jpg, outputDirectory: dir)
-        let job3 = ConversionJob(inputURL: file3, inputFormat: .png, outputFormat: .jpg, outputDirectory: dir)
+        let job1 = ConversionJob(inputURLs: [file1], inputFormat: .png, outputFormat: .jpg, outputDirectory: dir)
+        let job2 = ConversionJob(inputURLs: [file2], inputFormat: .png, outputFormat: .jpg, outputDirectory: dir)
+        let job3 = ConversionJob(inputURLs: [file3], inputFormat: .png, outputFormat: .jpg, outputDirectory: dir)
         
         queue.enqueue(jobs: [job1, job2, job3])
         
@@ -1603,7 +1603,7 @@ struct OfficeEngineProviderTests {
         
         await #expect(throws: ConversionError.self) {
             try await engine.convert(
-                input: fakeInput,
+                inputs: [fakeInput],
                 to: .pdf,
                 outputDirectory: dir,
                 options: .default,
@@ -1631,7 +1631,7 @@ struct RealOfficeConversionTests {
         
         let input = try TestFixtureFactory.createDOCX(in: dir, name: "document.docx", text: "LocalConvert Test Document")
         let result = try await engine.convert(
-            input: input,
+            inputs: [input],
             to: .pdf,
             outputDirectory: dir,
             options: .default,
@@ -1656,7 +1656,7 @@ struct RealOfficeConversionTests {
         
         let input = try TestFixtureFactory.createXLSX(in: dir, name: "spreadsheet.xlsx", text: "LocalConvert", number: "123")
         let result = try await engine.convert(
-            input: input,
+            inputs: [input],
             to: .pdf,
             outputDirectory: dir,
             options: .default,
@@ -1681,7 +1681,7 @@ struct RealOfficeConversionTests {
         
         let input = try TestFixtureFactory.createPPTX(in: dir, name: "presentation.pptx", title: "LocalConvert Test Presentation")
         let result = try await engine.convert(
-            input: input,
+            inputs: [input],
             to: .pdf,
             outputDirectory: dir,
             options: .default,
@@ -1711,15 +1711,15 @@ struct RealOfficeConversionTests {
         }
         
         let manager = ConversionManager(registry: registry)
-        let queue = ConversionQueue(maxConcurrent: 2, conversionManager: manager)
+        let queue = ConversionQueue(conversionManager: manager)
         
         let docx = try TestFixtureFactory.createDOCX(in: dir, name: "batch1.docx")
         let xlsx = try TestFixtureFactory.createXLSX(in: dir, name: "batch2.xlsx")
         let pptx = try TestFixtureFactory.createPPTX(in: dir, name: "batch3.pptx")
         
-        let job1 = ConversionJob(inputURL: docx, inputFormat: .docx, outputFormat: .pdf, outputDirectory: dir)
-        let job2 = ConversionJob(inputURL: xlsx, inputFormat: .xlsx, outputFormat: .pdf, outputDirectory: dir)
-        let job3 = ConversionJob(inputURL: pptx, inputFormat: .pptx, outputFormat: .pdf, outputDirectory: dir)
+        let job1 = ConversionJob(inputURLs: [docx], inputFormat: .docx, outputFormat: .pdf, outputDirectory: dir)
+        let job2 = ConversionJob(inputURLs: [xlsx], inputFormat: .xlsx, outputFormat: .pdf, outputDirectory: dir)
+        let job3 = ConversionJob(inputURLs: [pptx], inputFormat: .pptx, outputFormat: .pdf, outputDirectory: dir)
         
         queue.enqueue(jobs: [job1, job2, job3])
         
@@ -1755,7 +1755,7 @@ struct RealOfficeConversionTests {
         
         await #expect(throws: ConversionError.self) {
             try await engine.convert(
-                input: corrupt,
+                inputs: [corrupt],
                 to: .pdf,
                 outputDirectory: dir,
                 options: .default,
@@ -1806,7 +1806,7 @@ struct RealPDFToOfficeConversionTests {
         )
         
         let result = try await engine.convert(
-            input: pdf,
+            inputs: [pdf],
             to: .docx,
             outputDirectory: dir,
             options: .default,
@@ -1837,7 +1837,7 @@ struct RealPDFToOfficeConversionTests {
         )
         
         let result = try await engine.convert(
-            input: pdf,
+            inputs: [pdf],
             to: .xlsx,
             outputDirectory: dir,
             options: .default,
@@ -1870,7 +1870,7 @@ struct RealPDFToOfficeConversionTests {
         let pdf = try TestFixtureFactory.createMultiPagePDF(in: dir, pages: 3, name: "slides_input.pdf")
         
         let result = try await engine.convert(
-            input: pdf,
+            inputs: [pdf],
             to: .pptx,
             outputDirectory: dir,
             options: .default,
@@ -1897,7 +1897,7 @@ struct RealPDFToOfficeConversionTests {
         
         await #expect(throws: ConversionError.self) {
             try await engine.convert(
-                input: corruptPDF,
+                inputs: [corruptPDF],
                 to: .docx,
                 outputDirectory: dir,
                 options: .default,
@@ -1925,10 +1925,10 @@ struct RealPDFToOfficeConversionTests {
         }
         
         let manager = ConversionManager(registry: registry)
-        let queue = ConversionQueue(maxConcurrent: 2, conversionManager: manager)
+        let queue = ConversionQueue(conversionManager: manager)
         
-        let job1 = ConversionJob(inputURL: pdf1, inputFormat: .pdf, outputFormat: .docx, outputDirectory: dir)
-        let job2 = ConversionJob(inputURL: pdf2, inputFormat: .pdf, outputFormat: .docx, outputDirectory: dir)
+        let job1 = ConversionJob(inputURLs: [pdf1], inputFormat: .pdf, outputFormat: .docx, outputDirectory: dir)
+        let job2 = ConversionJob(inputURLs: [pdf2], inputFormat: .pdf, outputFormat: .docx, outputDirectory: dir)
         
         queue.enqueue(jobs: [job1, job2])
         
@@ -1968,7 +1968,7 @@ struct RealPDFToOfficeConversionTests {
         }
         
         let manager = ConversionManager(registry: registry)
-        let job = ConversionJob(inputURL: pdf, inputFormat: .pdf, outputFormat: .docx, outputDirectory: dir)
+        let job = ConversionJob(inputURLs: [pdf], inputFormat: .pdf, outputFormat: .docx, outputDirectory: dir)
         
         manager.submit(job: job)
         // Cancel immediately
@@ -2005,11 +2005,11 @@ struct RealPDFToOfficeConversionTests {
         }
         
         let manager = ConversionManager(registry: registry)
-        let queue = ConversionQueue(maxConcurrent: 2, conversionManager: manager)
+        let queue = ConversionQueue(conversionManager: manager)
         
-        let job1 = ConversionJob(inputURL: pdf1, inputFormat: .pdf, outputFormat: .docx, outputDirectory: dir)
-        let job2 = ConversionJob(inputURL: pdf2, inputFormat: .pdf, outputFormat: .xlsx, outputDirectory: dir)
-        let job3 = ConversionJob(inputURL: pdf3, inputFormat: .pdf, outputFormat: .pptx, outputDirectory: dir)
+        let job1 = ConversionJob(inputURLs: [pdf1], inputFormat: .pdf, outputFormat: .docx, outputDirectory: dir)
+        let job2 = ConversionJob(inputURLs: [pdf2], inputFormat: .pdf, outputFormat: .xlsx, outputDirectory: dir)
+        let job3 = ConversionJob(inputURLs: [pdf3], inputFormat: .pdf, outputFormat: .pptx, outputDirectory: dir)
         
         queue.enqueue(jobs: [job1, job2, job3])
         
@@ -2137,7 +2137,7 @@ struct Phase5QualityAndUXTests {
             webpLossless: false,
             customOptions: [:]
         )
-        let res72 = try await engine.convert(input: pdf, to: .png, outputDirectory: out72Dir, options: opts72) { _ in }
+        let res72 = try await engine.convert(inputs: [pdf], to: .png, outputDirectory: out72Dir, options: opts72) { _ in }
         
         guard let source72 = CGImageSourceCreateWithURL(res72.outputURL as CFURL, nil),
               let props72 = CGImageSourceCopyPropertiesAtIndex(source72, 0, nil) as? [String: Any],
@@ -2161,7 +2161,7 @@ struct Phase5QualityAndUXTests {
             webpLossless: false,
             customOptions: [:]
         )
-        let res144 = try await engine.convert(input: pdf, to: .png, outputDirectory: out144Dir, options: opts144) { _ in }
+        let res144 = try await engine.convert(inputs: [pdf], to: .png, outputDirectory: out144Dir, options: opts144) { _ in }
         
         guard let source144 = CGImageSourceCreateWithURL(res144.outputURL as CFURL, nil),
               let props144 = CGImageSourceCopyPropertiesAtIndex(source144, 0, nil) as? [String: Any],
@@ -2203,7 +2203,7 @@ struct Phase5QualityAndUXTests {
         )
         
         let result = try await engine.convert(
-            input: orientedJpg,
+            inputs: [orientedJpg],
             to: .png,
             outputDirectory: outDir,
             options: options
@@ -2347,7 +2347,7 @@ struct Phase6WebPTests {
         let outDir = dir.appendingPathComponent("out")
         try FileManager.default.createDirectory(at: outDir, withIntermediateDirectories: true)
         
-        let result = try await engine.convert(input: input, to: .webp, outputDirectory: outDir, options: .default) { _ in }
+        let result = try await engine.convert(inputs: [input], to: .webp, outputDirectory: outDir, options: .default) { _ in }
         
         #expect(FileManager.default.fileExists(atPath: result.outputURL.path))
         #expect(result.outputURL.pathExtension.lowercased() == "webp")
@@ -2372,7 +2372,7 @@ struct Phase6WebPTests {
         let outDir = dir.appendingPathComponent("out")
         try FileManager.default.createDirectory(at: outDir, withIntermediateDirectories: true)
         
-        let result = try await engine.convert(input: input, to: .webp, outputDirectory: outDir, options: .default) { _ in }
+        let result = try await engine.convert(inputs: [input], to: .webp, outputDirectory: outDir, options: .default) { _ in }
         
         let data = try Data(contentsOf: result.outputURL)
         #expect(WebPEncoder.validate(data))
@@ -2393,7 +2393,7 @@ struct Phase6WebPTests {
         let outDir = dir.appendingPathComponent("out")
         try FileManager.default.createDirectory(at: outDir, withIntermediateDirectories: true)
         
-        let result = try await engine.convert(input: input, to: .webp, outputDirectory: outDir, options: .default) { _ in }
+        let result = try await engine.convert(inputs: [input], to: .webp, outputDirectory: outDir, options: .default) { _ in }
         
         let data = try Data(contentsOf: result.outputURL)
         #expect(WebPEncoder.validate(data))
@@ -2426,7 +2426,7 @@ struct Phase6WebPTests {
         let outDir = dir.appendingPathComponent("out")
         try FileManager.default.createDirectory(at: outDir, withIntermediateDirectories: true)
         
-        let result = try await engine.convert(input: tiffURL, to: .webp, outputDirectory: outDir, options: .default) { _ in }
+        let result = try await engine.convert(inputs: [tiffURL], to: .webp, outputDirectory: outDir, options: .default) { _ in }
         
         let data = try Data(contentsOf: result.outputURL)
         #expect(WebPEncoder.validate(data))
@@ -2459,7 +2459,7 @@ struct Phase6WebPTests {
         let outDir = dir.appendingPathComponent("out")
         try FileManager.default.createDirectory(at: outDir, withIntermediateDirectories: true)
         
-        let result = try await engine.convert(input: bmpURL, to: .webp, outputDirectory: outDir, options: .default) { _ in }
+        let result = try await engine.convert(inputs: [bmpURL], to: .webp, outputDirectory: outDir, options: .default) { _ in }
         
         let data = try Data(contentsOf: result.outputURL)
         #expect(WebPEncoder.validate(data))
@@ -2480,12 +2480,12 @@ struct Phase6WebPTests {
         let pngInput = try TestFixtureFactory.createPNG(in: dir, name: "orig.png", width: 64, height: 64)
         let webpDir = dir.appendingPathComponent("webp")
         try FileManager.default.createDirectory(at: webpDir, withIntermediateDirectories: true)
-        let webpResult = try await engine.convert(input: pngInput, to: .webp, outputDirectory: webpDir, options: .default) { _ in }
+        let webpResult = try await engine.convert(inputs: [pngInput], to: .webp, outputDirectory: webpDir, options: .default) { _ in }
         
         // Then decode that WebP to PNG
         let outDir = dir.appendingPathComponent("out")
         try FileManager.default.createDirectory(at: outDir, withIntermediateDirectories: true)
-        let pngResult = try await engine.convert(input: webpResult.outputURL, to: .png, outputDirectory: outDir, options: .default) { _ in }
+        let pngResult = try await engine.convert(inputs: [webpResult.outputURL], to: .png, outputDirectory: outDir, options: .default) { _ in }
         
         #expect(FileManager.default.fileExists(atPath: pngResult.outputURL.path))
         #expect(pngResult.outputURL.pathExtension.lowercased() == "png")
@@ -2511,11 +2511,11 @@ struct Phase6WebPTests {
         let pngInput = try TestFixtureFactory.createPNG(in: dir, name: "orig.png", width: 64, height: 64)
         let webpDir = dir.appendingPathComponent("webp")
         try FileManager.default.createDirectory(at: webpDir, withIntermediateDirectories: true)
-        let webpResult = try await engine.convert(input: pngInput, to: .webp, outputDirectory: webpDir, options: .default) { _ in }
+        let webpResult = try await engine.convert(inputs: [pngInput], to: .webp, outputDirectory: webpDir, options: .default) { _ in }
         
         let outDir = dir.appendingPathComponent("out")
         try FileManager.default.createDirectory(at: outDir, withIntermediateDirectories: true)
-        let jpgResult = try await engine.convert(input: webpResult.outputURL, to: .jpg, outputDirectory: outDir, options: .default) { _ in }
+        let jpgResult = try await engine.convert(inputs: [webpResult.outputURL], to: .jpg, outputDirectory: outDir, options: .default) { _ in }
         
         #expect(FileManager.default.fileExists(atPath: jpgResult.outputURL.path))
         #expect(jpgResult.outputURL.pathExtension.lowercased() == "jpg")
@@ -2556,7 +2556,7 @@ struct Phase6WebPTests {
         let outDir = dir.appendingPathComponent("out")
         try FileManager.default.createDirectory(at: outDir, withIntermediateDirectories: true)
         
-        let result = try await engine.convert(input: pngURL, to: .webp, outputDirectory: outDir, options: .default) { _ in }
+        let result = try await engine.convert(inputs: [pngURL], to: .webp, outputDirectory: outDir, options: .default) { _ in }
         
         let webpData = try Data(contentsOf: result.outputURL)
         #expect(WebPEncoder.validate(webpData))
@@ -2603,7 +2603,7 @@ struct Phase6WebPTests {
         var opts = ConversionOptions.default
         opts.webpLossless = true
         
-        let result = try await engine.convert(input: input, to: .webp, outputDirectory: outDir, options: opts) { _ in }
+        let result = try await engine.convert(inputs: [input], to: .webp, outputDirectory: outDir, options: opts) { _ in }
         
         let data = try Data(contentsOf: result.outputURL)
         #expect(WebPEncoder.validate(data))
@@ -2627,14 +2627,14 @@ struct Phase6WebPTests {
         
         let registry = ConversionRegistry.shared
         let manager = ConversionManager(registry: registry)
-        let queue = ConversionQueue(maxConcurrent: 3, conversionManager: manager)
+        let queue = ConversionQueue(conversionManager: manager)
         
         let outDir = dir.appendingPathComponent("batch_out")
         try FileManager.default.createDirectory(at: outDir, withIntermediateDirectories: true)
         
-        let job1 = ConversionJob(inputURL: png, inputFormat: .png, outputFormat: .webp, outputDirectory: outDir)
-        let job2 = ConversionJob(inputURL: jpg, inputFormat: .jpg, outputFormat: .webp, outputDirectory: outDir)
-        let job3 = ConversionJob(inputURL: heic, inputFormat: .heic, outputFormat: .webp, outputDirectory: outDir)
+        let job1 = ConversionJob(inputURLs: [png], inputFormat: .png, outputFormat: .webp, outputDirectory: outDir)
+        let job2 = ConversionJob(inputURLs: [jpg], inputFormat: .jpg, outputFormat: .webp, outputDirectory: outDir)
+        let job3 = ConversionJob(inputURLs: [heic], inputFormat: .heic, outputFormat: .webp, outputDirectory: outDir)
         
         queue.enqueue(jobs: [job1, job2, job3])
         
@@ -2698,7 +2698,7 @@ struct Phase6WebPTests {
         let input = try TestFixtureFactory.createPNG(in: dir, width: 64, height: 64)
         let registry = ConversionRegistry.shared
         let manager = ConversionManager(registry: registry)
-        let job = ConversionJob(inputURL: input, inputFormat: .png, outputFormat: .webp, outputDirectory: dir)
+        let job = ConversionJob(inputURLs: [input], inputFormat: .png, outputFormat: .webp, outputDirectory: dir)
         
         manager.submit(job: job)
         manager.cancel(jobId: job.id)
@@ -2783,7 +2783,7 @@ struct Phase7MediaTests {
         let outDir = dir.appendingPathComponent("out")
         try FileManager.default.createDirectory(at: outDir, withIntermediateDirectories: true)
         
-        let result = try await engine.convert(input: input, to: .mp3, outputDirectory: outDir, options: .default) { _ in }
+        let result = try await engine.convert(inputs: [input], to: .mp3, outputDirectory: outDir, options: .default) { _ in }
         
         #expect(FileManager.default.fileExists(atPath: result.outputURL.path))
         #expect(result.outputURL.pathExtension.lowercased() == "mp3")
@@ -2804,7 +2804,7 @@ struct Phase7MediaTests {
         let outDir = dir.appendingPathComponent("out")
         try FileManager.default.createDirectory(at: outDir, withIntermediateDirectories: true)
         
-        let result = try await engine.convert(input: input, to: .flac, outputDirectory: outDir, options: .default) { _ in }
+        let result = try await engine.convert(inputs: [input], to: .flac, outputDirectory: outDir, options: .default) { _ in }
         
         #expect(FileManager.default.fileExists(atPath: result.outputURL.path))
         #expect(result.outputURL.pathExtension.lowercased() == "flac")
@@ -2823,7 +2823,7 @@ struct Phase7MediaTests {
         let outDir = dir.appendingPathComponent("out")
         try FileManager.default.createDirectory(at: outDir, withIntermediateDirectories: true)
         
-        let result = try await engine.convert(input: input, to: .m4a, outputDirectory: outDir, options: .default) { _ in }
+        let result = try await engine.convert(inputs: [input], to: .m4a, outputDirectory: outDir, options: .default) { _ in }
         
         #expect(FileManager.default.fileExists(atPath: result.outputURL.path))
         #expect(result.outputURL.pathExtension.lowercased() == "m4a")
@@ -2844,7 +2844,7 @@ struct Phase7MediaTests {
         let outDir = dir.appendingPathComponent("out")
         try FileManager.default.createDirectory(at: outDir, withIntermediateDirectories: true)
         
-        let result = try await engine.convert(input: input, to: .wav, outputDirectory: outDir, options: .default) { _ in }
+        let result = try await engine.convert(inputs: [input], to: .wav, outputDirectory: outDir, options: .default) { _ in }
         
         #expect(FileManager.default.fileExists(atPath: result.outputURL.path))
         let probe = try await provider.probe(url: result.outputURL)
@@ -2861,7 +2861,7 @@ struct Phase7MediaTests {
         let outDir = dir.appendingPathComponent("out")
         try FileManager.default.createDirectory(at: outDir, withIntermediateDirectories: true)
         
-        let result = try await engine.convert(input: input, to: .flac, outputDirectory: outDir, options: .default) { _ in }
+        let result = try await engine.convert(inputs: [input], to: .flac, outputDirectory: outDir, options: .default) { _ in }
         let probe = try await provider.probe(url: result.outputURL)
         #expect(probe.primaryAudioStream?.codecName.lowercased() == "flac")
     }
@@ -2875,7 +2875,7 @@ struct Phase7MediaTests {
         let outDir = dir.appendingPathComponent("out")
         try FileManager.default.createDirectory(at: outDir, withIntermediateDirectories: true)
         
-        let result = try await engine.convert(input: input, to: .m4a, outputDirectory: outDir, options: .default) { _ in }
+        let result = try await engine.convert(inputs: [input], to: .m4a, outputDirectory: outDir, options: .default) { _ in }
         let probe = try await provider.probe(url: result.outputURL)
         #expect(probe.primaryAudioStream?.codecName.lowercased() == "aac")
     }
@@ -2891,7 +2891,7 @@ struct Phase7MediaTests {
         let outDir = dir.appendingPathComponent("out")
         try FileManager.default.createDirectory(at: outDir, withIntermediateDirectories: true)
         
-        let result = try await engine.convert(input: input, to: .mp3, outputDirectory: outDir, options: .default) { _ in }
+        let result = try await engine.convert(inputs: [input], to: .mp3, outputDirectory: outDir, options: .default) { _ in }
         let probe = try await provider.probe(url: result.outputURL)
         #expect(probe.primaryAudioStream?.codecName.lowercased() == "mp3")
     }
@@ -2905,7 +2905,7 @@ struct Phase7MediaTests {
         let outDir = dir.appendingPathComponent("out")
         try FileManager.default.createDirectory(at: outDir, withIntermediateDirectories: true)
         
-        let result = try await engine.convert(input: input, to: .wav, outputDirectory: outDir, options: .default) { _ in }
+        let result = try await engine.convert(inputs: [input], to: .wav, outputDirectory: outDir, options: .default) { _ in }
         let probe = try await provider.probe(url: result.outputURL)
         #expect(probe.hasAudio)
     }
@@ -2919,7 +2919,7 @@ struct Phase7MediaTests {
         let outDir = dir.appendingPathComponent("out")
         try FileManager.default.createDirectory(at: outDir, withIntermediateDirectories: true)
         
-        let result = try await engine.convert(input: input, to: .m4a, outputDirectory: outDir, options: .default) { _ in }
+        let result = try await engine.convert(inputs: [input], to: .m4a, outputDirectory: outDir, options: .default) { _ in }
         let probe = try await provider.probe(url: result.outputURL)
         #expect(probe.primaryAudioStream?.codecName.lowercased() == "aac")
     }
@@ -2935,7 +2935,7 @@ struct Phase7MediaTests {
         let outDir = dir.appendingPathComponent("out")
         try FileManager.default.createDirectory(at: outDir, withIntermediateDirectories: true)
         
-        let result = try await engine.convert(input: input, to: .mp3, outputDirectory: outDir, options: .default) { _ in }
+        let result = try await engine.convert(inputs: [input], to: .mp3, outputDirectory: outDir, options: .default) { _ in }
         let probe = try await provider.probe(url: result.outputURL)
         #expect(probe.primaryAudioStream?.codecName.lowercased() == "mp3")
     }
@@ -2949,7 +2949,7 @@ struct Phase7MediaTests {
         let outDir = dir.appendingPathComponent("out")
         try FileManager.default.createDirectory(at: outDir, withIntermediateDirectories: true)
         
-        let result = try await engine.convert(input: input, to: .wav, outputDirectory: outDir, options: .default) { _ in }
+        let result = try await engine.convert(inputs: [input], to: .wav, outputDirectory: outDir, options: .default) { _ in }
         let probe = try await provider.probe(url: result.outputURL)
         #expect(probe.hasAudio)
     }
@@ -2963,7 +2963,7 @@ struct Phase7MediaTests {
         let outDir = dir.appendingPathComponent("out")
         try FileManager.default.createDirectory(at: outDir, withIntermediateDirectories: true)
         
-        let result = try await engine.convert(input: input, to: .flac, outputDirectory: outDir, options: .default) { _ in }
+        let result = try await engine.convert(inputs: [input], to: .flac, outputDirectory: outDir, options: .default) { _ in }
         let probe = try await provider.probe(url: result.outputURL)
         #expect(probe.primaryAudioStream?.codecName.lowercased() == "flac")
     }
@@ -2979,7 +2979,7 @@ struct Phase7MediaTests {
         let outDir = dir.appendingPathComponent("out")
         try FileManager.default.createDirectory(at: outDir, withIntermediateDirectories: true)
         
-        let result = try await engine.convert(input: input, to: .mp4, outputDirectory: outDir, options: .default) { _ in }
+        let result = try await engine.convert(inputs: [input], to: .mp4, outputDirectory: outDir, options: .default) { _ in }
         
         #expect(FileManager.default.fileExists(atPath: result.outputURL.path))
         let probe = try await provider.probe(url: result.outputURL)
@@ -2997,7 +2997,7 @@ struct Phase7MediaTests {
         let outDir = dir.appendingPathComponent("out")
         try FileManager.default.createDirectory(at: outDir, withIntermediateDirectories: true)
         
-        let result = try await engine.convert(input: input, to: .mp4, outputDirectory: outDir, options: .default) { _ in }
+        let result = try await engine.convert(inputs: [input], to: .mp4, outputDirectory: outDir, options: .default) { _ in }
         
         #expect(FileManager.default.fileExists(atPath: result.outputURL.path))
         let probe = try await provider.probe(url: result.outputURL)
@@ -3014,7 +3014,7 @@ struct Phase7MediaTests {
         let outDir = dir.appendingPathComponent("out")
         try FileManager.default.createDirectory(at: outDir, withIntermediateDirectories: true)
         
-        let result = try await engine.convert(input: input, to: .mp4, outputDirectory: outDir, options: .default) { _ in }
+        let result = try await engine.convert(inputs: [input], to: .mp4, outputDirectory: outDir, options: .default) { _ in }
         
         #expect(FileManager.default.fileExists(atPath: result.outputURL.path))
         let probe = try await provider.probe(url: result.outputURL)
@@ -3032,7 +3032,7 @@ struct Phase7MediaTests {
         let outDir = dir.appendingPathComponent("out")
         try FileManager.default.createDirectory(at: outDir, withIntermediateDirectories: true)
         
-        let result = try await engine.convert(input: input, to: .mp4, outputDirectory: outDir, options: .default) { _ in }
+        let result = try await engine.convert(inputs: [input], to: .mp4, outputDirectory: outDir, options: .default) { _ in }
         
         #expect(FileManager.default.fileExists(atPath: result.outputURL.path))
         let probe = try await provider.probe(url: result.outputURL)
@@ -3049,7 +3049,7 @@ struct Phase7MediaTests {
         let outDir = dir.appendingPathComponent("out")
         try FileManager.default.createDirectory(at: outDir, withIntermediateDirectories: true)
         
-        let result = try await engine.convert(input: input, to: .mov, outputDirectory: outDir, options: .default) { _ in }
+        let result = try await engine.convert(inputs: [input], to: .mov, outputDirectory: outDir, options: .default) { _ in }
         
         #expect(FileManager.default.fileExists(atPath: result.outputURL.path))
         let probe = try await provider.probe(url: result.outputURL)
@@ -3065,7 +3065,7 @@ struct Phase7MediaTests {
         let outDir = dir.appendingPathComponent("out")
         try FileManager.default.createDirectory(at: outDir, withIntermediateDirectories: true)
         
-        let result = try await engine.convert(input: input, to: .mkv, outputDirectory: outDir, options: .default) { _ in }
+        let result = try await engine.convert(inputs: [input], to: .mkv, outputDirectory: outDir, options: .default) { _ in }
         
         #expect(FileManager.default.fileExists(atPath: result.outputURL.path))
         let probe = try await provider.probe(url: result.outputURL)
@@ -3081,7 +3081,7 @@ struct Phase7MediaTests {
         let outDir = dir.appendingPathComponent("out")
         try FileManager.default.createDirectory(at: outDir, withIntermediateDirectories: true)
         
-        let result = try await engine.convert(input: input, to: .webm, outputDirectory: outDir, options: .default) { _ in }
+        let result = try await engine.convert(inputs: [input], to: .webm, outputDirectory: outDir, options: .default) { _ in }
         
         #expect(FileManager.default.fileExists(atPath: result.outputURL.path))
         let probe = try await provider.probe(url: result.outputURL)
@@ -3100,7 +3100,7 @@ struct Phase7MediaTests {
         let outDir = dir.appendingPathComponent("out")
         try FileManager.default.createDirectory(at: outDir, withIntermediateDirectories: true)
         
-        let result = try await engine.convert(input: input, to: .mp3, outputDirectory: outDir, options: .default) { _ in }
+        let result = try await engine.convert(inputs: [input], to: .mp3, outputDirectory: outDir, options: .default) { _ in }
         
         #expect(FileManager.default.fileExists(atPath: result.outputURL.path))
         let probe = try await provider.probe(url: result.outputURL)
@@ -3132,7 +3132,7 @@ struct Phase7MediaTests {
         }
         
         let box = ProgressBox()
-        _ = try await engine.convert(input: input, to: .webm, outputDirectory: outDir, options: .default) { progress in
+        _ = try await engine.convert(inputs: [input], to: .webm, outputDirectory: outDir, options: .default) { progress in
             if let fraction = progress.fractionCompleted {
                 box.add(fraction)
             }
@@ -3158,20 +3158,20 @@ struct Phase7MediaTests {
         
         let registry = ConversionRegistry.shared
         let manager = ConversionManager(registry: registry)
-        let queue = ConversionQueue(maxConcurrent: 3, conversionManager: manager)
+        let queue = ConversionQueue(conversionManager: manager)
         
         let outDir = dir.appendingPathComponent("batch_out")
         try FileManager.default.createDirectory(at: outDir, withIntermediateDirectories: true)
         
-        let job1 = ConversionJob(inputURL: wav1, inputFormat: .wav, outputFormat: .mp3, outputDirectory: outDir)
-        let job2 = ConversionJob(inputURL: wav2, inputFormat: .wav, outputFormat: .flac, outputDirectory: outDir)
-        let job3 = ConversionJob(inputURL: wav3, inputFormat: .wav, outputFormat: .m4a, outputDirectory: outDir)
-        let job4 = ConversionJob(inputURL: mp4, inputFormat: .mp4, outputFormat: .mov, outputDirectory: outDir)
+        let job1 = ConversionJob(inputURLs: [wav1], inputFormat: .wav, outputFormat: .mp3, outputDirectory: outDir)
+        let job2 = ConversionJob(inputURLs: [wav2], inputFormat: .wav, outputFormat: .flac, outputDirectory: outDir)
+        let job3 = ConversionJob(inputURLs: [wav3], inputFormat: .wav, outputFormat: .m4a, outputDirectory: outDir)
+        let job4 = ConversionJob(inputURLs: [mp4], inputFormat: .mp4, outputFormat: .mov, outputDirectory: outDir)
         
         queue.enqueue(jobs: [job1, job2, job3, job4])
         
         var attempts = 0
-        while queue.isProcessing && attempts < 300 {
+        while (queue.completedCount + queue.failedCount < 4) && attempts < 1200 {
             try await Task.sleep(for: .milliseconds(100))
             attempts += 1
         }
@@ -3197,7 +3197,7 @@ struct Phase7MediaTests {
         try FileManager.default.createDirectory(at: outDir, withIntermediateDirectories: true)
         
         let task = Task {
-            try await engine.convert(input: input, to: .webm, outputDirectory: outDir, options: .default) { _ in }
+            try await engine.convert(inputs: [input], to: .webm, outputDirectory: outDir, options: .default) { _ in }
         }
         
         // Cancel after 100ms
@@ -3425,7 +3425,7 @@ struct Phase8ABundledLibWebPTests {
         let outDir = dir.appendingPathComponent("out")
         try FileManager.default.createDirectory(at: outDir, withIntermediateDirectories: true)
         
-        let result = try await engine.convert(input: input, to: .webp, outputDirectory: outDir, options: .default) { _ in }
+        let result = try await engine.convert(inputs: [input], to: .webp, outputDirectory: outDir, options: .default) { _ in }
         
         #expect(FileManager.default.fileExists(atPath: result.outputURL.path))
         let data = try Data(contentsOf: result.outputURL)
@@ -3445,7 +3445,7 @@ struct Phase8ABundledLibWebPTests {
         let outDir = dir.appendingPathComponent("out")
         try FileManager.default.createDirectory(at: outDir, withIntermediateDirectories: true)
         
-        let result = try await engine.convert(input: input, to: .webp, outputDirectory: outDir, options: .default) { _ in }
+        let result = try await engine.convert(inputs: [input], to: .webp, outputDirectory: outDir, options: .default) { _ in }
         
         let data = try Data(contentsOf: result.outputURL)
         #expect(WebPEncoder.validate(data))
@@ -3460,7 +3460,7 @@ struct Phase8ABundledLibWebPTests {
         let outDir = dir.appendingPathComponent("out")
         try FileManager.default.createDirectory(at: outDir, withIntermediateDirectories: true)
         
-        let result = try await engine.convert(input: input, to: .webp, outputDirectory: outDir, options: .default) { _ in }
+        let result = try await engine.convert(inputs: [input], to: .webp, outputDirectory: outDir, options: .default) { _ in }
         
         let data = try Data(contentsOf: result.outputURL)
         #expect(WebPEncoder.validate(data))
@@ -3475,12 +3475,12 @@ struct Phase8ABundledLibWebPTests {
         let webpDir = dir.appendingPathComponent("webp")
         try FileManager.default.createDirectory(at: webpDir, withIntermediateDirectories: true)
         
-        let webpResult = try await engine.convert(input: png, to: .webp, outputDirectory: webpDir, options: .default) { _ in }
+        let webpResult = try await engine.convert(inputs: [png], to: .webp, outputDirectory: webpDir, options: .default) { _ in }
         
         let outDir = dir.appendingPathComponent("out")
         try FileManager.default.createDirectory(at: outDir, withIntermediateDirectories: true)
         
-        let roundtripResult = try await engine.convert(input: webpResult.outputURL, to: .png, outputDirectory: outDir, options: .default) { _ in }
+        let roundtripResult = try await engine.convert(inputs: [webpResult.outputURL], to: .png, outputDirectory: outDir, options: .default) { _ in }
         
         #expect(FileManager.default.fileExists(atPath: roundtripResult.outputURL.path))
         #expect(roundtripResult.fileSize > 0)
@@ -3816,19 +3816,19 @@ struct Phase9WorkflowAndUITests {
     func testConversionQueueBatchAndCancellation() async throws {
         let registry = ConversionRegistry.shared
         let manager = ConversionManager(registry: registry)
-        let queue = ConversionQueue(maxConcurrent: 2, conversionManager: manager)
+        let queue = ConversionQueue(conversionManager: manager)
         
         let dir = try TestFixtureFactory.createTempDirectory()
         defer { try? FileManager.default.removeItem(at: dir) }
         
         let job1 = ConversionJob(
-            inputURL: dir.appendingPathComponent("file1.png"),
+            inputURLs: [dir.appendingPathComponent("file1.png")],
             inputFormat: .png,
             outputFormat: .jpg,
             outputDirectory: dir
         )
         let job2 = ConversionJob(
-            inputURL: dir.appendingPathComponent("file2.png"),
+            inputURLs: [dir.appendingPathComponent("file2.png")],
             inputFormat: .png,
             outputFormat: .jpg,
             outputDirectory: dir
@@ -3919,16 +3919,16 @@ struct Phase9WorkflowAndUITests {
         
         let registry = ConversionRegistry.shared
         let manager = await ConversionManager(registry: registry)
-        let queue = await ConversionQueue(maxConcurrent: 2, conversionManager: manager)
+        let queue = await ConversionQueue(conversionManager: manager)
         
         let job1 = ConversionJob(
-            inputURL: validPNG,
+            inputURLs: [validPNG],
             inputFormat: .png,
             outputFormat: .jpg,
             outputDirectory: outDir
         )
         let job2 = ConversionJob(
-            inputURL: corruptPNG,
+            inputURLs: [corruptPNG],
             inputFormat: .png,
             outputFormat: .jpg,
             outputDirectory: outDir
