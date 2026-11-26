@@ -1,6 +1,7 @@
 import Foundation
 import Combine
 import SwiftUI
+import UniformTypeIdentifiers
 import os.log
 
 // MARK: - Dropped File
@@ -202,6 +203,118 @@ struct LastConversionConfig: Sendable, Equatable {
     }
 }
 
+// MARK: - Media Viewer Routing
+
+enum MediaViewerRouteKind: String, Sendable, Equatable {
+    case photo
+    case video
+    case unsupported
+}
+
+enum MediaViewerRouter: Sendable {
+    private static let explicitPhotoExtensions: Set<String> = [
+        "png", "jpg", "jpeg", "jfif", "jpe", "heic", "heif", "hif", "heics", "heifs",
+        "webp", "jxl", "tiff", "tif", "bmp", "dib", "gif", "apng", "avif",
+        "jp2", "j2k", "jpf", "jpx", "j2c", "psd", "exr", "ppm", "pgm", "pbm", "pnm", "pfm",
+        "hdr", "rgbe", "qoi", "pcx", "wbmp", "sgi", "xpm", "svg", "ico", "icns", "tga", "targa",
+        "dng", "cr2", "cr3", "nef", "nrw", "arw", "raf", "rw2", "orf", "pef", "srw", "raw"
+    ]
+
+    private static let explicitVideoExtensions: Set<String> = [
+        "mp4", "mov", "m4v", "mkv", "webm", "avi", "ts", "mts", "m2ts",
+        "flv", "f4v", "wmv", "asf", "mpg", "mpeg", "mpe", "3gp", "3gpp", "3g2", "3gp2",
+        "vob", "m2v", "ogv"
+    ]
+
+    static func routeKind(for utType: UTType) -> MediaViewerRouteKind {
+        if utType.conforms(to: .video) || utType.conforms(to: .movie) {
+            return .video
+        }
+        if utType.conforms(to: .image) {
+            return .photo
+        }
+        if let format = FileFormat.from(utType: utType) {
+            switch format.category {
+            case .image: return .photo
+            case .video: return .video
+            case .document, .audio, .subtitle, .archive: return .unsupported
+            }
+        }
+        return .unsupported
+    }
+
+    static func routeKind(for url: URL) -> MediaViewerRouteKind {
+        guard url.isFileURL else { return .unsupported }
+        if url.hasDirectoryPath { return .unsupported }
+        if (try? url.resourceValues(forKeys: [.isDirectoryKey]).isDirectory) == true {
+            return .unsupported
+        }
+
+        let ext = url.pathExtension.trimmingCharacters(in: CharacterSet(charactersIn: ". ")).lowercased()
+        if !ext.isEmpty {
+            if explicitPhotoExtensions.contains(ext) {
+                return .photo
+            }
+            if explicitVideoExtensions.contains(ext) {
+                return .video
+            }
+            if let format = FileFormat.from(extension: ext) {
+                switch format.category {
+                case .image: return .photo
+                case .video: return .video
+                case .document, .audio, .subtitle, .archive: return .unsupported
+                }
+            }
+            if let extUTType = UTType(filenameExtension: ext) {
+                let kind = routeKind(for: extUTType)
+                if kind != .unsupported {
+                    return kind
+                }
+            }
+        }
+
+        if let contentType = try? url.resourceValues(forKeys: [.contentTypeKey]).contentType {
+            let kind = routeKind(for: contentType)
+            if kind != .unsupported {
+                return kind
+            }
+        }
+
+        if ext.isEmpty && FileManager.default.fileExists(atPath: url.path),
+           let detected = FileDetector.detectFormat(url: url) {
+            switch detected.category {
+            case .image: return .photo
+            case .video: return .video
+            case .document, .audio, .subtitle, .archive: return .unsupported
+            }
+        }
+
+        return .unsupported
+    }
+
+    static func shouldRouteSingleOpenedFileToMediaViewer(urls: [URL]) -> Bool {
+        guard urls.count == 1, let singleURL = urls.first, singleURL.isFileURL else {
+            return false
+        }
+        return routeKind(for: singleURL) != .unsupported
+    }
+
+    static var allowedOpenPanelContentTypes: [UTType] {
+        var seen = Set<String>()
+        var types: [UTType] = []
+        let baseTypes: [UTType] = [.image, .movie, .video]
+        let formatTypes: [UTType] = FileFormat.allCases
+            .filter { $0.category == .image || $0.category == .video }
+            .compactMap(\.utType)
+        for type in baseTypes + formatTypes {
+            if seen.insert(type.identifier).inserted {
+                types.append(type)
+            }
+        }
+        return types
+    }
+}
+
 // MARK: - App State
 
 @MainActor
@@ -261,6 +374,14 @@ final class AppState: ObservableObject {
     @Published var pendingHistoryWatchFolderRuleID: UUID? = nil
     @Published var pendingHistoryWatchFolderRuleName: String? = nil
     @Published var pendingHistoryNavigationNonce: UInt64 = 0
+    @Published var activeMediaViewerURL: URL? = nil
+    @Published var isMediaViewerPresented: Bool = false {
+        didSet {
+            if !isMediaViewerPresented && activeMediaViewerURL != nil {
+                activeMediaViewerURL = nil
+            }
+        }
+    }
     
     let conversionManager: ConversionManager
     let conversionQueue: ConversionQueue
@@ -444,7 +565,7 @@ final class AppState: ObservableObject {
         AppState.shared = self
         let deferredURLs = AppDelegate.consumePendingOpenURLs()
         if !deferredURLs.isEmpty {
-            addFiles(urls: deferredURLs)
+            handleOpenedFileURLs(deferredURLs)
         }
         logger.info("AppState initialized with \(registry.registeredEngines.count, privacy: .public) engines and ConversionQueue")
     }
@@ -488,7 +609,49 @@ final class AppState: ObservableObject {
     /// Public API for adding files into the conversion workflow (used by Finder, Services, Drag & Drop, URL scheme)
     public func addFiles(urls: [URL]) {
         handleDroppedURLs(urls)
-        NSApp.activate(ignoringOtherApps: true)
+        NSApp?.activate(ignoringOtherApps: true)
+    }
+
+    // MARK: - Media Viewer
+
+    public func openInMediaViewer(_ url: URL) {
+        activeMediaViewerURL = url
+        isMediaViewerPresented = true
+    }
+
+    public func openMediaViewerEmpty() {
+        activeMediaViewerURL = nil
+        isMediaViewerPresented = true
+    }
+
+    public func closeMediaViewer() {
+        isMediaViewerPresented = false
+        activeMediaViewerURL = nil
+    }
+
+    public func sendToConvertQueue(fromMediaViewer url: URL) {
+        closeMediaViewer()
+        addFiles(urls: [url])
+        selectedTab = .convert
+    }
+
+    /// Routes Finder "Open With" and incoming file URLs:
+    /// a single validated supported image or video opens in the unified Media Viewer;
+    /// multiple files, folders, or non-media files fall back to the Convert queue.
+    public func handleOpenedFileURLs(_ urls: [URL]) {
+        guard !urls.isEmpty else { return }
+        if MediaViewerRouter.shouldRouteSingleOpenedFileToMediaViewer(urls: urls),
+           let candidateURL = urls.first {
+            switch FinderHandoffHandler.validateInputFileURL(candidateURL) {
+            case .success(let safeURL):
+                openInMediaViewer(safeURL)
+                NSApp?.activate(ignoringOtherApps: true)
+                return
+            case .failure:
+                break
+            }
+        }
+        addFiles(urls: urls)
     }
 
     /// Context-aware file open router for `⌘O` (Add Files...).

@@ -1,6 +1,38 @@
 {
   "sourceLanguage": "en",
   "strings": {
+    "\"%@\" is not a supported image or video.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "\"%@\" is not a supported image or video."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "\"%@\" desteklenen bir görsel veya video değil."
+          }
+        }
+      }
+    },
+    "\"%@\" will be moved to the macOS Trash.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "\"%@\" will be moved to the macOS Trash."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "\"%@\" macOS Çöp Sepetine taşınacak."
+          }
+        }
+      }
+    },
     "%@ (%lld duplicate skipped)": {
       "localizations": {
         "en": {
@@ -353,6 +385,22 @@
         }
       }
     },
+    "%lld segments · %@": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld segments · %@"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$lld segment · %2$@"
+          }
+        }
+      }
+    },
     "%lld succeeded": {
       "localizations": {
         "en": {
@@ -381,6 +429,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "%lld desteklenmeyen dosya eklendi"
+          }
+        }
+      }
+    },
+    "%lld/%lld kept · %@": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld/%lld kept · %@"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$lld/%2$lld korunan · %3$@"
           }
         }
       }
@@ -461,6 +525,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "1 öğe atlandı"
+          }
+        }
+      }
+    },
+    "1 segment · %@": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "1 segment · %@"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "1 segment · %@"
           }
         }
       }
@@ -577,6 +657,22 @@
         }
       }
     },
+    "Active Settings": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Active Settings"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Etkin Ayarlar"
+          }
+        }
+      }
+    },
     "Active undo and redo operations remain protected from automatic cleanup until replaced or evicted.": {
       "localizations": {
         "en": {
@@ -589,6 +685,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "Etkin geri alma ve yineleme işlemleri, değiştirilene veya çıkarılana kadar otomatik temizlikten korunur."
+          }
+        }
+      }
+    },
+    "Add": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Add"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ekle"
           }
         }
       }
@@ -749,6 +861,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "PDF olarak birleştirmek için görsel dosyaları ekleyin."
+          }
+        }
+      }
+    },
+    "Adjust": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Adjust"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ayarla"
           }
         }
       }
@@ -993,6 +1121,22 @@
         }
       }
     },
+    "Annotation & Redaction Tool": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Annotation & Redaction Tool"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "İşaretleme ve Sansür Aracı"
+          }
+        }
+      }
+    },
     "Appearance Theme": {
       "localizations": {
         "en": {
@@ -1069,6 +1213,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "%@ hazır ayarını tüm dosyalara uygular."
+          }
+        }
+      }
+    },
+    "Apply Crop": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Apply Crop"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Kırpmayı Uygula"
           }
         }
       }
@@ -1169,6 +1329,22 @@
         }
       }
     },
+    "Arrow": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Arrow"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ok"
+          }
+        }
+      }
+    },
     "Ask every time": {
       "localizations": {
         "en": {
@@ -1213,6 +1389,54 @@
           "stringUnit": {
             "state": "translated",
             "value": "Ses Çalışma Alanı"
+          }
+        }
+      }
+    },
+    "Audio: %@ · Rotation: %@ · Speed: %@": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Audio: %@ · Rotation: %@ · Speed: %@"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ses: %1$@ · Döndürme: %2$@ · Hız: %3$@"
+          }
+        }
+      }
+    },
+    "Aurora": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Aurora"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Kuzey Işığı"
+          }
+        }
+      }
+    },
+    "Auto-Enhance": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Auto-Enhance"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Otomatik İyileştir"
           }
         }
       }
@@ -1297,6 +1521,22 @@
         }
       }
     },
+    "Backdrop": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Backdrop"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Arka Çerçeve"
+          }
+        }
+      }
+    },
     "Batch Conversion Complete": {
       "localizations": {
         "en": {
@@ -1377,6 +1617,38 @@
         }
       }
     },
+    "Blackout": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Blackout"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Karart"
+          }
+        }
+      }
+    },
+    "Blur": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Blur"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bulanık"
+          }
+        }
+      }
+    },
     "Both Dock and Menu Bar icons hidden notice. %@": {
       "localizations": {
         "en": {
@@ -1409,6 +1681,22 @@
         }
       }
     },
+    "Brightness": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Brightness"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Parlaklık"
+          }
+        }
+      }
+    },
     "Browse past conversions and output file provenance": {
       "localizations": {
         "en": {
@@ -1421,6 +1709,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "Geçmiş dönüşümleri ve çıktı dosyası kaynaklarını görüntüleyin"
+          }
+        }
+      }
+    },
+    "Can't preview this file in Media Viewer": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Can't preview this file in Media Viewer"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bu dosya Medya Görüntüleyici'de önizlenemiyor"
           }
         }
       }
@@ -1473,6 +1777,22 @@
         }
       }
     },
+    "Cancel Export": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cancel Export"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dışa Aktarmayı İptal Et"
+          }
+        }
+      }
+    },
     "Cancel ongoing conversion": {
       "localizations": {
         "en": {
@@ -1485,6 +1805,38 @@
           "stringUnit": {
             "state": "translated",
             "value": "Devam eden dönüşümü iptal et"
+          }
+        }
+      }
+    },
+    "Cannot overwrite the source video file. Choose a different output name.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cannot overwrite the source video file. Choose a different output name."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Kaynak video dosyasının üzerine yazılamaz. Farklı bir çıktı adı seçin."
+          }
+        }
+      }
+    },
+    "Captured: %@": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Captured: %@"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Çekim: %@"
           }
         }
       }
@@ -1533,6 +1885,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "Seç"
+          }
+        }
+      }
+    },
+    "Choose Destination & Export...": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Choose Destination & Export..."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Hedef Seç ve Dışa Aktar..."
           }
         }
       }
@@ -1713,6 +2081,22 @@
         }
       }
     },
+    "Clear Crop": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Clear Crop"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Kırpmayı Temizle"
+          }
+        }
+      }
+    },
     "Clear Diagnostic Logs": {
       "localizations": {
         "en": {
@@ -1869,6 +2253,70 @@
           "stringUnit": {
             "state": "translated",
             "value": "Özel çıktı klasörü seçmek için tıklayın"
+          }
+        }
+      }
+    },
+    "Close": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Close"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Kapat"
+          }
+        }
+      }
+    },
+    "Close Media Viewer": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Close Media Viewer"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Medya Görüntüleyiciyi Kapat"
+          }
+        }
+      }
+    },
+    "Collapse Sidebar": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Collapse Sidebar"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Kenar Çubuğunu Daralt"
+          }
+        }
+      }
+    },
+    "Color": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Color"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Renk"
           }
         }
       }
@@ -2145,6 +2593,22 @@
         }
       }
     },
+    "Compressed MP4": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Compressed MP4"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sıkıştırılmış MP4"
+          }
+        }
+      }
+    },
     "Compression": {
       "localizations": {
         "en": {
@@ -2173,6 +2637,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "Görünüm, çıktı varsayılanları, kısayollar ve gizlilik ayarlarını yapılandırın"
+          }
+        }
+      }
+    },
+    "Contrast": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Contrast"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Kontrast"
           }
         }
       }
@@ -2401,6 +2881,22 @@
         }
       }
     },
+    "Copied frame at %@ to clipboard.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Copied frame at %@ to clipboard."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ konumundaki kare panoya kopyalandı."
+          }
+        }
+      }
+    },
     "Copy Error Details": {
       "localizations": {
         "en": {
@@ -2413,6 +2909,54 @@
           "stringUnit": {
             "state": "translated",
             "value": "Hata Ayrıntılarını Kopyala"
+          }
+        }
+      }
+    },
+    "Copy Frame to Clipboard": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Copy Frame to Clipboard"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Kareyi Panoya Kopyala"
+          }
+        }
+      }
+    },
+    "Copy Image": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Copy Image"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Görseli Kopyala"
+          }
+        }
+      }
+    },
+    "Copy Image (⌘C)": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Copy Image (⌘C)"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Görseli Kopyala (⌘C)"
           }
         }
       }
@@ -2449,6 +2993,22 @@
         }
       }
     },
+    "Copy current frame to clipboard": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Copy current frame to clipboard"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Geçerli kareyi panoya kopyala"
+          }
+        }
+      }
+    },
     "Copy output path": {
       "localizations": {
         "en": {
@@ -2461,6 +3021,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "Çıktı yolunu kopyala"
+          }
+        }
+      }
+    },
+    "Corner Radius": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Corner Radius"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Köşe Yarıçapı"
           }
         }
       }
@@ -2497,6 +3073,38 @@
         }
       }
     },
+    "Creates an optimized animated GIF with palette generation from kept segments, including rotation and speed.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Creates an optimized animated GIF with palette generation from kept segments, including rotation and speed."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Döndürme ve hız dahil olmak üzere korunan segmentlerden palet üretimiyle optimize edilmiş hareketli GIF oluşturur."
+          }
+        }
+      }
+    },
+    "Crop": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Crop"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Kırp"
+          }
+        }
+      }
+    },
     "Crop & Geometry": {
       "localizations": {
         "en": {
@@ -2509,6 +3117,38 @@
           "stringUnit": {
             "state": "translated",
             "value": "Kırp ve Geometri"
+          }
+        }
+      }
+    },
+    "Crop Frame": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Crop Frame"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Kırpma Çerçevesi"
+          }
+        }
+      }
+    },
+    "Cut": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cut"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Kesik"
           }
         }
       }
@@ -2637,6 +3277,38 @@
           "stringUnit": {
             "state": "translated",
             "value": "Sayfa Sil"
+          }
+        }
+      }
+    },
+    "Delete Segment": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Delete Segment"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Segmenti Sil"
+          }
+        }
+      }
+    },
+    "Deleted": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Deleted"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Silindi"
           }
         }
       }
@@ -2865,6 +3537,22 @@
         }
       }
     },
+    "Drop a photo or video here": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Drop a photo or video here"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Buraya bir fotoğraf veya video bırakın"
+          }
+        }
+      }
+    },
     "Drop files and convert between formats locally": {
       "localizations": {
         "en": {
@@ -2945,6 +3633,22 @@
         }
       }
     },
+    "Edited": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Edited"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Düzenlendi"
+          }
+        }
+      }
+    },
     "Editing History": {
       "localizations": {
         "en": {
@@ -2973,6 +3677,38 @@
           "stringUnit": {
             "state": "translated",
             "value": "Efektler ve Hazır Ayarlar"
+          }
+        }
+      }
+    },
+    "Ellipse": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ellipse"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Elips"
+          }
+        }
+      }
+    },
+    "Enable Screenshot Frame": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Enable Screenshot Frame"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ekran Görüntüsü Çerçevesini Etkinleştir"
           }
         }
       }
@@ -3073,6 +3809,38 @@
         }
       }
     },
+    "Export Edited Video": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Export Edited Video"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Düzenlenen Videoyu Dışa Aktar"
+          }
+        }
+      }
+    },
+    "Export Format": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Export Format"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dışa Aktarma Biçimi"
+          }
+        }
+      }
+    },
     "Export Image": {
       "localizations": {
         "en": {
@@ -3105,6 +3873,86 @@
         }
       }
     },
+    "Export cancelled.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Export cancelled."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dışa aktarma iptal edildi."
+          }
+        }
+      }
+    },
+    "Export...": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Export..."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dışa Aktar..."
+          }
+        }
+      }
+    },
+    "Exported %@": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Exported %@"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ dışa aktarıldı"
+          }
+        }
+      }
+    },
+    "Exposure": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Exposure"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pozlama"
+          }
+        }
+      }
+    },
+    "Extract & Copy Text (Vision OCR)": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Extract & Copy Text (Vision OCR)"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Metni Çıkar ve Kopyala (Vision OCR)"
+          }
+        }
+      }
+    },
     "Extract Pages": {
       "localizations": {
         "en": {
@@ -3117,6 +3965,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "Sayfa Çıkar"
+          }
+        }
+      }
+    },
+    "Extract Text with OCR": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Extract Text with OCR"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "OCR ile Metni Çıkar"
           }
         }
       }
@@ -3281,6 +4145,22 @@
         }
       }
     },
+    "Fit": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Fit"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sığdır"
+          }
+        }
+      }
+    },
     "Fit every source page to a consistent target size while preserving source order.": {
       "localizations": {
         "en": {
@@ -3293,6 +4173,54 @@
           "stringUnit": {
             "state": "translated",
             "value": "Kaynak sırasını koruyarak her kaynak sayfayı tutarlı bir hedef boyuta sığdırın."
+          }
+        }
+      }
+    },
+    "Fit image to window": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Fit image to window"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Görseli pencereye sığdır"
+          }
+        }
+      }
+    },
+    "Flip Horizontal": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Flip Horizontal"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Yatay Çevir"
+          }
+        }
+      }
+    },
+    "Flip Vertical": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Flip Vertical"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dikey Çevir"
           }
         }
       }
@@ -3361,6 +4289,54 @@
         }
       }
     },
+    "Frame": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Frame"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Kare"
+          }
+        }
+      }
+    },
+    "Free": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Free"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Serbest"
+          }
+        }
+      }
+    },
+    "GPS: %@": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "GPS: %@"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "GPS: %@"
+          }
+        }
+      }
+    },
     "General": {
       "localizations": {
         "en": {
@@ -3409,6 +4385,38 @@
         }
       }
     },
+    "Gradient": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Gradient"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Gradyan"
+          }
+        }
+      }
+    },
+    "Graphite": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Graphite"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Grafit"
+          }
+        }
+      }
+    },
     "Hide Preview": {
       "localizations": {
         "en": {
@@ -3441,6 +4449,22 @@
         }
       }
     },
+    "Highlighter": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Highlighter"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Vurgulayıcı"
+          }
+        }
+      }
+    },
     "History": {
       "localizations": {
         "en": {
@@ -3453,6 +4477,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "Geçmiş"
+          }
+        }
+      }
+    },
+    "Hold Before": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Hold Before"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Öncesini Gör"
           }
         }
       }
@@ -3569,6 +4609,38 @@
         }
       }
     },
+    "In (I)": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "In (I)"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Giriş (I)"
+          }
+        }
+      }
+    },
+    "Included": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Included"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dahil"
+          }
+        }
+      }
+    },
     "Inspect & Security": {
       "localizations": {
         "en": {
@@ -3677,6 +4749,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "AcroForm alanlarını inceleyin, düzenleyin, dışa/içe aktarın ve düzleştirin (salt okunur XFA algılanır)."
+          }
+        }
+      }
+    },
+    "Inspecting video...": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Inspecting video..."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Video inceleniyor..."
           }
         }
       }
@@ -3857,6 +4945,22 @@
         }
       }
     },
+    "Kept": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Kept"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Korundu"
+          }
+        }
+      }
+    },
     "Keyboard Shortcuts": {
       "localizations": {
         "en": {
@@ -3953,6 +5057,38 @@
         }
       }
     },
+    "Loading photo...": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Loading photo..."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Fotoğraf yükleniyor..."
+          }
+        }
+      }
+    },
+    "Loading video...": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Loading video..."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Video yükleniyor..."
+          }
+        }
+      }
+    },
     "LocalConvert": {
       "localizations": {
         "en": {
@@ -3981,6 +5117,38 @@
           "stringUnit": {
             "state": "translated",
             "value": "LocalConvert - Dönüştürülüyor"
+          }
+        }
+      }
+    },
+    "Lossless Cut": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Lossless Cut"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Kayıpsız Kesim"
+          }
+        }
+      }
+    },
+    "Lossless Cut preserves original encoded packets and does not apply rotation (%@) or speed (%@). Switch to Compressed MP4 or Quick GIF to bake transforms.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Lossless Cut preserves original encoded packets and does not apply rotation (%@) or speed (%@). Switch to Compressed MP4 or Quick GIF to bake transforms."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Kayıpsız Kesim orijinal kodlanmış paketleri korur; döndürme (%1$@) veya hız (%2$@) uygulamaz. Dönüşümleri işlemek için Sıkıştırılmış MP4 veya Hızlı GIF'e geçin."
           }
         }
       }
@@ -4017,6 +5185,22 @@
         }
       }
     },
+    "Markup": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Markup"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "İşaretle"
+          }
+        }
+      }
+    },
     "Maximum Concurrent Conversions": {
       "localizations": {
         "en": {
@@ -4045,6 +5229,38 @@
           "stringUnit": {
             "state": "translated",
             "value": "En Fazla Düzenleme Geçmişi Kaydı"
+          }
+        }
+      }
+    },
+    "Media Viewer": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Media Viewer"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Medya Görüntüleyici"
+          }
+        }
+      }
+    },
+    "Media Viewer supports images and videos. You can send \"%@\" to the Convert queue or open a different media file.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Media Viewer supports images and videos. You can send \"%@\" to the Convert queue or open a different media file."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Medya Görüntüleyici görselleri ve videoları destekler. \"%@\" dosyasını Dönüştürme kuyruğuna gönderebilir veya farklı bir medya dosyası açabilirsiniz."
           }
         }
       }
@@ -4209,6 +5425,22 @@
         }
       }
     },
+    "Mosaic": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mosaic"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mozaik"
+          }
+        }
+      }
+    },
     "Move %@ down in merge order": {
       "localizations": {
         "en": {
@@ -4241,6 +5473,22 @@
         }
       }
     },
+    "Move Photo to Trash?": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Move Photo to Trash?"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Fotoğraf Çöp Sepetine Taşınsın mı?"
+          }
+        }
+      }
+    },
     "Move file down in merge order": {
       "localizations": {
         "en": {
@@ -4269,6 +5517,102 @@
           "stringUnit": {
             "state": "translated",
             "value": "Dosyayı birleştirme sırasında yukarı taşı"
+          }
+        }
+      }
+    },
+    "Move to Trash": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Move to Trash"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Çöp Sepetine Taşı"
+          }
+        }
+      }
+    },
+    "Move to Trash (⌘⌫)": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Move to Trash (⌘⌫)"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Çöp Sepetine Taşı (⌘⌫)"
+          }
+        }
+      }
+    },
+    "Multi-segment video timeline": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Multi-segment video timeline"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Çok segmentli video zaman çizelgesi"
+          }
+        }
+      }
+    },
+    "Mute audio": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mute audio"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sesi kapat"
+          }
+        }
+      }
+    },
+    "Mute audio (⌘M)": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mute audio (⌘M)"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sesi kapat (⌘M)"
+          }
+        }
+      }
+    },
+    "Muted": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Muted"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sessiz"
           }
         }
       }
@@ -4333,6 +5677,54 @@
           "stringUnit": {
             "state": "translated",
             "value": "Hiçbir zaman"
+          }
+        }
+      }
+    },
+    "Next Photo": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Next Photo"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sonraki Fotoğraf"
+          }
+        }
+      }
+    },
+    "Next Photo (→)": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Next Photo (→)"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sonraki Fotoğraf (→)"
+          }
+        }
+      }
+    },
+    "Next step badge: #%lld": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Next step badge: #%lld"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sonraki adım rozeti: #%lld"
           }
         }
       }
@@ -4433,6 +5825,22 @@
         }
       }
     },
+    "No Photo Loaded": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No Photo Loaded"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Yüklü Fotoğraf Yok"
+          }
+        }
+      }
+    },
     "No custom folder selected": {
       "localizations": {
         "en": {
@@ -4445,6 +5853,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "Özel klasör seçilmedi"
+          }
+        }
+      }
+    },
+    "No image or video file found on the clipboard.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No image or video file found on the clipboard."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Panoda görsel veya video dosyası bulunamadı."
           }
         }
       }
@@ -4657,6 +6081,22 @@
         }
       }
     },
+    "Ocean": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ocean"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Okyanus"
+          }
+        }
+      }
+    },
     "Only First": {
       "localizations": {
         "en": {
@@ -4689,6 +6129,38 @@
         }
       }
     },
+    "Open": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Open"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Aç"
+          }
+        }
+      }
+    },
+    "Open Another File...": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Open Another File..."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Başka Dosya Aç..."
+          }
+        }
+      }
+    },
     "Open Destination": {
       "localizations": {
         "en": {
@@ -4701,6 +6173,38 @@
           "stringUnit": {
             "state": "translated",
             "value": "Hedefi Aç"
+          }
+        }
+      }
+    },
+    "Open File": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Open File"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dosya Aç"
+          }
+        }
+      }
+    },
+    "Open File...": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Open File..."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dosya Aç..."
           }
         }
       }
@@ -4801,6 +6305,22 @@
         }
       }
     },
+    "Open Media Viewer (Photo, Markup & Video Editor)": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Open Media Viewer (Photo, Markup & Video Editor)"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Medya Görüntüleyiciyi Aç (Fotoğraf, İşaretleme ve Video Düzenleyici)"
+          }
+        }
+      }
+    },
     "Open Non-Destructive Image Project (.lcimg)": {
       "localizations": {
         "en": {
@@ -4893,6 +6413,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "Ayarları Aç"
+          }
+        }
+      }
+    },
+    "Open an image or video to view, annotate, trim, or crop locally": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Open an image or video to view, annotate, trim, or crop locally"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Yerel olarak görüntülemek, işaretlemek, kırpmak veya kesmek için bir görsel ya da video açın"
           }
         }
       }
@@ -4993,6 +6529,22 @@
         }
       }
     },
+    "Opens the unified photo, markup, and video viewer and editor": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Opens the unified photo, markup, and video viewer and editor"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Birleşik fotoğraf, işaretleme ve video görüntüleyici ile düzenleyiciyi açar"
+          }
+        }
+      }
+    },
     "Opens visibility mode selector. Current: %@": {
       "localizations": {
         "en": {
@@ -5069,6 +6621,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "Ses arşivinizi düzenleyin, dalga formlarını düzenleyin ve ses araçlarını çalıştırın"
+          }
+        }
+      }
+    },
+    "Out (O)": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Out (O)"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Çıkış (O)"
           }
         }
       }
@@ -5169,6 +6737,22 @@
         }
       }
     },
+    "Output: %lld × %lld px": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Output: %lld × %lld px"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Çıktı: %lld × %lld px"
+          }
+        }
+      }
+    },
     "Overall conversion progress": {
       "localizations": {
         "en": {
@@ -5197,6 +6781,38 @@
           "stringUnit": {
             "state": "translated",
             "value": "Üzerine Yaz"
+          }
+        }
+      }
+    },
+    "Overwrite Original": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Overwrite Original"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Orijinalin Üzerine Yaz"
+          }
+        }
+      }
+    },
+    "Overwrite Original Photo?": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Overwrite Original Photo?"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Orijinal Fotoğrafın Üzerine Yazılsın mı?"
           }
         }
       }
@@ -5409,6 +7025,22 @@
         }
       }
     },
+    "Padding": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Padding"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "İç Boşluk"
+          }
+        }
+      }
+    },
     "Page Ranges": {
       "localizations": {
         "en": {
@@ -5457,6 +7089,54 @@
         }
       }
     },
+    "Paste Image (⌘V)": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Paste Image (⌘V)"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Görseli Yapıştır (⌘V)"
+          }
+        }
+      }
+    },
+    "Paste Image from Clipboard": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Paste Image from Clipboard"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Panodan Görsel Yapıştır"
+          }
+        }
+      }
+    },
+    "Pause": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pause"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Duraklat"
+          }
+        }
+      }
+    },
     "Pause Watch Folders": {
       "localizations": {
         "en": {
@@ -5473,6 +7153,38 @@
         }
       }
     },
+    "Pause playback": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pause playback"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Oynatmayı duraklat"
+          }
+        }
+      }
+    },
+    "Pause playback (K)": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pause playback (K)"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Oynatmayı duraklat (K)"
+          }
+        }
+      }
+    },
     "Pauses the Audio Library Player when Audio Editor plays, and vice versa, without losing queue or edit state": {
       "localizations": {
         "en": {
@@ -5485,6 +7197,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "Ses Düzenleyici oynatırken Ses Arşivi Oynatıcısını ve tersini kuyruk ya da düzenleme durumunu kaybetmeden duraklatır"
+          }
+        }
+      }
+    },
+    "Pen": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pen"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Kalem"
           }
         }
       }
@@ -5553,6 +7281,38 @@
         }
       }
     },
+    "Play": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Play"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Oynat"
+          }
+        }
+      }
+    },
+    "Play or Pause (Space)": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Play or Pause (Space)"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Oynat veya Duraklat (Boşluk)"
+          }
+        }
+      }
+    },
     "Play sound effect on completion": {
       "localizations": {
         "en": {
@@ -5569,6 +7329,38 @@
         }
       }
     },
+    "Playback and export speed": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Playback and export speed"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Oynatma ve dışa aktarma hızı"
+          }
+        }
+      }
+    },
+    "Playback speed": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Playback speed"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Oynatma hızı"
+          }
+        }
+      }
+    },
     "Please select exactly one PDF document to configure custom page ranges.": {
       "localizations": {
         "en": {
@@ -5581,6 +7373,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "Özel sayfa aralıkları için lütfen tam olarak bir PDF belgesi seçin."
+          }
+        }
+      }
+    },
+    "Preparing export...": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Preparing export..."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dışa aktarma hazırlanıyor..."
           }
         }
       }
@@ -5645,6 +7453,70 @@
           "stringUnit": {
             "state": "translated",
             "value": "Hazır Ayarlar"
+          }
+        }
+      }
+    },
+    "Press and hold to inspect original": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Press and hold to inspect original"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Orijinali incelemek için basılı tutun"
+          }
+        }
+      }
+    },
+    "Preview unavailable": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Preview unavailable"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Önizleme kullanılamıyor"
+          }
+        }
+      }
+    },
+    "Previous Photo": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Previous Photo"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Önceki Fotoğraf"
+          }
+        }
+      }
+    },
+    "Previous Photo (←)": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Previous Photo (←)"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Önceki Fotoğraf (←)"
           }
         }
       }
@@ -5761,6 +7633,22 @@
         }
       }
     },
+    "Quick GIF": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Quick GIF"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Hızlı GIF"
+          }
+        }
+      }
+    },
     "Quick Look selected file": {
       "localizations": {
         "en": {
@@ -5869,6 +7757,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "RAW Geliştirme"
+          }
+        }
+      }
+    },
+    "Re-encodes kept segments to H.264/AAC MP4 with full support for multi-segment cuts, mute, rotation, and playback speed.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Re-encodes kept segments to H.264/AAC MP4 with full support for multi-segment cuts, mute, rotation, and playback speed."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Çok segmentli kesim, sessize alma, döndürme ve oynatma hızı tam desteğiyle korunan segmentleri H.264/AAC MP4 olarak yeniden kodlar."
           }
         }
       }
@@ -5985,6 +7889,22 @@
         }
       }
     },
+    "Rectangle": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Rectangle"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dikdörtgen"
+          }
+        }
+      }
+    },
     "Redact": {
       "localizations": {
         "en": {
@@ -6017,6 +7937,22 @@
         }
       }
     },
+    "Redo (⇧⌘Z)": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Redo (⇧⌘Z)"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Yinele (⇧⌘Z)"
+          }
+        }
+      }
+    },
     "Refresh": {
       "localizations": {
         "en": {
@@ -6045,6 +7981,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "Dosyaları eklemek için bırakın"
+          }
+        }
+      }
+    },
+    "Release to open in Media Viewer": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Release to open in Media Viewer"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Medya Görüntüleyici'de açmak için bırakın"
           }
         }
       }
@@ -6157,6 +8109,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "Arka Planı Kaldır"
+          }
+        }
+      }
+    },
+    "Remove Last": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Remove Last"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sonuncuyu Kaldır"
           }
         }
       }
@@ -6609,6 +8577,38 @@
         }
       }
     },
+    "Resolution: %@": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Resolution: %@"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Çözünürlük: %@"
+          }
+        }
+      }
+    },
+    "Restore Segment": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Restore Segment"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Segmenti Geri Yükle"
+          }
+        }
+      }
+    },
     "Resume Watch Folders": {
       "localizations": {
         "en": {
@@ -6621,6 +8621,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "İzlenen Klasörleri Sürdür"
+          }
+        }
+      }
+    },
+    "Reveal": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Reveal"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Göster"
           }
         }
       }
@@ -6669,6 +8685,102 @@
           "stringUnit": {
             "state": "translated",
             "value": "Etkin düzenleme bağlamındaki en son işlemi geri alır"
+          }
+        }
+      }
+    },
+    "Rotate %@": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Rotate %@"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Döndür %@"
+          }
+        }
+      }
+    },
+    "Rotate & Flip": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Rotate & Flip"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Döndür ve Çevir"
+          }
+        }
+      }
+    },
+    "Rotate 90 degrees, current %@": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Rotate 90 degrees, current %@"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "90 derece döndür, geçerli %@"
+          }
+        }
+      }
+    },
+    "Rotate 90° Clockwise": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Rotate 90° Clockwise"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Saat Yönünde 90° Döndür"
+          }
+        }
+      }
+    },
+    "Rotate 90° Counter-Clockwise": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Rotate 90° Counter-Clockwise"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Saat Yönünün Tersine 90° Döndür"
+          }
+        }
+      }
+    },
+    "Rotate 90° clockwise": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Rotate 90° clockwise"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Saat yönünde 90° döndür"
           }
         }
       }
@@ -6833,6 +8945,22 @@
         }
       }
     },
+    "Saturation": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Saturation"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Doygunluk"
+          }
+        }
+      }
+    },
     "Save": {
       "localizations": {
         "en": {
@@ -6845,6 +8973,86 @@
           "stringUnit": {
             "state": "translated",
             "value": "Kaydet"
+          }
+        }
+      }
+    },
+    "Save Copy (⌘S)": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Save Copy (⌘S)"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Kopyayı Kaydet (⌘S)"
+          }
+        }
+      }
+    },
+    "Save Copy Instead": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Save Copy Instead"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bunun Yerine Kopya Kaydet"
+          }
+        }
+      }
+    },
+    "Save Copy…": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Save Copy…"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Kopyayı Kaydet…"
+          }
+        }
+      }
+    },
+    "Save Frame as JPEG...": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Save Frame as JPEG..."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Kareyi JPEG Olarak Kaydet..."
+          }
+        }
+      }
+    },
+    "Save Frame as PNG...": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Save Frame as PNG..."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Kareyi PNG Olarak Kaydet..."
           }
         }
       }
@@ -6945,6 +9153,38 @@
         }
       }
     },
+    "Save current frame or copy to clipboard": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Save current frame or copy to clipboard"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Geçerli kareyi kaydedin veya panoya kopyalayın"
+          }
+        }
+      }
+    },
+    "Saved frame to %@": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Saved frame to %@"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Kare %@ olarak kaydedildi"
+          }
+        }
+      }
+    },
     "Saved preset \"%@\" to Presets.": {
       "localizations": {
         "en": {
@@ -7005,6 +9245,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "Lisans metninde ara..."
+          }
+        }
+      }
+    },
+    "Seg %lld": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Seg %lld"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bölüm %lld"
           }
         }
       }
@@ -7105,6 +9361,38 @@
         }
       }
     },
+    "Select a supported image file to view or edit.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Select a supported image file to view or edit."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Görüntülemek veya düzenlemek için desteklenen bir görsel dosyası seçin."
+          }
+        }
+      }
+    },
+    "Select an image or video to open in Media Viewer": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Select an image or video to open in Media Viewer"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Medya Görüntüleyici'de açmak için bir görsel veya video seçin"
+          }
+        }
+      }
+    },
     "Select at least 2 PDFs to merge.": {
       "localizations": {
         "en": {
@@ -7201,6 +9489,22 @@
         }
       }
     },
+    "Send to Convert Queue": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Send to Convert Queue"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dönüştürme Kuyruğuna Gönder"
+          }
+        }
+      }
+    },
     "Separate page numbers or inclusive ranges with commas.": {
       "localizations": {
         "en": {
@@ -7213,6 +9517,38 @@
           "stringUnit": {
             "state": "translated",
             "value": "Sayfa numaralarını veya aralıkları virgülle ayırın."
+          }
+        }
+      }
+    },
+    "Set active segment end to playhead (O)": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Set active segment end to playhead (O)"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Etkin segment bitişini oynatma imlecine ayarla (O)"
+          }
+        }
+      }
+    },
+    "Set active segment start to playhead (I)": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Set active segment start to playhead (I)"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Etkin segment başlangıcını oynatma imlecine ayarla (I)"
           }
         }
       }
@@ -7261,6 +9597,38 @@
           "stringUnit": {
             "state": "translated",
             "value": "Ayarlar..."
+          }
+        }
+      }
+    },
+    "Shadow Blur": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Shadow Blur"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Gölge Bulanıklığı"
+          }
+        }
+      }
+    },
+    "Sharpness": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sharpness"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Keskinlik"
           }
         }
       }
@@ -7441,6 +9809,22 @@
         }
       }
     },
+    "Solid": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Solid"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Düz Renk"
+          }
+        }
+      }
+    },
     "Some files were skipped because their destination folders are not writable.": {
       "localizations": {
         "en": {
@@ -7489,6 +9873,22 @@
         }
       }
     },
+    "Source: %@": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Source: %@"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Kaynak: %@"
+          }
+        }
+      }
+    },
     "Source: Manual conversion": {
       "localizations": {
         "en": {
@@ -7533,6 +9933,54 @@
           "stringUnit": {
             "state": "translated",
             "value": "Kaynak: İzlenen Klasör otomasyonu"
+          }
+        }
+      }
+    },
+    "Space Play/Pause · J/K/L Shuttle · I/O In/Out · ⌘B Split · ⌘M Mute": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Space Play/Pause · J/K/L Shuttle · I/O In/Out · ⌘B Split · ⌘M Mute"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Boşluk Oynat/Duraklat · J/K/L Sar · I/O Giriş/Çıkış · ⌘B Böl · ⌘M Sessiz"
+          }
+        }
+      }
+    },
+    "Speed": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Speed"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Hız"
+          }
+        }
+      }
+    },
+    "Split (⌘B)": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Split (⌘B)"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Böl (⌘B)"
           }
         }
       }
@@ -7633,6 +10081,38 @@
         }
       }
     },
+    "Split segment at playhead (⌘B)": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Split segment at playhead (⌘B)"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Segmenti oynatma imlecinde böl (⌘B)"
+          }
+        }
+      }
+    },
+    "Spot Heal": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Spot Heal"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Leke Düzelt"
+          }
+        }
+      }
+    },
     "Start Conversion": {
       "localizations": {
         "en": {
@@ -7681,6 +10161,150 @@
         }
       }
     },
+    "Step": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Step"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Adım"
+          }
+        }
+      }
+    },
+    "Step back 5 seconds": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Step back 5 seconds"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "5 saniye geri git"
+          }
+        }
+      }
+    },
+    "Step back 5 seconds (J)": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Step back 5 seconds (J)"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "5 saniye geri git (J)"
+          }
+        }
+      }
+    },
+    "Step forward 5 seconds": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Step forward 5 seconds"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "5 saniye ileri git"
+          }
+        }
+      }
+    },
+    "Step forward 5 seconds (L)": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Step forward 5 seconds (L)"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "5 saniye ileri git (L)"
+          }
+        }
+      }
+    },
+    "Stream-copies kept segments without re-encoding for near-instant export. Rotation & speed require Compressed MP4.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Stream-copies kept segments without re-encoding for near-instant export. Rotation & speed require Compressed MP4."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Korunan segmentleri yeniden kodlamadan akış kopyalama ile neredeyse anında dışa aktarır. Döndürme ve hız için Sıkıştırılmış MP4 gerekir."
+          }
+        }
+      }
+    },
+    "Stroke / Brush": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Stroke / Brush"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Çizgi / Fırça"
+          }
+        }
+      }
+    },
+    "Style": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Style"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Stil"
+          }
+        }
+      }
+    },
+    "Sunset": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sunset"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Gün Batımı"
+          }
+        }
+      }
+    },
     "Supported Formats": {
       "localizations": {
         "en": {
@@ -7713,6 +10337,22 @@
         }
       }
     },
+    "Supports PNG, JPEG, HEIC, WebP, JXL, TIFF, GIF, RAW, MP4, MOV, MKV, WebM, and more": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Supports PNG, JPEG, HEIC, WebP, JXL, TIFF, GIF, RAW, MP4, MOV, MKV, WebM, and more"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "PNG, JPEG, HEIC, WebP, JXL, TIFF, GIF, RAW, MP4, MOV, MKV, WebM ve daha fazlasını destekler"
+          }
+        }
+      }
+    },
     "Switch to Audio Workspace": {
       "localizations": {
         "en": {
@@ -7725,6 +10365,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "Ses Çalışma Alanına Geç"
+          }
+        }
+      }
+    },
+    "Switch to Browse / Pan": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Switch to Browse / Pan"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Gezinme / Kaydırmaya Geç"
           }
         }
       }
@@ -7873,6 +10529,54 @@
         }
       }
     },
+    "Text": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Text"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Metin"
+          }
+        }
+      }
+    },
+    "Text Size": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Text Size"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Metin Boyutu"
+          }
+        }
+      }
+    },
+    "The copied file is not a supported image or video.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The copied file is not a supported image or video."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Kopyalanan dosya desteklenen bir görsel veya video değil."
+          }
+        }
+      }
+    },
     "The destination folder is inaccessible or unwritable.": {
       "localizations": {
         "en": {
@@ -7953,6 +10657,134 @@
         }
       }
     },
+    "This replaces \"%@\" atomically on disk with your current edits.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "This replaces \"%@\" atomically on disk with your current edits."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bu işlem disk üzerindeki \"%@\" dosyasını geçerli düzenlemelerinizle atomik olarak değiştirir."
+          }
+        }
+      }
+    },
+    "Toggle 100% actual pixels (0)": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Toggle 100% actual pixels (0)"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%100 gerçek piksel boyutunu aç/kapat (0)"
+          }
+        }
+      }
+    },
+    "Toggle EXIF & Dimensions HUD": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Toggle EXIF & Dimensions HUD"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "EXIF ve Boyut Bilgisini Aç/Kapat"
+          }
+        }
+      }
+    },
+    "Toggle EXIF HUD": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Toggle EXIF HUD"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "EXIF Bilgisini Aç/Kapat"
+          }
+        }
+      }
+    },
+    "Toggle Filmstrip": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Toggle Filmstrip"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Film Şeridini Aç/Kapat"
+          }
+        }
+      }
+    },
+    "Toggle Folder Filmstrip": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Toggle Folder Filmstrip"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Klasör Film Şeridini Aç/Kapat"
+          }
+        }
+      }
+    },
+    "Toggle whether selected segment is kept or deleted": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Toggle whether selected segment is kept or deleted"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Seçili segmentin korunup korunmayacağını değiştir"
+          }
+        }
+      }
+    },
+    "Trash": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Trash"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Çöp Sepeti"
+          }
+        }
+      }
+    },
     "Try adjusting your search query, category, or source filter.": {
       "localizations": {
         "en": {
@@ -7981,6 +10813,38 @@
           "stringUnit": {
             "state": "translated",
             "value": "Kodlayıcı sıkıştırma profillerini, Butteraugli mesafesi/kalitesini, eforu, bit derinliğini, alfa korumasını ve WebP/JXL kayıpsız modlarını ayarlayın."
+          }
+        }
+      }
+    },
+    "Type annotation text...": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Type annotation text..."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Açıklama metnini yazın..."
+          }
+        }
+      }
+    },
+    "Unable to Display Photo": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Unable to Display Photo"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Fotoğraf Görüntülenemiyor"
           }
         }
       }
@@ -8017,6 +10881,22 @@
         }
       }
     },
+    "Undo (⌘Z)": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Undo (⌘Z)"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Geri Al (⌘Z)"
+          }
+        }
+      }
+    },
     "Unknown": {
       "localizations": {
         "en": {
@@ -8045,6 +10925,54 @@
           "stringUnit": {
             "state": "translated",
             "value": "Bilinmeyen boyut"
+          }
+        }
+      }
+    },
+    "Unmute audio": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Unmute audio"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sesi aç"
+          }
+        }
+      }
+    },
+    "Unmute audio (⌘M)": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Unmute audio (⌘M)"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sesi aç (⌘M)"
+          }
+        }
+      }
+    },
+    "Unsupported Media Viewer format": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Unsupported Media Viewer format"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Desteklenmeyen Medya Görüntüleyici biçimi"
           }
         }
       }
@@ -8093,6 +11021,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "Sürüm %1$@ (Yapı %2$@) · Apple Silicon (arm64)"
+          }
+        }
+      }
+    },
+    "Video preview player": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Video preview player"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Video önizleme oynatıcısı"
           }
         }
       }
@@ -8209,6 +11153,22 @@
         }
       }
     },
+    "View, annotate, crop, trim, and export photos or videos locally": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "View, annotate, crop, trim, and export photos or videos locally"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Fotoğraf ve videoları yerel olarak görüntüleyin, işaretleyin, kırpın ve dışa aktarın"
+          }
+        }
+      }
+    },
     "Visually organize, reorder, move, duplicate, delete, rotate, crop, resize, insert, and split pages.": {
       "localizations": {
         "en": {
@@ -8221,6 +11181,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "Sayfaları görsel olarak düzenleyin, sıralayın, taşıyın, çoğaltın, silin, döndürün, kırpın, boyutlandırın, ekleyin ve bölün."
+          }
+        }
+      }
+    },
+    "Warmth": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Warmth"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sıcaklık"
           }
         }
       }
@@ -8349,6 +11325,38 @@
           "stringUnit": {
             "state": "translated",
             "value": "Son dönüşümünüz seçili dosyalarla uyumlu değil."
+          }
+        }
+      }
+    },
+    "Zoom In": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Zoom In"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Yakınlaştır"
+          }
+        }
+      }
+    },
+    "Zoom Out": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Zoom Out"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Uzaklaştır"
           }
         }
       }

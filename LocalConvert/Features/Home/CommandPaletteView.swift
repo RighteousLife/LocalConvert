@@ -5,6 +5,7 @@ import AppKit
 
 enum CommandPaletteCategory: String, CaseIterable, Identifiable, Sendable, Hashable {
     case navigation = "Navigation"
+    case mediaViewer = "Media Viewer"
     case audioWorkspace = "Audio Workspace"
     case preset = "Presets"
     case pdfTool = "PDF Toolbox"
@@ -15,6 +16,7 @@ enum CommandPaletteCategory: String, CaseIterable, Identifiable, Sendable, Hasha
     var priority: Int {
         switch self {
         case .navigation: return 5
+        case .mediaViewer: return 4
         case .audioWorkspace: return 4
         case .preset: return 3
         case .pdfTool: return 2
@@ -25,6 +27,7 @@ enum CommandPaletteCategory: String, CaseIterable, Identifiable, Sendable, Hasha
     var badgeTint: Color {
         switch self {
         case .navigation: return AppTheme.Colors.accent
+        case .mediaViewer: return .teal
         case .audioWorkspace: return AppTheme.Colors.info
         case .preset: return AppTheme.Colors.success
         case .pdfTool: return AppTheme.Colors.warning
@@ -35,6 +38,7 @@ enum CommandPaletteCategory: String, CaseIterable, Identifiable, Sendable, Hasha
 
 enum CommandPaletteAction: Equatable, Hashable, Sendable {
     case navigationTab(AppNavigationTab)
+    case openMediaViewer
     case pdfTool(operationID: String)
     case imageSection(ImageToolboxSection)
     case audioWorkspaceMode(AudioWorkspaceMode)
@@ -273,7 +277,21 @@ enum CommandPaletteCatalog {
             )
         }
 
-        // 2. Audio Workspace modes
+        // 2. Unified Media Viewer
+        items.append(
+            CommandPaletteItem(
+                id: "mediaviewer.open",
+                title: "Open Media Viewer (Photo, Markup & Video Editor)",
+                subtitle: "Open an image or video to view, annotate, trim, or crop locally",
+                category: .mediaViewer,
+                systemImage: "photo.on.rectangle.angled",
+                keywords: ["media viewer", "photo", "image", "video", "markup", "annotate", "trim", "crop", "player", "preview"],
+                shortcutHint: nil,
+                action: .openMediaViewer
+            )
+        )
+
+        // 3. Audio Workspace modes
         for mode in AudioWorkspaceMode.allCases {
             items.append(
                 CommandPaletteItem(
@@ -742,6 +760,9 @@ enum CommandPaletteRouter {
             } else {
                 appState.selectedTab = tab
             }
+
+        case .openMediaViewer:
+            appState.openMediaViewerEmpty()
 
         case .pdfTool:
             appState.selectedTab = .pdfToolbox

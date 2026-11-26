@@ -39,16 +39,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             let otherURLs = urls.filter { $0.scheme?.lowercased() != "localconvert" }
 
             if let appState = AppState.shared {
-                if !otherURLs.isEmpty {
-                    appState.addFiles(urls: otherURLs)
-                }
-                for schemeURL in schemeURLs {
-                    LocalConvertApp.handleIncomingURL(
-                        schemeURL,
-                        appState: appState,
-                        coordinator: URLSchemeHandoffCoordinator.shared
-                    )
-                }
+                LocalConvertApp.handleIncomingURLs(
+                    urls,
+                    appState: appState,
+                    coordinator: URLSchemeHandoffCoordinator.shared
+                )
             } else {
                 if !otherURLs.isEmpty {
                     Self.pendingOpenURLs.append(contentsOf: otherURLs)
@@ -576,7 +571,7 @@ struct LocalConvertApp: App {
     private var isEscapeCancelShortcutEnabled: Bool {
         EscapeCancelMonitor.shouldAllowEscapeCancelShortcut(
             isConverting: appState.isConverting,
-            isEscapeBlocked: escapeMonitor.isEscapeBlocked,
+            isEscapeBlocked: escapeMonitor.isEscapeBlocked || appState.isMediaViewerPresented,
             isTextInputActive: undoMenu.isTextInputActive,
             isEditingHistoryPresented: undoCoordinator.isEditingHistoryPresented,
             isURLConfirmationPresented: urlSchemeCoordinator.isConfirmationPresented,
@@ -588,7 +583,7 @@ struct LocalConvertApp: App {
     private var isPasteToConvertShortcutEnabled: Bool {
         Self.shouldAllowPasteToConvertShortcut(
             isConverting: appState.isConverting,
-            isEscapeBlocked: escapeMonitor.isEscapeBlocked,
+            isEscapeBlocked: escapeMonitor.isEscapeBlocked || appState.isMediaViewerPresented,
             isTextInputActive: undoMenu.isTextInputActive,
             isEditingHistoryPresented: undoCoordinator.isEditingHistoryPresented,
             isURLConfirmationPresented: urlSchemeCoordinator.isConfirmationPresented,
@@ -651,7 +646,24 @@ struct LocalConvertApp: App {
         if url.scheme?.lowercased() == "localconvert" {
             coordinator.handleIncomingURL(url, appState: appState)
         } else if url.isFileURL {
-            appState.addFiles(urls: [url])
+            appState.handleOpenedFileURLs([url])
+        }
+    }
+
+    @MainActor
+    static func handleIncomingURLs(
+        _ urls: [URL],
+        appState: AppState,
+        coordinator: URLSchemeHandoffCoordinator = .shared
+    ) {
+        let schemeURLs = urls.filter { $0.scheme?.lowercased() == "localconvert" }
+        let fileURLs = urls.filter { $0.scheme?.lowercased() != "localconvert" && $0.isFileURL }
+
+        if !fileURLs.isEmpty {
+            appState.handleOpenedFileURLs(fileURLs)
+        }
+        for schemeURL in schemeURLs {
+            coordinator.handleIncomingURL(schemeURL, appState: appState)
         }
     }
 

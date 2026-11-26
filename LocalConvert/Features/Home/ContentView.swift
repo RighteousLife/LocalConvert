@@ -43,6 +43,16 @@ struct ContentView: View {
         .toolbar {
             ToolbarItemGroup(placement: .primaryAction) {
                 Button {
+                    appState.openMediaViewerEmpty()
+                } label: {
+                    Label("Media Viewer", systemImage: "photo.on.rectangle.angled")
+                }
+                .help("Open Media Viewer (Photo, Markup & Video Editor)")
+                .accessibilityLabel("Media Viewer")
+                .accessibilityHint("Opens the unified photo, markup, and video viewer and editor")
+                .accessibilityIdentifier("toolbar.mediaViewer")
+
+                Button {
                     undoMenu.performUndo()
                 } label: {
                     Label(undoMenu.undoTitle, systemImage: "arrow.uturn.backward")
@@ -94,6 +104,11 @@ struct ContentView: View {
             if commandPalette.isPresented {
                 CommandPaletteView(controller: commandPalette)
             }
+        }
+        .sheet(isPresented: $appState.isMediaViewerPresented) {
+            MediaViewerSheetView()
+                .environmentObject(appState)
+                .preferredColorScheme(preferredColorScheme)
         }
     }
     
