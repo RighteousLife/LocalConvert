@@ -78,7 +78,7 @@ struct MediaViewerSheetView: View {
             let height = min(max(windowSize.height - 50, 500), 680)
             return CGSize(width: width, height: height)
         }
-        return CGSize(width: 960, height: 660)
+        return CGSize(width: 780, height: 530)
     }
 
     var body: some View {
@@ -145,12 +145,14 @@ struct MediaViewerSheetView: View {
         VStack(spacing: 0) {
             sheetHeader(
                 title: String(localized: "Media Viewer"),
-                subtitle: String(localized: "View, annotate, crop, trim, and export photos or videos locally")
+                subtitle: String(localized: "View, annotate, crop, trim, and export photos or videos locally"),
+                systemImage: "photo.on.rectangle.angled",
+                tint: AppTheme.Colors.accent
             )
 
             AppDivider()
 
-            VStack(spacing: AppTheme.Spacing.lg) {
+            VStack(spacing: AppTheme.Spacing.md) {
                 if let notice = emptyStateNotice {
                     AppInfoBanner(
                         style: .warning,
@@ -160,9 +162,22 @@ struct MediaViewerSheetView: View {
                 }
 
                 VStack(spacing: AppTheme.Spacing.lg) {
-                    Image(systemName: isDropTargeted ? "photo.badge.plus.fill" : "photo.on.rectangle.angled")
-                        .font(.system(size: AppTheme.Layout.emptyIconSize, weight: .light))
-                        .foregroundStyle(isDropTargeted ? AppTheme.Colors.accent : .secondary)
+                    ZStack {
+                        RoundedRectangle(cornerRadius: AppTheme.Radius.xl)
+                            .fill(isDropTargeted ? AppTheme.Colors.accentTint : AppTheme.Colors.neutralTint)
+                            .frame(width: 64, height: 64)
+                            .overlay(
+                                RoundedRectangle(cornerRadius: AppTheme.Radius.xl)
+                                    .strokeBorder(
+                                        isDropTargeted ? AppTheme.Colors.accent.opacity(0.45) : AppTheme.Colors.cardBorder,
+                                        lineWidth: 1
+                                    )
+                            )
+
+                        Image(systemName: isDropTargeted ? "photo.badge.plus.fill" : "photo.on.rectangle.angled")
+                            .font(.system(size: 28, weight: .medium))
+                            .foregroundStyle(isDropTargeted ? AppTheme.Colors.accent : .secondary)
+                    }
 
                     VStack(spacing: AppTheme.Spacing.xs) {
                         Text(isDropTargeted
@@ -176,6 +191,7 @@ struct MediaViewerSheetView: View {
                             .foregroundStyle(.secondary)
                             .multilineTextAlignment(.center)
                             .frame(maxWidth: 460)
+                            .fixedSize(horizontal: false, vertical: true)
                     }
 
                     HStack(spacing: AppTheme.Spacing.md) {
@@ -199,16 +215,35 @@ struct MediaViewerSheetView: View {
                         .accessibilityLabel("Paste Image from Clipboard")
                         .accessibilityIdentifier("mediaviewer.pasteImageButton")
                     }
+
+                    ViewThatFits(in: .horizontal) {
+                        HStack(spacing: AppTheme.Spacing.sm) {
+                            studioCapabilityPill(icon: "pencil.tip.crop.circle", text: String(localized: "Photo Markup & Redact"))
+                            studioCapabilityPill(icon: "scissors", text: String(localized: "Multi-Segment Video Trim"))
+                            studioCapabilityPill(icon: "lock.shield", text: String(localized: "100% On-Device"))
+                        }
+
+                        HStack(spacing: AppTheme.Spacing.xs) {
+                            studioCapabilityPill(icon: "pencil.tip.crop.circle", text: String(localized: "Markup & Redact"))
+                            studioCapabilityPill(icon: "scissors", text: String(localized: "Video Trim"))
+                            studioCapabilityPill(icon: "lock.shield", text: String(localized: "On-Device"))
+                        }
+                    }
+                    .padding(.top, AppTheme.Spacing.xs)
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
                 .padding(AppTheme.Spacing.xl)
-                .background {
+                .background(
+                    RoundedRectangle(cornerRadius: AppTheme.Radius.xl)
+                        .fill(isDropTargeted ? AppTheme.Colors.accentTint.opacity(0.45) : AppTheme.Colors.cardBackground.opacity(0.75))
+                )
+                .overlay(
                     RoundedRectangle(cornerRadius: AppTheme.Radius.xl)
                         .strokeBorder(
                             isDropTargeted ? AppTheme.Colors.accent : AppTheme.Colors.cardBorder,
-                            style: StrokeStyle(lineWidth: 2, dash: [8, 4])
+                            style: StrokeStyle(lineWidth: isDropTargeted ? 2 : 1.5, dash: [7, 5])
                         )
-                }
+                )
                 .onDrop(of: [.fileURL], isTargeted: $isDropTargeted) { providers in
                     handleDroppedProviders(providers)
                     return true
@@ -220,13 +255,36 @@ struct MediaViewerSheetView: View {
         .accessibilityIdentifier("mediaviewer.emptyState")
     }
 
+    private func studioCapabilityPill(icon: String, text: String) -> some View {
+        HStack(spacing: AppTheme.Spacing.xs) {
+            Image(systemName: icon)
+                .font(.caption2.weight(.medium))
+                .foregroundStyle(AppTheme.Colors.accent)
+            Text(text)
+                .font(AppTheme.Typography.caption)
+                .foregroundStyle(.secondary)
+                .lineLimit(1)
+        }
+        .padding(.horizontal, AppTheme.Spacing.sm + 2)
+        .padding(.vertical, 5)
+        .background(AppTheme.Colors.subtleSurface)
+        .clipShape(Capsule())
+        .overlay(
+            Capsule()
+                .strokeBorder(AppTheme.Colors.cardBorder, lineWidth: 1)
+        )
+        .fixedSize(horizontal: true, vertical: false)
+    }
+
     // MARK: - Unsupported File State
 
     private func unsupportedStateView(for url: URL) -> some View {
         VStack(spacing: 0) {
             sheetHeader(
                 title: url.lastPathComponent,
-                subtitle: String(localized: "Unsupported Media Viewer format")
+                subtitle: String(localized: "Unsupported Media Viewer format"),
+                systemImage: "doc.questionmark",
+                tint: AppTheme.Colors.warning
             )
 
             AppDivider()
@@ -262,8 +320,22 @@ struct MediaViewerSheetView: View {
 
     // MARK: - Header Chrome
 
-    private func sheetHeader(title: String, subtitle: String) -> some View {
+    private func sheetHeader(
+        title: String,
+        subtitle: String,
+        systemImage: String = "photo.on.rectangle.angled",
+        tint: Color = AppTheme.Colors.accent
+    ) -> some View {
         HStack(spacing: AppTheme.Spacing.md) {
+            ZStack {
+                RoundedRectangle(cornerRadius: AppTheme.Radius.sm)
+                    .fill(tint.opacity(0.14))
+                    .frame(width: 32, height: 32)
+                Image(systemName: systemImage)
+                    .font(.system(size: 15, weight: .semibold))
+                    .foregroundStyle(tint)
+            }
+
             VStack(alignment: .leading, spacing: AppTheme.Spacing.xxs) {
                 Text(title)
                     .font(AppTheme.Typography.pageTitle)
@@ -282,6 +354,8 @@ struct MediaViewerSheetView: View {
             Button("Close") {
                 appState.closeMediaViewer()
             }
+            .buttonStyle(.bordered)
+            .controlSize(.small)
             .keyboardShortcut(.cancelAction)
             .fixedSize(horizontal: true, vertical: false)
             .accessibilityLabel("Close Media Viewer")

@@ -41,7 +41,7 @@ struct ContentView: View {
         .appOpaqueWindowChrome(preferredColorScheme: preferredColorScheme)
         .navigationTitle(appState.selectedTab.localizedTitle)
         .toolbar {
-            ToolbarItemGroup(placement: .primaryAction) {
+            ToolbarItem(placement: .primaryAction) {
                 Button {
                     appState.openMediaViewerEmpty()
                 } label: {
@@ -51,14 +51,16 @@ struct ContentView: View {
                 .accessibilityLabel("Media Viewer")
                 .accessibilityHint("Opens the unified photo, markup, and video viewer and editor")
                 .accessibilityIdentifier("toolbar.mediaViewer")
+            }
 
+            ToolbarItemGroup(placement: .primaryAction) {
                 Button {
                     undoMenu.performUndo()
                 } label: {
                     Label(undoMenu.undoTitle, systemImage: "arrow.uturn.backward")
                 }
                 .disabled(!undoMenu.canUndo)
-                .help(undoMenu.undoTitle)
+                .help(undoMenu.canUndo ? "\(undoMenu.undoTitle) (⌘Z)" : String(localized: "Nothing to Undo (⌘Z)"))
                 .accessibilityLabel(undoMenu.undoTitle)
                 .accessibilityHint("Reverses the most recent operation in the active editing context")
                 .accessibilityIdentifier("toolbar.undo")
@@ -69,11 +71,13 @@ struct ContentView: View {
                     Label(undoMenu.redoTitle, systemImage: "arrow.uturn.forward")
                 }
                 .disabled(!undoMenu.canRedo)
-                .help(undoMenu.redoTitle)
+                .help(undoMenu.canRedo ? "\(undoMenu.redoTitle) (⇧⌘Z)" : String(localized: "Nothing to Redo (⇧⌘Z)"))
                 .accessibilityLabel(undoMenu.redoTitle)
                 .accessibilityHint("Reapplies the most recently undone operation")
                 .accessibilityIdentifier("toolbar.redo")
+            }
 
+            ToolbarItem(placement: .primaryAction) {
                 Button {
                     undoCoordinator.isEditingHistoryPresented.toggle()
                 } label: {
@@ -164,10 +168,18 @@ struct SidebarView: View {
     
     var body: some View {
         List(AppNavigationTab.allCases, id: \.self, selection: $selection) { tab in
-            Label(tab.localizedTitle, systemImage: tab.iconName)
-                .badge(tab == .jobs && activeJobCount > 0 ? activeJobCount : 0)
-                .tag(tab)
-                .accessibilityIdentifier("sidebar.tab.\(tab.rawValue.lowercased().replacingOccurrences(of: " ", with: "_"))")
+            Label {
+                Text(tab.localizedTitle)
+                    .lineLimit(1)
+                    .truncationMode(.tail)
+            } icon: {
+                Image(systemName: tab.iconName)
+                    .imageScale(.medium)
+            }
+            .badge(tab == .jobs && activeJobCount > 0 ? activeJobCount : 0)
+            .help(tab.localizedDescription)
+            .tag(tab)
+            .accessibilityIdentifier("sidebar.tab.\(tab.rawValue.lowercased().replacingOccurrences(of: " ", with: "_"))")
         }
         .onAppear {
             if selection != appState.selectedTab {

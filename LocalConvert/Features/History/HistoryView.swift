@@ -420,6 +420,8 @@ struct HistoryRowView: View {
                         } label: {
                             Image(systemName: "arrow.up.forward.app")
                                 .font(AppTheme.Typography.subheadline)
+                                .frame(width: 24, height: 24)
+                                .contentShape(RoundedRectangle(cornerRadius: AppTheme.Radius.xs))
                         }
                         .buttonStyle(.plain)
                         .help("Open output file")
@@ -430,6 +432,8 @@ struct HistoryRowView: View {
                         } label: {
                             Image(systemName: "folder")
                                 .font(AppTheme.Typography.subheadline)
+                                .frame(width: 24, height: 24)
+                                .contentShape(RoundedRectangle(cornerRadius: AppTheme.Radius.xs))
                         }
                         .buttonStyle(.plain)
                         .help("Show in Finder")
@@ -441,6 +445,8 @@ struct HistoryRowView: View {
                         } label: {
                             Image(systemName: "doc.on.doc")
                                 .font(AppTheme.Typography.caption)
+                                .frame(width: 24, height: 24)
+                                .contentShape(RoundedRectangle(cornerRadius: AppTheme.Radius.xs))
                         }
                         .buttonStyle(.plain)
                         .help("Copy output path")

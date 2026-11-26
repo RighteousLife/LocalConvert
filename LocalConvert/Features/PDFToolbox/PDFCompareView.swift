@@ -84,22 +84,18 @@ struct PDFCompareView: View {
             if let report {
                 // Summary Banner
                 AppCard(padding: AppTheme.Spacing.sm) {
-                    HStack(spacing: AppTheme.Spacing.lg) {
-                        Label(
-                            report.summaryText,
-                            systemImage: report.modifiedPagesCount + report.addedPagesCount + report.removedPagesCount == 0
-                                ? "checkmark.circle.fill"
-                                : "exclamationmark.triangle.fill"
-                        )
-                        .font(AppTheme.Typography.subheadline)
-                        .foregroundStyle(
-                            report.modifiedPagesCount + report.addedPagesCount + report.removedPagesCount == 0
-                                ? AppTheme.Colors.success
-                                : AppTheme.Colors.warning
-                        )
-                        Spacer()
-                        Toggle("Visual Pixel Diff Overlay", isOn: $showVisualDiffOverlay)
-                            .toggleStyle(.switch)
+                    ViewThatFits(in: .horizontal) {
+                        HStack(spacing: AppTheme.Spacing.lg) {
+                            compareSummaryLabel(report)
+                            Spacer()
+                            Toggle("Visual Pixel Diff Overlay", isOn: $showVisualDiffOverlay)
+                                .toggleStyle(.switch)
+                        }
+                        VStack(alignment: .leading, spacing: AppTheme.Spacing.xs) {
+                            compareSummaryLabel(report)
+                            Toggle("Visual Pixel Diff Overlay", isOn: $showVisualDiffOverlay)
+                                .toggleStyle(.switch)
+                        }
                     }
                 }
 
@@ -131,73 +127,15 @@ struct PDFCompareView: View {
 
                 // Side-by-Side Visual + Text Diff Details
                 if let diff = selectedDiff {
-                    HStack(alignment: .top, spacing: AppTheme.Spacing.md) {
-                        VStack(alignment: .leading, spacing: AppTheme.Spacing.xs) {
-                            HStack(spacing: AppTheme.Spacing.sm) {
-                                visualCard(title: "Original", pngData: diff.leftThumbnailData, dims: diff.leftDimensions, rot: diff.leftRotation)
-                                if showVisualDiffOverlay, let overlay = diff.visualDiffImageData {
-                                    visualCard(title: diff.visualDifferenceRatio.map { String(format: "Visual Diff (%.2f%%)", $0 * 100.0) } ?? "Visual Diff", pngData: overlay, dims: nil, rot: nil)
-                                } else {
-                                    visualCard(title: "Revised", pngData: diff.rightThumbnailData, dims: diff.rightDimensions, rot: diff.rightRotation)
-                                }
-                            }
-                            if showVisualDiffOverlay {
-                                visualCard(title: "Revised Page", pngData: diff.rightThumbnailData, dims: diff.rightDimensions, rot: diff.rightRotation)
-                            }
+                    ViewThatFits(in: .horizontal) {
+                        HStack(alignment: .top, spacing: AppTheme.Spacing.md) {
+                            compareVisualPanes(diff)
+                            compareTextDiffCard(diff)
                         }
 
-                        // Separated Text & Structural Diff Inspector
-                        AppCard(title: "Text & Structural Differences (Page Slot \(diff.pageNumber))", icon: "text.alignleft") {
-                            ScrollView {
-                                VStack(alignment: .leading, spacing: AppTheme.Spacing.xs) {
-                                    if diff.addedLines.isEmpty && diff.removedLines.isEmpty && diff.annotationChanges.isEmpty && diff.formFieldChanges.isEmpty && diff.leftImageCount == diff.rightImageCount {
-                                        Text("No extracted text, annotation, or form field differences on this page.")
-                                            .font(AppTheme.Typography.caption)
-                                            .foregroundStyle(.secondary)
-                                    } else {
-                                        ForEach(diff.removedLines, id: \.self) { line in
-                                            Text("− \(line)")
-                                                .font(.system(.caption, design: .monospaced))
-                                                .foregroundStyle(AppTheme.Colors.error)
-                                                .frame(maxWidth: .infinity, alignment: .leading)
-                                        }
-                                        ForEach(diff.addedLines, id: \.self) { line in
-                                            Text("+ \(line)")
-                                                .font(.system(.caption, design: .monospaced))
-                                                .foregroundStyle(AppTheme.Colors.success)
-                                                .frame(maxWidth: .infinity, alignment: .leading)
-                                        }
-                                        if !diff.annotationChanges.isEmpty {
-                                            Divider()
-                                            Text("Annotation Changes")
-                                                .font(.caption2)
-                                                .fontWeight(.semibold)
-                                            ForEach(diff.annotationChanges, id: \.self) { item in
-                                                Text(item)
-                                                    .font(.system(.caption2, design: .monospaced))
-                                                    .foregroundStyle(AppTheme.Colors.warning)
-                                            }
-                                        }
-                                        if !diff.formFieldChanges.isEmpty {
-                                            Divider()
-                                            Text("Form Field Changes")
-                                                .font(.caption2)
-                                                .fontWeight(.semibold)
-                                            ForEach(diff.formFieldChanges, id: \.self) { item in
-                                                Text(item)
-                                                    .font(.system(.caption2, design: .monospaced))
-                                                    .foregroundStyle(.blue)
-                                            }
-                                        }
-                                        if diff.leftImageCount != diff.rightImageCount {
-                                            Text("Embedded Image XObjects: \(diff.leftImageCount) → \(diff.rightImageCount)")
-                                                .font(.caption2)
-                                                .foregroundStyle(.secondary)
-                                        }
-                                    }
-                                }
-                            }
-                            .frame(minHeight: 180, maxHeight: 280)
+                        VStack(alignment: .leading, spacing: AppTheme.Spacing.md) {
+                            compareVisualPanes(diff)
+                            compareTextDiffCard(diff)
                         }
                     }
                 }
@@ -208,6 +146,95 @@ struct PDFCompareView: View {
         }
         .onChange(of: availablePDFs.map { $0.id }) { _, _ in
             autoSelectDefaults()
+        }
+    }
+
+    @ViewBuilder
+    private func compareSummaryLabel(_ report: PDFComparisonReport) -> some View {
+        Label(
+            report.summaryText,
+            systemImage: report.modifiedPagesCount + report.addedPagesCount + report.removedPagesCount == 0
+                ? "checkmark.circle.fill"
+                : "exclamationmark.triangle.fill"
+        )
+        .font(AppTheme.Typography.subheadline)
+        .foregroundStyle(
+            report.modifiedPagesCount + report.addedPagesCount + report.removedPagesCount == 0
+                ? AppTheme.Colors.success
+                : AppTheme.Colors.warning
+        )
+    }
+
+    @ViewBuilder
+    private func compareVisualPanes(_ diff: PDFPageComparisonDiff) -> some View {
+        VStack(alignment: .leading, spacing: AppTheme.Spacing.xs) {
+            HStack(spacing: AppTheme.Spacing.sm) {
+                visualCard(title: "Original", pngData: diff.leftThumbnailData, dims: diff.leftDimensions, rot: diff.leftRotation)
+                if showVisualDiffOverlay, let overlay = diff.visualDiffImageData {
+                    visualCard(title: diff.visualDifferenceRatio.map { String(format: "Visual Diff (%.2f%%)", $0 * 100.0) } ?? "Visual Diff", pngData: overlay, dims: nil, rot: nil)
+                } else {
+                    visualCard(title: "Revised", pngData: diff.rightThumbnailData, dims: diff.rightDimensions, rot: diff.rightRotation)
+                }
+            }
+            if showVisualDiffOverlay {
+                visualCard(title: "Revised Page", pngData: diff.rightThumbnailData, dims: diff.rightDimensions, rot: diff.rightRotation)
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func compareTextDiffCard(_ diff: PDFPageComparisonDiff) -> some View {
+        AppCard(title: "Text & Structural Differences (Page Slot \(diff.pageNumber))", icon: "text.alignleft") {
+            ScrollView {
+                VStack(alignment: .leading, spacing: AppTheme.Spacing.xs) {
+                    if diff.addedLines.isEmpty && diff.removedLines.isEmpty && diff.annotationChanges.isEmpty && diff.formFieldChanges.isEmpty && diff.leftImageCount == diff.rightImageCount {
+                        Text("No extracted text, annotation, or form field differences on this page.")
+                            .font(AppTheme.Typography.caption)
+                            .foregroundStyle(.secondary)
+                    } else {
+                        ForEach(diff.removedLines, id: \.self) { line in
+                            Text("− \(line)")
+                                .font(.system(.caption, design: .monospaced))
+                                .foregroundStyle(AppTheme.Colors.error)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                        }
+                        ForEach(diff.addedLines, id: \.self) { line in
+                            Text("+ \(line)")
+                                .font(.system(.caption, design: .monospaced))
+                                .foregroundStyle(AppTheme.Colors.success)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                        }
+                        if !diff.annotationChanges.isEmpty {
+                            Divider()
+                            Text("Annotation Changes")
+                                .font(.caption2)
+                                .fontWeight(.semibold)
+                            ForEach(diff.annotationChanges, id: \.self) { item in
+                                Text(item)
+                                    .font(.system(.caption2, design: .monospaced))
+                                    .foregroundStyle(AppTheme.Colors.warning)
+                            }
+                        }
+                        if !diff.formFieldChanges.isEmpty {
+                            Divider()
+                            Text("Form Field Changes")
+                                .font(.caption2)
+                                .fontWeight(.semibold)
+                            ForEach(diff.formFieldChanges, id: \.self) { item in
+                                Text(item)
+                                    .font(.system(.caption2, design: .monospaced))
+                                    .foregroundStyle(.blue)
+                            }
+                        }
+                        if diff.leftImageCount != diff.rightImageCount {
+                            Text("Embedded Image XObjects: \(diff.leftImageCount) → \(diff.rightImageCount)")
+                                .font(.caption2)
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                }
+            }
+            .frame(minHeight: 180, maxHeight: 280)
         }
     }
 
@@ -230,7 +257,11 @@ struct PDFCompareView: View {
                     .resizable()
                     .scaledToFit()
                     .frame(maxHeight: 200)
-                    .border(Color.secondary.opacity(0.3))
+                    .clipShape(RoundedRectangle(cornerRadius: AppTheme.Radius.sm))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: AppTheme.Radius.sm)
+                            .strokeBorder(Color.primary.opacity(0.08), lineWidth: 1)
+                    )
             } else {
                 Text("(No Page)")
                     .font(.caption)

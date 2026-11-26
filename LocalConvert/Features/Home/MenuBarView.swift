@@ -284,9 +284,16 @@ struct MenuBarDropPopoverView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: AppTheme.Spacing.md) {
             HStack(spacing: AppTheme.Spacing.sm) {
-                Image(systemName: session.hasStagedFiles ? "arrow.down.doc.fill" : "exclamationmark.triangle.fill")
-                    .font(.headline)
-                    .foregroundStyle(session.hasStagedFiles ? AppTheme.Colors.accent : AppTheme.Colors.warning)
+                ZStack {
+                    RoundedRectangle(cornerRadius: AppTheme.Radius.sm)
+                        .fill(session.hasStagedFiles ? AppTheme.Colors.accentTint : AppTheme.Colors.warningTint)
+                        .frame(width: 28, height: 28)
+
+                    Image(systemName: session.hasStagedFiles ? "arrow.down.doc.fill" : "exclamationmark.triangle.fill")
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(session.hasStagedFiles ? AppTheme.Colors.accent : AppTheme.Colors.warning)
+                }
+                .accessibilityHidden(true)
 
                 Text(session.hasStagedFiles ? String(localized: "Drop to Convert") : String(localized: "Drop Rejected"))
                     .font(AppTheme.Typography.sectionTitle)
@@ -307,6 +314,7 @@ struct MenuBarDropPopoverView: View {
                     onCancel()
                 } label: {
                     Image(systemName: "xmark.circle.fill")
+                        .font(.subheadline)
                         .foregroundStyle(.secondary)
                 }
                 .buttonStyle(.plain)
@@ -332,7 +340,7 @@ struct MenuBarDropPopoverView: View {
                                 Spacer(minLength: AppTheme.Spacing.xs)
 
                                 if let format = fileDetector.detect(url: url).bestFormat {
-                                    AppStatusBadge(text: format.displayName, tint: .secondary)
+                                    AppStatusBadge(text: format.displayName, tint: .secondary, style: .rounded)
                                 }
                             }
                             .padding(.vertical, 2)
@@ -341,8 +349,12 @@ struct MenuBarDropPopoverView: View {
                 }
                 .frame(maxHeight: 110)
                 .padding(AppTheme.Spacing.sm)
-                .background(AppTheme.Colors.subtleSurface)
+                .background(AppTheme.Colors.cardBackground.opacity(0.75))
                 .clipShape(RoundedRectangle(cornerRadius: AppTheme.Radius.sm))
+                .overlay(
+                    RoundedRectangle(cornerRadius: AppTheme.Radius.sm)
+                        .strokeBorder(AppTheme.Colors.cardBorder, lineWidth: 1)
+                )
             }
 
             if !session.rejectedEntries.isEmpty {
@@ -370,6 +382,10 @@ struct MenuBarDropPopoverView: View {
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .background(AppTheme.Colors.warningTint)
                 .clipShape(RoundedRectangle(cornerRadius: AppTheme.Radius.sm))
+                .overlay(
+                    RoundedRectangle(cornerRadius: AppTheme.Radius.sm)
+                        .strokeBorder(AppTheme.Colors.warning.opacity(0.28), lineWidth: 1)
+                )
             }
 
             if session.hasStagedFiles {
@@ -387,46 +403,10 @@ struct MenuBarDropPopoverView: View {
                         ScrollView {
                             VStack(spacing: AppTheme.Spacing.xs) {
                                 ForEach(session.compatiblePresets) { item in
-                                    Button {
-                                        onSelectPreset(item.preset)
-                                    } label: {
-                                        HStack(spacing: AppTheme.Spacing.sm) {
-                                            Image(systemName: "bolt.fill")
-                                                .font(.caption)
-                                                .foregroundStyle(AppTheme.Colors.accent)
-
-                                            Text(item.preset.name)
-                                                .font(AppTheme.Typography.subheadline)
-                                                .foregroundStyle(.primary)
-                                                .lineLimit(1)
-                                                .truncationMode(.tail)
-
-                                            Spacer(minLength: AppTheme.Spacing.xs)
-
-                                            if !item.isFullyCompatible {
-                                                Text(verbatim: "\(item.compatibleCount)/\(item.totalCount)")
-                                                    .font(AppTheme.Typography.monoCaption)
-                                                    .foregroundStyle(.secondary)
-                                            }
-
-                                            AppStatusBadge(
-                                                text: "→ \(item.preset.targetFormat.displayName)",
-                                                tint: AppTheme.Colors.accent
-                                            )
-                                        }
-                                        .padding(.horizontal, AppTheme.Spacing.sm)
-                                        .padding(.vertical, 6)
-                                        .frame(maxWidth: .infinity, alignment: .leading)
-                                        .background(AppTheme.Colors.cardBackground)
-                                        .clipShape(RoundedRectangle(cornerRadius: AppTheme.Radius.sm))
-                                        .overlay(
-                                            RoundedRectangle(cornerRadius: AppTheme.Radius.sm)
-                                                .strokeBorder(AppTheme.Colors.cardBorder, lineWidth: 1)
-                                        )
-                                    }
-                                    .buttonStyle(.plain)
-                                    .accessibilityLabel(String(localized: "Run preset \(item.preset.name)"))
-                                    .accessibilityIdentifier("menubar.drop.preset.\(item.preset.id.uuidString)")
+                                    MenuBarPresetRowButton(
+                                        item: item,
+                                        onSelect: { onSelectPreset(item.preset) }
+                                    )
                                 }
                             }
                         }
@@ -435,12 +415,14 @@ struct MenuBarDropPopoverView: View {
                 }
             }
 
-            Divider()
+            AppDivider()
 
             HStack(spacing: AppTheme.Spacing.sm) {
                 Button("Cancel", role: .cancel) {
                     onCancel()
                 }
+                .buttonStyle(.bordered)
+                .controlSize(.small)
                 .keyboardShortcut(.cancelAction)
                 .accessibilityIdentifier("menubar.drop.cancel")
 
@@ -458,11 +440,67 @@ struct MenuBarDropPopoverView: View {
                 }
             }
         }
-        .padding(AppTheme.Spacing.md)
-        .frame(width: 320)
-        .background(AppTheme.Colors.workspaceBackground)
+        .padding(AppTheme.Spacing.md + 2)
+        .frame(width: 332)
+        .background(.regularMaterial)
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("menubar.drop.popover")
+    }
+}
+
+private struct MenuBarPresetRowButton: View {
+    let item: MenuBarCompatiblePreset
+    let onSelect: () -> Void
+    @State private var isHovered = false
+
+    var body: some View {
+        Button(action: onSelect) {
+            HStack(spacing: AppTheme.Spacing.sm) {
+                Image(systemName: "bolt.fill")
+                    .font(.caption)
+                    .foregroundStyle(AppTheme.Colors.accent)
+
+                Text(item.preset.name)
+                    .font(AppTheme.Typography.subheadline)
+                    .foregroundStyle(.primary)
+                    .lineLimit(1)
+                    .truncationMode(.tail)
+
+                Spacer(minLength: AppTheme.Spacing.xs)
+
+                if !item.isFullyCompatible {
+                    Text(verbatim: "\(item.compatibleCount)/\(item.totalCount)")
+                        .font(AppTheme.Typography.monoCaption)
+                        .foregroundStyle(.secondary)
+                }
+
+                AppStatusBadge(
+                    text: "→ \(item.preset.targetFormat.displayName)",
+                    tint: AppTheme.Colors.accent,
+                    style: .rounded
+                )
+            }
+            .padding(.horizontal, AppTheme.Spacing.sm)
+            .padding(.vertical, 6)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(
+                isHovered
+                    ? AppTheme.Colors.accentTint.opacity(0.65)
+                    : AppTheme.Colors.cardBackground.opacity(0.85)
+            )
+            .clipShape(RoundedRectangle(cornerRadius: AppTheme.Radius.sm))
+            .overlay(
+                RoundedRectangle(cornerRadius: AppTheme.Radius.sm)
+                    .strokeBorder(
+                        isHovered ? AppTheme.Colors.accent.opacity(0.45) : AppTheme.Colors.cardBorder,
+                        lineWidth: 1
+                    )
+            )
+        }
+        .buttonStyle(.plain)
+        .onHover { isHovered = $0 }
+        .accessibilityLabel(String(localized: "Run preset \(item.preset.name)"))
+        .accessibilityIdentifier("menubar.drop.preset.\(item.preset.id.uuidString)")
     }
 }
 

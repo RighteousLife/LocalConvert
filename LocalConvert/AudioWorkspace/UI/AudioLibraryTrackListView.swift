@@ -129,24 +129,31 @@ struct AudioLibraryTrackListView: View {
             }
 
             if store.sidebarSection != .duplicates {
-                HStack(spacing: 6) {
-                    ForEach(AudioLibraryQuickFilter.allCases) { filter in
-                        Button(filter.rawValue) {
-                            Task {
-                                store.quickFilter = filter
-                                await store.reloadMetadataAndTracks()
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: 6) {
+                        ForEach(AudioLibraryQuickFilter.allCases) { filter in
+                            let isActive = store.quickFilter == filter
+                            Button(filter.rawValue) {
+                                Task {
+                                    store.quickFilter = filter
+                                    await store.reloadMetadataAndTracks()
+                                }
                             }
+                            .buttonStyle(.plain)
+                            .fixedSize(horizontal: true, vertical: false)
+                            .font(AppTheme.Typography.caption)
+                            .padding(.horizontal, 10)
+                            .padding(.vertical, 3)
+                            .background(isActive ? AppTheme.Colors.accent : AppTheme.Colors.cardBackground)
+                            .foregroundStyle(isActive ? Color.white : Color.primary)
+                            .clipShape(Capsule())
+                            .overlay(
+                                Capsule()
+                                    .strokeBorder(isActive ? Color.clear : Color.primary.opacity(0.08), lineWidth: 1)
+                            )
+                            .contentShape(Capsule())
+                            .accessibilityIdentifier("audioworkspace.library.filter.\(filter.rawValue.lowercased().replacingOccurrences(of: "-", with: "_"))")
                         }
-                        .buttonStyle(.plain)
-                        .fixedSize(horizontal: true, vertical: false)
-                        .font(AppTheme.Typography.caption)
-                        .padding(.horizontal, 10)
-                        .padding(.vertical, 3)
-                        .background(store.quickFilter == filter ? AppTheme.Colors.accent : AppTheme.Colors.cardBackground)
-                        .foregroundStyle(store.quickFilter == filter ? Color.white : Color.primary)
-                        .clipShape(Capsule())
-                        .contentShape(Capsule())
-                        .accessibilityIdentifier("audioworkspace.library.filter.\(filter.rawValue.lowercased().replacingOccurrences(of: "-", with: "_"))")
                     }
                 }
             }
@@ -336,9 +343,16 @@ struct AudioLibraryTrackListView: View {
                     .buttonStyle(.borderedProminent)
                     .accessibilityIdentifier("audioworkspace.library.banner_relink")
                 }
-                .padding(.horizontal, AppTheme.Spacing.lg)
-                .padding(.vertical, 6)
+                .padding(.horizontal, AppTheme.Spacing.md)
+                .padding(.vertical, AppTheme.Spacing.sm)
                 .background(AppTheme.Colors.warningTint)
+                .clipShape(RoundedRectangle(cornerRadius: AppTheme.Radius.sm))
+                .overlay(
+                    RoundedRectangle(cornerRadius: AppTheme.Radius.sm)
+                        .strokeBorder(AppTheme.Colors.warning.opacity(0.28), lineWidth: 1)
+                )
+                .padding(.horizontal, AppTheme.Spacing.lg)
+                .padding(.bottom, AppTheme.Spacing.xs)
             }
             if let errorMessage = store.errorMessage {
                 AppInfoBanner(
@@ -398,6 +412,10 @@ struct AudioLibraryTrackListView: View {
             .background(isSelected ? AppTheme.Colors.accent : AppTheme.Colors.cardBackground)
             .foregroundStyle(isSelected ? Color.white : Color.primary)
             .clipShape(Capsule())
+            .overlay(
+                Capsule()
+                    .strokeBorder(isSelected ? Color.clear : Color.primary.opacity(0.08), lineWidth: 1)
+            )
     }
 
     @ViewBuilder
@@ -498,11 +516,13 @@ struct AudioLibraryTrackListView: View {
                                 Button("Editor") {
                                     onOpenInEditor(record)
                                 }
+                                .buttonStyle(.bordered)
                                 .controlSize(.small)
                                 .fixedSize(horizontal: true, vertical: false)
                                 Button("Remove Entry", role: .destructive) {
                                     Task { await store.removeAssetFromLibrary(id: record.asset.id) }
                                 }
+                                .buttonStyle(.bordered)
                                 .controlSize(.small)
                                 .fixedSize(horizontal: true, vertical: false)
                                 .help("Removes index entry only; audio file stays on disk")

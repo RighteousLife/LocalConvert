@@ -18,6 +18,7 @@ struct AudioPlaybackQueuePopover: View {
                         playlistNameDraft = "Queue \(Date().formatted(date: .abbreviated, time: .shortened))"
                         showSavePlaylistPrompt = true
                     }
+                    .buttonStyle(.bordered)
                     .controlSize(.small)
                     .disabled(playback.queueRecords.isEmpty)
                     .accessibilityIdentifier("audioworkspace.queue.save_playlist")
@@ -25,6 +26,7 @@ struct AudioPlaybackQueuePopover: View {
                 Button("Clear") {
                     Task { await playback.clearQueue() }
                 }
+                .buttonStyle(.bordered)
                 .controlSize(.small)
                 .disabled(playback.queueRecords.isEmpty)
                 .accessibilityIdentifier("audioworkspace.queue.clear")
@@ -47,6 +49,7 @@ struct AudioPlaybackQueuePopover: View {
                     .buttonStyle(.borderedProminent)
                     .disabled(playlistNameDraft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
                     Button("Cancel") { showSavePlaylistPrompt = false }
+                        .buttonStyle(.bordered)
                         .controlSize(.small)
                 }
                 .padding(.horizontal, AppTheme.Spacing.md)

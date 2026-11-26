@@ -72,6 +72,7 @@ struct ImageOptimizationSectionView: View {
                         Text(mode.displayName).tag(mode)
                     }
                 }
+                .labelsHidden()
                 .pickerStyle(.menu)
                 .accessibilityLabel("Optimization Mode")
             }
@@ -145,6 +146,10 @@ struct ImageOptimizationSectionView: View {
                 .padding(AppTheme.Spacing.sm)
                 .background(AppTheme.Colors.subtleSurface)
                 .clipShape(RoundedRectangle(cornerRadius: AppTheme.Radius.sm))
+                .overlay(
+                    RoundedRectangle(cornerRadius: AppTheme.Radius.sm)
+                        .strokeBorder(AppTheme.Colors.cardBorder, lineWidth: 1)
+                )
             }
             
             // 3. Quality Slider (if lossy and not fixed target size)
@@ -212,6 +217,7 @@ struct ImageOptimizationSectionView: View {
                         Text(mode.displayName).tag(mode)
                     }
                 }
+                .labelsHidden()
                 .pickerStyle(.menu)
                 .accessibilityLabel("Resize Mode")
                 
@@ -239,6 +245,7 @@ struct ImageOptimizationSectionView: View {
                         Text(mode.displayName).tag(mode)
                     }
                 }
+                .labelsHidden()
                 .pickerStyle(.menu)
                 .accessibilityLabel("Crop Mode")
                 
@@ -248,6 +255,7 @@ struct ImageOptimizationSectionView: View {
                             Text(ratio.displayName).tag(ratio)
                         }
                     }
+                    .labelsHidden()
                     .pickerStyle(.menu)
                     .accessibilityLabel("Crop Aspect Ratio")
                 }
@@ -367,7 +375,8 @@ struct ImageOptimizationSectionView: View {
     }
     
     private func targetPresetButton(label: String, bytes: Int64) -> some View {
-        Button(action: {
+        let isActive = options.targetFileSizeBytes == bytes
+        return Button(action: {
             let formatted = formatTargetSizeKB(bytes)
             lastSyncedTargetSizeKB = formatted
             targetSizeInputKB = formatted
@@ -384,9 +393,11 @@ struct ImageOptimizationSectionView: View {
                 .padding(.vertical, AppTheme.Spacing.xxs)
         }
         .buttonStyle(.bordered)
+        .tint(isActive ? AppTheme.Colors.accent : nil)
         .controlSize(.mini)
         .fixedSize(horizontal: true, vertical: false)
         .accessibilityLabel("Set target file size to \(label)")
+        .accessibilityAddTraits(isActive ? [.isSelected] : [])
     }
     
     // MARK: - Helpers

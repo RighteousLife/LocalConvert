@@ -36,13 +36,18 @@ struct ImageEffectsChainView: View {
             LazyVGrid(columns: [GridItem(.adaptive(minimum: 130), spacing: AppTheme.Spacing.xs)], spacing: AppTheme.Spacing.xs) {
                 ForEach(SubTab.allCases) { tab in
                     let selected = (activeTab == tab)
-                    Button(tab.rawValue) { activeTab = tab }
-                        .controlSize(.small)
-                        .buttonStyle(.bordered)
-                        .tint(selected ? AppTheme.Colors.accent : .secondary)
-                        .frame(maxWidth: .infinity)
-                        .accessibilityLabel(tab.rawValue)
-                        .accessibilityValue(selected ? "Selected" : "")
+                    Button {
+                        activeTab = tab
+                    } label: {
+                        Text(tab.rawValue)
+                            .lineLimit(1)
+                            .frame(maxWidth: .infinity)
+                    }
+                    .controlSize(.small)
+                    .buttonStyle(.bordered)
+                    .tint(selected ? AppTheme.Colors.accent : .secondary)
+                    .accessibilityLabel(tab.rawValue)
+                    .accessibilityValue(selected ? "Selected" : "")
                 }
             }
 
@@ -91,6 +96,7 @@ struct ImageEffectsChainView: View {
                         Button("Reset Entire Stack") {
                             store.resetAllEffects(for: url)
                         }
+                        .buttonStyle(.bordered)
                         .controlSize(.small)
                         .accessibilityLabel("Reset Entire Effects Stack")
                     }
@@ -138,6 +144,7 @@ struct ImageEffectsChainView: View {
                             } label: {
                                 Image(systemName: "arrow.up")
                             }
+                            .buttonStyle(.bordered)
                             .controlSize(.small)
                             .disabled(index == 0)
                             .help("Move Effect Up")
@@ -148,6 +155,7 @@ struct ImageEffectsChainView: View {
                             } label: {
                                 Image(systemName: "arrow.down")
                             }
+                            .buttonStyle(.bordered)
                             .controlSize(.small)
                             .disabled(index == config.effectStack.count - 1)
                             .help("Move Effect Down")
@@ -156,6 +164,7 @@ struct ImageEffectsChainView: View {
                             Button("Reset") {
                                 store.resetEffect(id: slot.id, for: url)
                             }
+                            .buttonStyle(.bordered)
                             .controlSize(.small)
                             .accessibilityLabel("Reset \(slot.kind.rawValue)")
 
@@ -341,6 +350,7 @@ struct ImageEffectsChainView: View {
                             cfg.effectStack.removeAll()
                         }
                     }
+                    .buttonStyle(.bordered)
                     .controlSize(.small)
                 }
 
@@ -356,27 +366,24 @@ struct ImageEffectsChainView: View {
     private var userPresetsCard: some View {
         AppCard(title: "My Image Presets", icon: "tray.full") {
             VStack(alignment: .leading, spacing: AppTheme.Spacing.md) {
-                HStack(spacing: AppTheme.Spacing.sm) {
-                    TextField("New Look Preset Name...", text: $newPresetName)
-                        .textFieldStyle(.roundedBorder)
-                    TextField("Description (optional)", text: $newPresetDescription)
-                        .textFieldStyle(.roundedBorder)
-                    Button("Save Look Preset") {
-                        let trimmed = newPresetName.trimmingCharacters(in: .whitespacesAndNewlines)
-                        guard !trimmed.isEmpty else { return }
-                        let preset = ImagePresetCatalog.makeUserLookPreset(
-                            name: trimmed,
-                            description: newPresetDescription.isEmpty ? nil : newPresetDescription,
-                            targetFormat: targetFormat,
-                            config: config
-                        )
-                        presetManager.save(preset: preset)
-                        newPresetName = ""
-                        newPresetDescription = ""
+                ViewThatFits(in: .horizontal) {
+                    HStack(spacing: AppTheme.Spacing.sm) {
+                        TextField("New Look Preset Name...", text: $newPresetName)
+                            .textFieldStyle(.roundedBorder)
+                        TextField("Description (optional)", text: $newPresetDescription)
+                            .textFieldStyle(.roundedBorder)
+                        saveLookPresetButton
                     }
-                    .buttonStyle(.borderedProminent)
-                    .controlSize(.small)
-                    .disabled(newPresetName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+
+                    VStack(alignment: .leading, spacing: AppTheme.Spacing.xs) {
+                        TextField("New Look Preset Name...", text: $newPresetName)
+                            .textFieldStyle(.roundedBorder)
+                        HStack(spacing: AppTheme.Spacing.sm) {
+                            TextField("Description (optional)", text: $newPresetDescription)
+                                .textFieldStyle(.roundedBorder)
+                            saveLookPresetButton
+                        }
+                    }
                 }
 
                 if userImagePresets.isEmpty {
@@ -399,16 +406,40 @@ struct ImageEffectsChainView: View {
                 HStack {
                     Spacer()
                     Button("Cancel") { renamingPreset = nil }
+                        .buttonStyle(.bordered)
+                        .keyboardShortcut(.cancelAction)
                     Button("Rename") {
                         _ = presetManager.rename(id: target.id, to: renameText)
                         renamingPreset = nil
                     }
                     .buttonStyle(.borderedProminent)
+                    .keyboardShortcut(.defaultAction)
                     .disabled(renameText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
                 }
             }
             .padding(AppTheme.Spacing.lg)
+            .appWorkspaceSurface()
         }
+    }
+
+    private var saveLookPresetButton: some View {
+        Button("Save Look Preset") {
+            let trimmed = newPresetName.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !trimmed.isEmpty else { return }
+            let preset = ImagePresetCatalog.makeUserLookPreset(
+                name: trimmed,
+                description: newPresetDescription.isEmpty ? nil : newPresetDescription,
+                targetFormat: targetFormat,
+                config: config
+            )
+            presetManager.save(preset: preset)
+            newPresetName = ""
+            newPresetDescription = ""
+        }
+        .buttonStyle(.borderedProminent)
+        .controlSize(.small)
+        .fixedSize(horizontal: true, vertical: false)
+        .disabled(newPresetName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
     }
 
     private func presetCard(preset: SavedPreset, allowRenameDelete: Bool) -> some View {
@@ -452,6 +483,7 @@ struct ImageEffectsChainView: View {
                             }
                         }
                     }
+                    .buttonStyle(.bordered)
                     .controlSize(.small)
                     .disabled(isApplyingBatch)
                 }
@@ -463,6 +495,7 @@ struct ImageEffectsChainView: View {
                         renameText = preset.name
                         renamingPreset = preset
                     }
+                    .buttonStyle(.bordered)
                     .controlSize(.small)
 
                     Button {
@@ -474,10 +507,10 @@ struct ImageEffectsChainView: View {
                 }
             }
         }
-        .padding(AppTheme.Spacing.sm)
+        .padding(AppTheme.Spacing.md)
         .background(AppTheme.Colors.subtleSurface)
-        .clipShape(RoundedRectangle(cornerRadius: AppTheme.Radius.sm))
-        .overlay(RoundedRectangle(cornerRadius: AppTheme.Radius.sm).strokeBorder(AppTheme.Colors.cardBorder, lineWidth: 1))
+        .clipShape(RoundedRectangle(cornerRadius: AppTheme.Radius.lg))
+        .overlay(RoundedRectangle(cornerRadius: AppTheme.Radius.lg).strokeBorder(Color.primary.opacity(0.08), lineWidth: 1))
     }
 
     private func batchReportBanner(_ report: ImageBatchPresetReport) -> some View {

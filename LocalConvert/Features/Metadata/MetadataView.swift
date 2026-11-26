@@ -133,61 +133,88 @@ struct MetadataView: View {
             
             // Bottom Action Bar
             AppBottomActionBar {
-                HStack {
-                    if let err = metadataManager.errorMessage {
-                        Label(err, systemImage: "xmark.octagon.fill")
-                            .font(AppTheme.Typography.caption)
-                            .foregroundStyle(AppTheme.Colors.error)
-                            .lineLimit(1)
-                    } else if metadataManager.showSuccessToast {
-                        Label("Metadata saved successfully", systemImage: "checkmark.circle.fill")
-                            .font(AppTheme.Typography.caption)
-                            .foregroundStyle(AppTheme.Colors.success)
+                ViewThatFits(in: .horizontal) {
+                    HStack(spacing: AppTheme.Spacing.sm) {
+                        metadataStatusFeedback
+                        Spacer(minLength: AppTheme.Spacing.sm)
+                        metadataBottomButtons
                     }
-                    
-                    Spacer()
-                    
-                    Button("Revert") {
-                        metadataManager.revert()
-                    }
-                    .fixedSize(horizontal: true, vertical: false)
-                    .disabled(!metadataManager.isDirty || metadataManager.isSaving)
-                    .accessibilityLabel("Revert unsaved metadata changes")
 
-                    Button("Save In-Place") {
-                        Task {
-                            _ = await metadataManager.saveInPlace(context: .metadata)
+                    VStack(alignment: .leading, spacing: AppTheme.Spacing.xs) {
+                        if metadataManager.errorMessage != nil || metadataManager.showSuccessToast {
+                            metadataStatusFeedback
+                        }
+                        HStack(spacing: AppTheme.Spacing.sm) {
+                            Spacer(minLength: 0)
+                            metadataBottomButtons
                         }
                     }
-                    .buttonStyle(.bordered)
-                    .controlSize(.regular)
-                    .fixedSize(horizontal: true, vertical: false)
-                    .disabled(!metadataManager.isDirty || metadataManager.isSaving || !caps.canWrite)
-                    .help("Overwrite metadata in the original file on disk (supports Undo)")
-                    .accessibilityLabel("Save metadata changes in-place to original file")
-
-                    Button(action: {
-                        presentSaveCopyPanel()
-                    }) {
-                        HStack(spacing: AppTheme.Spacing.xs + 2) {
-                            if metadataManager.isSaving {
-                                ProgressView()
-                                    .controlSize(.small)
-                            }
-                            Text("Save Copy...")
-                                .fontWeight(.semibold)
-                                .lineLimit(1)
-                        }
-                    }
-                    .buttonStyle(.borderedProminent)
-                    .controlSize(.regular)
-                    .fixedSize(horizontal: true, vertical: false)
-                    .disabled(!metadataManager.isDirty || metadataManager.isSaving || !caps.canWrite)
-                    .help("Write updated metadata to a new file without modifying the original source")
-                    .accessibilityLabel("Save metadata changes to a new copy")
                 }
             }
         }
+    }
+
+    @ViewBuilder
+    private var metadataStatusFeedback: some View {
+        if let err = metadataManager.errorMessage {
+            Label(err, systemImage: "xmark.octagon.fill")
+                .font(AppTheme.Typography.caption)
+                .foregroundStyle(AppTheme.Colors.error)
+                .lineLimit(1)
+                .truncationMode(.tail)
+        } else if metadataManager.showSuccessToast {
+            Label("Metadata saved successfully", systemImage: "checkmark.circle.fill")
+                .font(AppTheme.Typography.caption)
+                .foregroundStyle(AppTheme.Colors.success)
+                .lineLimit(1)
+        }
+    }
+
+    @ViewBuilder
+    private var metadataBottomButtons: some View {
+        let canWrite = metadataManager.capabilities?.canWrite ?? false
+        HStack(spacing: AppTheme.Spacing.sm) {
+            Button("Revert") {
+                metadataManager.revert()
+            }
+            .buttonStyle(.bordered)
+            .fixedSize(horizontal: true, vertical: false)
+            .disabled(!metadataManager.isDirty || metadataManager.isSaving)
+            .accessibilityLabel("Revert unsaved metadata changes")
+
+            Button("Save In-Place") {
+                Task {
+                    _ = await metadataManager.saveInPlace(context: .metadata)
+                }
+            }
+            .buttonStyle(.bordered)
+            .controlSize(.regular)
+            .fixedSize(horizontal: true, vertical: false)
+            .disabled(!metadataManager.isDirty || metadataManager.isSaving || !canWrite)
+            .help("Overwrite metadata in the original file on disk (supports Undo)")
+            .accessibilityLabel("Save metadata changes in-place to original file")
+
+            Button(action: {
+                presentSaveCopyPanel()
+            }) {
+                HStack(spacing: AppTheme.Spacing.xs + 2) {
+                    if metadataManager.isSaving {
+                        ProgressView()
+                            .controlSize(.small)
+                    }
+                    Text("Save Copy...")
+                        .fontWeight(.semibold)
+                        .lineLimit(1)
+                }
+            }
+            .buttonStyle(.borderedProminent)
+            .controlSize(.regular)
+            .fixedSize(horizontal: true, vertical: false)
+            .disabled(!metadataManager.isDirty || metadataManager.isSaving || !canWrite)
+            .help("Write updated metadata to a new file without modifying the original source")
+            .accessibilityLabel("Save metadata changes to a new copy")
+        }
+        .fixedSize(horizontal: true, vertical: false)
     }
 
     @ViewBuilder
@@ -227,6 +254,7 @@ struct MetadataView: View {
                 Button("Remove GPS", role: .destructive) {
                     metadataManager.removeGPS()
                 }
+                .buttonStyle(.bordered)
                 .controlSize(.small)
                 .fixedSize(horizontal: true, vertical: false)
                 .accessibilityLabel("Strip GPS location tags from this file")
@@ -236,6 +264,7 @@ struct MetadataView: View {
                 Button("Clear All Tags", role: .destructive) {
                     metadataManager.removeAllMetadata()
                 }
+                .buttonStyle(.bordered)
                 .controlSize(.small)
                 .fixedSize(horizontal: true, vertical: false)
                 .accessibilityLabel("Clear all editable metadata tags from this file")
@@ -248,6 +277,7 @@ struct MetadataView: View {
                     chooseFile()
                 }
             }
+            .buttonStyle(.bordered)
             .controlSize(.small)
             .fixedSize(horizontal: true, vertical: false)
         }

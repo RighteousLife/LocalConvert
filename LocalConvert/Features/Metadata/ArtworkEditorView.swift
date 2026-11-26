@@ -23,12 +23,12 @@ struct ArtworkEditorView: View {
         HStack(alignment: .top, spacing: AppTheme.Spacing.lg) {
             // Artwork Preview
             ZStack {
-                RoundedRectangle(cornerRadius: AppTheme.Radius.md)
+                RoundedRectangle(cornerRadius: AppTheme.Radius.lg)
                     .fill(AppTheme.Colors.cardBackground)
                     .frame(width: 110, height: 110)
                     .overlay(
-                        RoundedRectangle(cornerRadius: AppTheme.Radius.md)
-                            .stroke(isTargeted ? AppTheme.Colors.accent : AppTheme.Colors.cardBorder, lineWidth: isTargeted ? 2 : 1)
+                        RoundedRectangle(cornerRadius: AppTheme.Radius.lg)
+                            .stroke(isTargeted ? AppTheme.Colors.accent : Color.primary.opacity(0.08), lineWidth: isTargeted ? 2 : 1)
                     )
                 
                 if let image = artwork?.image {
@@ -71,20 +71,21 @@ struct ArtworkEditorView: View {
                     
                     Text("Drop an image or choose a file (JPEG, PNG, HEIC).")
                         .font(.caption)
-                        .foregroundColor(.secondary)
+                        .foregroundStyle(.secondary)
                     
                     if let art = artwork {
                         let sizeStr = ByteCountFormatter.string(fromByteCount: Int64(art.data.count), countStyle: .file)
                         let dimStr = art.image.map { " · \(Int($0.size.width))×\(Int($0.size.height))" } ?? ""
                         Text("\(art.mimeType)\(dimStr) · \(sizeStr)")
                             .font(.caption2)
-                            .foregroundColor(.secondary)
+                            .foregroundStyle(.secondary)
                     }
                     
-                    HStack(spacing: 8) {
+                    HStack(spacing: AppTheme.Spacing.sm) {
                         Button("Choose Artwork...") {
                             chooseArtworkFile()
                         }
+                        .buttonStyle(.bordered)
                         .controlSize(.small)
                         .accessibilityLabel("Choose artwork file from disk")
                         
@@ -92,6 +93,7 @@ struct ArtworkEditorView: View {
                             Button("Remove", role: .destructive) {
                                 onArtworkChanged(nil)
                             }
+                            .buttonStyle(.bordered)
                             .controlSize(.small)
                             .accessibilityLabel("Remove current album artwork")
                         }

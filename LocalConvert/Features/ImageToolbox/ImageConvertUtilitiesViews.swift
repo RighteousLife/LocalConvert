@@ -71,9 +71,13 @@ struct ImageSmartFormatAdvisorView: View {
                                     .foregroundStyle(AppTheme.Colors.warning)
                             }
                         }
-                        .padding(AppTheme.Spacing.sm)
+                        .padding(AppTheme.Spacing.md)
                         .background(AppTheme.Colors.subtleSurface)
-                        .clipShape(RoundedRectangle(cornerRadius: AppTheme.Radius.sm))
+                        .clipShape(RoundedRectangle(cornerRadius: AppTheme.Radius.lg))
+                        .overlay(
+                            RoundedRectangle(cornerRadius: AppTheme.Radius.lg)
+                                .strokeBorder(Color.primary.opacity(0.08), lineWidth: 1)
+                        )
                     }
 
                     Text(report.estimationDisclaimer)
@@ -106,6 +110,7 @@ struct ImageSmartFormatAdvisorView: View {
         Button { runAnalysis() } label: {
             if isAnalyzing { ProgressView().controlSize(.small) } else { Text("Analyze") }
         }
+        .buttonStyle(.bordered)
         .controlSize(.small)
         .disabled(sourceURL == nil || isAnalyzing)
     }
@@ -205,11 +210,13 @@ struct ImageContactSheetBuilderView: View {
                             activeTask?.cancel()
                             isGenerating = false
                         }
+                        .buttonStyle(.bordered)
                     }
 
                     Button("Export \(options.outputFormat.rawValue)...") {
                         exportSheet()
                     }
+                    .buttonStyle(.bordered)
                     .disabled(lastResult == nil)
                 }
 
@@ -417,6 +424,7 @@ struct ImageBatchRenameView: View {
                                 }
                             }
                         }
+                        .buttonStyle(.bordered)
                     }
 
                     if let statusMessage {
@@ -461,12 +469,14 @@ struct ImageDuplicateFinderView: View {
 
                     if isScanning {
                         Button("Cancel") { scanTask?.cancel(); isScanning = false }
+                            .buttonStyle(.bordered)
                     }
 
                     if !selectedForRemoval.isEmpty {
                         Button("Move \(selectedForRemoval.count) Selected to Trash", role: .destructive) {
                             showTrashConfirmation = true
                         }
+                        .buttonStyle(.bordered)
                         .alert("Move Selected Images to Trash?", isPresented: $showTrashConfirmation) {
                             Button("Cancel", role: .cancel) {}
                             Button("Move \(selectedForRemoval.count) to Trash", role: .destructive) {
@@ -525,9 +535,13 @@ struct ImageDuplicateFinderView: View {
                 }
             }
         }
-        .padding(AppTheme.Spacing.sm)
+        .padding(AppTheme.Spacing.md)
         .background(AppTheme.Colors.subtleSurface)
-        .clipShape(RoundedRectangle(cornerRadius: AppTheme.Radius.sm))
+        .clipShape(RoundedRectangle(cornerRadius: AppTheme.Radius.lg))
+        .overlay(
+            RoundedRectangle(cornerRadius: AppTheme.Radius.lg)
+                .strokeBorder(Color.primary.opacity(0.08), lineWidth: 1)
+        )
     }
 
     private func runScan() {

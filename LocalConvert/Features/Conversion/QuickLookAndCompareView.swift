@@ -736,6 +736,7 @@ struct QuickLookAndCompareView: View {
                     } label: {
                         Image(systemName: "chevron.left")
                     }
+                    .buttonStyle(.bordered)
                     .controlSize(.small)
                     .disabled(currentPageIndex <= 0)
                     .accessibilityLabel("Previous page")
@@ -750,6 +751,7 @@ struct QuickLookAndCompareView: View {
                     } label: {
                         Image(systemName: "chevron.right")
                     }
+                    .buttonStyle(.bordered)
                     .controlSize(.small)
                     .disabled(currentPageIndex >= maxPageCount - 1)
                     .accessibilityLabel("Next page")
@@ -906,11 +908,19 @@ struct QuickLookAndCompareView: View {
     }
 
     private func sidePane(title: String, image: NSImage?, emptyText: String) -> some View {
-        VStack(spacing: AppTheme.Spacing.xs) {
+        VStack(spacing: AppTheme.Spacing.xs + 2) {
             Text(title)
-                .font(AppTheme.Typography.badge)
+                .font(AppTheme.Typography.badge.monospacedDigit())
                 .foregroundStyle(.secondary)
                 .lineLimit(1)
+                .padding(.horizontal, AppTheme.Spacing.sm)
+                .padding(.vertical, 3)
+                .background(AppTheme.Colors.subtleSurface)
+                .clipShape(Capsule())
+                .overlay(
+                    Capsule()
+                        .strokeBorder(AppTheme.Colors.cardBorder, lineWidth: 0.75)
+                )
 
             ZStack {
                 canvasBackdrop
@@ -954,61 +964,81 @@ struct QuickLookAndCompareView: View {
 
     private func cornerBadge(text: String) -> some View {
         Text(text)
-            .font(AppTheme.Typography.badge)
+            .font(AppTheme.Typography.badge.monospacedDigit())
             .padding(.horizontal, AppTheme.Spacing.sm)
             .padding(.vertical, AppTheme.Spacing.xs)
-            .background(AppTheme.Colors.cardBackground.opacity(0.94))
-            .clipShape(Capsule())
+            .background(.regularMaterial, in: Capsule())
             .overlay(
                 Capsule()
                     .strokeBorder(AppTheme.Colors.cardBorder, lineWidth: 1)
             )
+            .shadow(color: .black.opacity(0.12), radius: 3, y: 1)
     }
 
     // MARK: - Footer Bar
 
     private var footerBar: some View {
-        HStack(spacing: AppTheme.Spacing.md) {
-            if viewMode == .splitSlider {
-                HStack(spacing: AppTheme.Spacing.sm) {
-                    Text("Split:")
-                        .font(AppTheme.Typography.caption)
-                        .foregroundStyle(.secondary)
-                    Slider(value: splitRatioBinding, in: 0.0...1.0)
-                        .frame(width: 170)
-                        .accessibilityLabel("Before and after split position")
-                        .accessibilityValue("\(Int((BeforeAfterComparisonMath.clampSplitRatio(splitRatio) * 100).rounded())) percent")
-                        .accessibilityIdentifier("quickCompare.splitSlider")
-                    Text("\(Int((BeforeAfterComparisonMath.clampSplitRatio(splitRatio) * 100).rounded()))%")
-                        .font(AppTheme.Typography.monoCaption)
-                        .foregroundStyle(.secondary)
-                        .frame(width: 38, alignment: .trailing)
-                    Button("50%") {
-                        splitRatio = 0.5
-                    }
-                    .controlSize(.mini)
-                    .buttonStyle(.bordered)
-                    .help("Reset split to 50%")
+        ViewThatFits(in: .horizontal) {
+            HStack(spacing: AppTheme.Spacing.md) {
+                splitFooterControls
+                Spacer(minLength: AppTheme.Spacing.sm)
+                byteComparisonFooterLabel
+            }
+
+            VStack(alignment: .leading, spacing: AppTheme.Spacing.xs) {
+                if viewMode == .splitSlider {
+                    splitFooterControls
+                }
+                HStack {
+                    Spacer(minLength: 0)
+                    byteComparisonFooterLabel
                 }
             }
-
-            Spacer(minLength: AppTheme.Spacing.sm)
-
-            HStack(spacing: AppTheme.Spacing.xs) {
-                Text("Before: \(ByteCountFormatter.string(fromByteCount: item.inputBytes, countStyle: .file))")
-                    .font(AppTheme.Typography.monoCaption)
-                    .foregroundStyle(.secondary)
-                Text("·")
-                    .foregroundStyle(.tertiary)
-                Text("After: \(ByteCountFormatter.string(fromByteCount: item.outputBytes, countStyle: .file))")
-                    .font(AppTheme.Typography.monoCaption)
-                    .foregroundStyle(.primary)
-            }
-            .lineLimit(1)
         }
         .padding(.horizontal, AppTheme.Spacing.lg)
         .padding(.vertical, AppTheme.Spacing.sm)
         .background(AppTheme.Colors.subtleSurface)
+    }
+
+    @ViewBuilder
+    private var splitFooterControls: some View {
+        if viewMode == .splitSlider {
+            HStack(spacing: AppTheme.Spacing.sm) {
+                Text("Split:")
+                    .font(AppTheme.Typography.caption)
+                    .foregroundStyle(.secondary)
+                Slider(value: splitRatioBinding, in: 0.0...1.0)
+                    .frame(minWidth: 130, maxWidth: 170)
+                    .accessibilityLabel("Before and after split position")
+                    .accessibilityValue("\(Int((BeforeAfterComparisonMath.clampSplitRatio(splitRatio) * 100).rounded())) percent")
+                    .accessibilityIdentifier("quickCompare.splitSlider")
+                Text("\(Int((BeforeAfterComparisonMath.clampSplitRatio(splitRatio) * 100).rounded()))%")
+                    .font(AppTheme.Typography.monoCaption)
+                    .foregroundStyle(.secondary)
+                    .frame(width: 38, alignment: .trailing)
+                Button("50%") {
+                    splitRatio = 0.5
+                }
+                .controlSize(.small)
+                .buttonStyle(.bordered)
+                .help("Reset split to 50%")
+            }
+        }
+    }
+
+    private var byteComparisonFooterLabel: some View {
+        HStack(spacing: AppTheme.Spacing.xs) {
+            Text("Before: \(ByteCountFormatter.string(fromByteCount: item.inputBytes, countStyle: .file))")
+                .font(AppTheme.Typography.monoCaption)
+                .foregroundStyle(.secondary)
+            Text("·")
+                .foregroundStyle(.tertiary)
+            Text("After: \(ByteCountFormatter.string(fromByteCount: item.outputBytes, countStyle: .file))")
+                .font(AppTheme.Typography.monoCaption)
+                .foregroundStyle(.primary)
+        }
+        .lineLimit(1)
+        .fixedSize(horizontal: true, vertical: false)
     }
 
     // MARK: - Helpers

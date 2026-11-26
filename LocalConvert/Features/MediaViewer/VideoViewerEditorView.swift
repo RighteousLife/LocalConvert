@@ -313,9 +313,14 @@ struct VideoViewerEditorView: View {
 
     private var headerBar: some View {
         HStack(spacing: AppTheme.Spacing.md) {
-            Image(systemName: "film.stack")
-                .font(.title3)
-                .foregroundStyle(AppTheme.Colors.accent)
+            ZStack {
+                RoundedRectangle(cornerRadius: AppTheme.Radius.sm)
+                    .fill(AppTheme.Colors.accentTint)
+                    .frame(width: 32, height: 32)
+                Image(systemName: "film.stack")
+                    .font(.system(size: 15, weight: .semibold))
+                    .foregroundStyle(AppTheme.Colors.accent)
+            }
 
             VStack(alignment: .leading, spacing: 2) {
                 Text(url.lastPathComponent)
@@ -354,6 +359,7 @@ struct VideoViewerEditorView: View {
                 }
                 .buttonStyle(.bordered)
                 .controlSize(.small)
+                .fixedSize(horizontal: true, vertical: false)
                 .accessibilityIdentifier("videoViewer.sendToQueueButton")
             }
 
@@ -364,6 +370,7 @@ struct VideoViewerEditorView: View {
             }
             .buttonStyle(.bordered)
             .controlSize(.small)
+            .fixedSize(horizontal: true, vertical: false)
             .keyboardShortcut(.cancelAction)
             .accessibilityIdentifier("videoViewer.closeButton")
         }
@@ -376,19 +383,19 @@ struct VideoViewerEditorView: View {
 
     private var playerSurface: some View {
         ZStack {
-            RoundedRectangle(cornerRadius: AppTheme.Radius.md)
+            RoundedRectangle(cornerRadius: AppTheme.Radius.lg)
                 .fill(Color.black)
 
             if let player = playerController.player, playerController.usesNativePlayer {
                 VideoViewerPlayerSurface(player: player)
                     .rotationEffect(.degrees(Double(rotation.rawValue)))
-                    .clipShape(RoundedRectangle(cornerRadius: AppTheme.Radius.md))
+                    .clipShape(RoundedRectangle(cornerRadius: AppTheme.Radius.lg))
             } else if let nsImage = playerController.fallbackImage {
                 Image(nsImage: nsImage)
                     .resizable()
                     .aspectRatio(contentMode: .fit)
                     .rotationEffect(.degrees(Double(rotation.rawValue)))
-                    .clipShape(RoundedRectangle(cornerRadius: AppTheme.Radius.md))
+                    .clipShape(RoundedRectangle(cornerRadius: AppTheme.Radius.lg))
             } else {
                 VStack(spacing: AppTheme.Spacing.xs) {
                     if isProbing {
@@ -420,15 +427,19 @@ struct VideoViewerEditorView: View {
             if rotation != .deg0 || isMuted || abs(speedMultiplier - 1.0) > 0.01 {
                 VStack {
                     HStack(spacing: AppTheme.Spacing.xs) {
-                        if rotation != .deg0 {
-                            AppStatusBadge(text: String(localized: "Rotate \(rotation.label)"), tint: .white)
+                        HStack(spacing: AppTheme.Spacing.xs) {
+                            if rotation != .deg0 {
+                                AppStatusBadge(text: String(localized: "Rotate \(rotation.label)"), tint: .white)
+                            }
+                            if isMuted {
+                                AppStatusBadge(text: String(localized: "Muted"), tint: AppTheme.Colors.warning)
+                            }
+                            if abs(speedMultiplier - 1.0) > 0.01 {
+                                AppStatusBadge(text: speedLabel(speedMultiplier), tint: AppTheme.Colors.accent)
+                            }
                         }
-                        if isMuted {
-                            AppStatusBadge(text: String(localized: "Muted"), tint: AppTheme.Colors.warning)
-                        }
-                        if abs(speedMultiplier - 1.0) > 0.01 {
-                            AppStatusBadge(text: speedLabel(speedMultiplier), tint: AppTheme.Colors.accent)
-                        }
+                        .padding(4)
+                        .background(.ultraThinMaterial, in: Capsule())
                         Spacer()
                     }
                     .padding(AppTheme.Spacing.sm)
@@ -438,7 +449,7 @@ struct VideoViewerEditorView: View {
         }
         .frame(maxWidth: .infinity, minHeight: 190, maxHeight: .infinity)
         .overlay(
-            RoundedRectangle(cornerRadius: AppTheme.Radius.md)
+            RoundedRectangle(cornerRadius: AppTheme.Radius.lg)
                 .strokeBorder(AppTheme.Colors.cardBorder, lineWidth: 1)
         )
         .accessibilityElement(children: .ignore)
@@ -452,12 +463,14 @@ struct VideoViewerEditorView: View {
         ViewThatFits(in: .horizontal) {
             HStack(spacing: AppTheme.Spacing.sm) {
                 playbackControlsGroup
+                AppDivider().frame(width: 1, height: 18)
                 AppHeaderPill(
                     text: "\(VideoTrimTimestamp.formatDisplay(seconds: playerController.currentTimeSeconds)) / \(VideoTrimTimestamp.formatDisplay(seconds: totalDurationSeconds))",
                     systemImage: "clock"
                 )
                 Spacer(minLength: AppTheme.Spacing.xs)
                 transformControlsGroup
+                AppDivider().frame(width: 1, height: 18)
                 snapshotControlsGroup
             }
 
@@ -477,8 +490,8 @@ struct VideoViewerEditorView: View {
                 }
             }
         }
-        .padding(.horizontal, AppTheme.Spacing.sm)
-        .padding(.vertical, AppTheme.Spacing.xs + 2)
+        .padding(.horizontal, AppTheme.Spacing.sm + 2)
+        .padding(.vertical, AppTheme.Spacing.sm)
         .background(AppTheme.Colors.cardBackground)
         .clipShape(RoundedRectangle(cornerRadius: AppTheme.Radius.md))
         .overlay(
@@ -494,6 +507,7 @@ struct VideoViewerEditorView: View {
             } label: {
                 Image(systemName: "gobackward.5")
             }
+            .buttonStyle(.bordered)
             .controlSize(.small)
             .keyboardShortcut("j", modifiers: [])
             .help("Step back 5 seconds (J)")
@@ -519,6 +533,7 @@ struct VideoViewerEditorView: View {
             } label: {
                 Image(systemName: "stop.fill")
             }
+            .buttonStyle(.bordered)
             .controlSize(.small)
             .keyboardShortcut("k", modifiers: [])
             .disabled(!playerController.usesNativePlayer)
@@ -531,6 +546,7 @@ struct VideoViewerEditorView: View {
             } label: {
                 Image(systemName: "goforward.5")
             }
+            .buttonStyle(.bordered)
             .controlSize(.small)
             .keyboardShortcut("l", modifiers: [])
             .help("Step forward 5 seconds (L)")
@@ -548,6 +564,8 @@ struct VideoViewerEditorView: View {
                 Image(systemName: isMuted ? "speaker.slash.fill" : "speaker.wave.2.fill")
                     .foregroundStyle(isMuted ? AppTheme.Colors.warning : .primary)
             }
+            .buttonStyle(.bordered)
+            .tint(isMuted ? AppTheme.Colors.warning : nil)
             .controlSize(.small)
             .keyboardShortcut("m", modifiers: .command)
             .help(isMuted ? String(localized: "Unmute audio (⌘M)") : String(localized: "Mute audio (⌘M)"))
@@ -559,7 +577,10 @@ struct VideoViewerEditorView: View {
             } label: {
                 Label(rotation.label, systemImage: "rotate.right")
             }
+            .buttonStyle(.bordered)
+            .tint(rotation != .deg0 ? AppTheme.Colors.accent : nil)
             .controlSize(.small)
+            .fixedSize(horizontal: true, vertical: false)
             .help("Rotate 90° clockwise")
             .accessibilityLabel("Rotate 90 degrees, current \(rotation.label)")
             .accessibilityIdentifier("videoViewer.rotateButton")
@@ -571,7 +592,7 @@ struct VideoViewerEditorView: View {
             }
             .labelsHidden()
             .controlSize(.small)
-            .frame(width: 72)
+            .frame(width: 76)
             .onChange(of: speedMultiplier) { _, newValue in
                 playerController.setSpeed(newValue)
             }
@@ -606,6 +627,7 @@ struct VideoViewerEditorView: View {
             } label: {
                 Image(systemName: "doc.on.doc")
             }
+            .buttonStyle(.bordered)
             .controlSize(.small)
             .help("Copy current frame to clipboard")
             .accessibilityLabel("Copy current frame to clipboard")
@@ -616,7 +638,7 @@ struct VideoViewerEditorView: View {
     // MARK: - Multi-Segment Timeline
 
     private var timelineSection: some View {
-        VStack(alignment: .leading, spacing: AppTheme.Spacing.xs + 2) {
+        VStack(alignment: .leading, spacing: AppTheme.Spacing.sm) {
             GeometryReader { geo in
                 let width = max(120, geo.size.width)
                 let duration = max(QuickVideoCutterEngine.minimumSegmentDuration, totalDurationSeconds)
@@ -625,8 +647,12 @@ struct VideoViewerEditorView: View {
 
                 ZStack(alignment: .leading) {
                     RoundedRectangle(cornerRadius: AppTheme.Radius.sm)
-                        .fill(AppTheme.Colors.subtleSurface)
-                        .frame(width: width, height: 38)
+                        .fill(AppTheme.Colors.elevatedSurface)
+                        .frame(width: width, height: 40)
+                        .overlay(
+                            RoundedRectangle(cornerRadius: AppTheme.Radius.sm)
+                                .strokeBorder(AppTheme.Colors.cardBorder, lineWidth: 1)
+                        )
 
                     ForEach(Array(segments.enumerated()), id: \.element.id) { idx, seg in
                         let startFrac = min(max(seg.startSeconds / duration, 0), 1)
@@ -651,12 +677,18 @@ struct VideoViewerEditorView: View {
                         }
                     }
 
-                    // Playhead indicator
-                    Rectangle()
-                        .fill(AppTheme.Colors.error)
-                        .frame(width: 2, height: 44)
-                        .offset(x: min(max(0, playX - 1), width - 2))
-                        .allowsHitTesting(false)
+                    // Playhead indicator with studio scrubber cap
+                    VStack(spacing: 0) {
+                        Capsule()
+                            .fill(AppTheme.Colors.error)
+                            .frame(width: 8, height: 5)
+                        Rectangle()
+                            .fill(AppTheme.Colors.error)
+                            .frame(width: 2, height: 42)
+                    }
+                    .shadow(color: Color.black.opacity(0.28), radius: 2, y: 1)
+                    .offset(x: min(max(0, playX - 4), width - 8))
+                    .allowsHitTesting(false)
                 }
                 .contentShape(Rectangle())
                 .gesture(
@@ -674,79 +706,103 @@ struct VideoViewerEditorView: View {
                         }
                 )
             }
-            .frame(height: 44)
+            .frame(height: 48)
             .accessibilityElement(children: .contain)
             .accessibilityLabel("Multi-segment video timeline")
             .accessibilityIdentifier("videoViewer.timelineBar")
 
-            HStack(spacing: AppTheme.Spacing.xs + 2) {
-                Button {
-                    applySetIn()
-                } label: {
-                    Label("In (I)", systemImage: "arrow.right.to.line")
+            ViewThatFits(in: .horizontal) {
+                HStack(spacing: AppTheme.Spacing.xs + 2) {
+                    timelineActionButtons
+                    Spacer(minLength: AppTheme.Spacing.xs)
+                    timelineKeptReadout
                 }
-                .controlSize(.small)
-                .keyboardShortcut("i", modifiers: [])
-                .help("Set active segment start to playhead (I)")
-                .accessibilityIdentifier("videoViewer.setInButton")
 
-                Button {
-                    applySetOut()
-                } label: {
-                    Label("Out (O)", systemImage: "arrow.left.to.line")
+                VStack(alignment: .leading, spacing: AppTheme.Spacing.xs) {
+                    timelineActionButtons
+                    HStack {
+                        Spacer(minLength: 0)
+                        timelineKeptReadout
+                    }
                 }
-                .controlSize(.small)
-                .keyboardShortcut("o", modifiers: [])
-                .help("Set active segment end to playhead (O)")
-                .accessibilityIdentifier("videoViewer.setOutButton")
-
-                Button {
-                    applySplitAtPlayhead()
-                } label: {
-                    Label("Split (⌘B)", systemImage: "scissors")
-                }
-                .controlSize(.small)
-                .keyboardShortcut("b", modifiers: .command)
-                .help("Split segment at playhead (⌘B)")
-                .accessibilityIdentifier("videoViewer.splitButton")
-
-                Button {
-                    toggleSelectedSegment()
-                } label: {
-                    let isSelectedKept = selectedSegment?.isKept ?? true
-                    Label(
-                        isSelectedKept ? String(localized: "Delete Segment") : String(localized: "Restore Segment"),
-                        systemImage: isSelectedKept ? "trash" : "arrow.uturn.backward"
-                    )
-                }
-                .controlSize(.small)
-                .disabled(!canDeleteOrDisableSelectedSegment)
-                .help("Toggle whether selected segment is kept or deleted")
-                .accessibilityIdentifier("videoViewer.toggleSegmentButton")
-
-                Button("Reset") {
-                    segments = QuickVideoCutterEngine.initialSegments(durationSeconds: totalDurationSeconds)
-                    selectedSegmentID = segments.first?.id
-                }
-                .controlSize(.small)
-                .disabled(segments.count == 1 && segments.first?.isKept == true && segments.first?.startSeconds == 0)
-
-                Spacer(minLength: AppTheme.Spacing.xs)
-
-                Text("\(keptSegmentCount)/\(segments.count) kept · \(VideoTrimTimestamp.formatDisplay(seconds: totalKeptDuration))")
-                    .font(AppTheme.Typography.monoCaption)
-                    .foregroundStyle(.secondary)
-                    .lineLimit(1)
             }
         }
-        .padding(.horizontal, AppTheme.Spacing.sm)
-        .padding(.vertical, AppTheme.Spacing.xs + 2)
+        .padding(.horizontal, AppTheme.Spacing.sm + 2)
+        .padding(.vertical, AppTheme.Spacing.sm)
         .background(AppTheme.Colors.cardBackground)
         .clipShape(RoundedRectangle(cornerRadius: AppTheme.Radius.md))
         .overlay(
             RoundedRectangle(cornerRadius: AppTheme.Radius.md)
                 .strokeBorder(AppTheme.Colors.cardBorder, lineWidth: 1)
         )
+    }
+
+    private var timelineActionButtons: some View {
+        HStack(spacing: AppTheme.Spacing.xs) {
+            Button {
+                applySetIn()
+            } label: {
+                Label("In (I)", systemImage: "arrow.right.to.line")
+            }
+            .buttonStyle(.bordered)
+            .controlSize(.small)
+            .keyboardShortcut("i", modifiers: [])
+            .help("Set active segment start to playhead (I)")
+            .accessibilityIdentifier("videoViewer.setInButton")
+
+            Button {
+                applySetOut()
+            } label: {
+                Label("Out (O)", systemImage: "arrow.left.to.line")
+            }
+            .buttonStyle(.bordered)
+            .controlSize(.small)
+            .keyboardShortcut("o", modifiers: [])
+            .help("Set active segment end to playhead (O)")
+            .accessibilityIdentifier("videoViewer.setOutButton")
+
+            Button {
+                applySplitAtPlayhead()
+            } label: {
+                Label("Split (⌘B)", systemImage: "scissors")
+            }
+            .buttonStyle(.bordered)
+            .controlSize(.small)
+            .keyboardShortcut("b", modifiers: .command)
+            .help("Split segment at playhead (⌘B)")
+            .accessibilityIdentifier("videoViewer.splitButton")
+
+            Button {
+                toggleSelectedSegment()
+            } label: {
+                let isSelectedKept = selectedSegment?.isKept ?? true
+                Label(
+                    isSelectedKept ? String(localized: "Delete Segment") : String(localized: "Restore Segment"),
+                    systemImage: isSelectedKept ? "trash" : "arrow.uturn.backward"
+                )
+            }
+            .buttonStyle(.bordered)
+            .controlSize(.small)
+            .disabled(!canDeleteOrDisableSelectedSegment)
+            .help("Toggle whether selected segment is kept or deleted")
+            .accessibilityIdentifier("videoViewer.toggleSegmentButton")
+
+            Button("Reset") {
+                segments = QuickVideoCutterEngine.initialSegments(durationSeconds: totalDurationSeconds)
+                selectedSegmentID = segments.first?.id
+            }
+            .buttonStyle(.bordered)
+            .controlSize(.small)
+            .disabled(segments.count == 1 && segments.first?.isKept == true && segments.first?.startSeconds == 0)
+        }
+    }
+
+    private var timelineKeptReadout: some View {
+        Text("\(keptSegmentCount)/\(segments.count) kept · \(VideoTrimTimestamp.formatDisplay(seconds: totalKeptDuration))")
+            .font(AppTheme.Typography.monoCaption)
+            .foregroundStyle(.secondary)
+            .lineLimit(1)
+            .fixedSize(horizontal: true, vertical: false)
     }
 
     @ViewBuilder
@@ -757,8 +813,8 @@ struct VideoViewerEditorView: View {
         isSelected: Bool
     ) -> some View {
         let fillColor: Color = segment.isKept
-            ? AppTheme.Colors.accent.opacity(isSelected ? 0.36 : 0.22)
-            : AppTheme.Colors.neutralTint.opacity(0.6)
+            ? AppTheme.Colors.accent.opacity(isSelected ? 0.34 : 0.20)
+            : AppTheme.Colors.neutralTint.opacity(0.55)
         let borderColor: Color = isSelected
             ? AppTheme.Colors.accent
             : (segment.isKept ? AppTheme.Colors.accent.opacity(0.45) : AppTheme.Colors.cardBorder)
@@ -771,9 +827,22 @@ struct VideoViewerEditorView: View {
                         .strokeBorder(borderColor, lineWidth: isSelected ? 2 : 1)
                 )
 
+            if isSelected && segment.isKept && width >= 18 {
+                HStack {
+                    Capsule()
+                        .fill(AppTheme.Colors.accent)
+                        .frame(width: 3, height: 18)
+                    Spacer()
+                    Capsule()
+                        .fill(AppTheme.Colors.accent)
+                        .frame(width: 3, height: 18)
+                }
+                .padding(.horizontal, 3)
+            }
+
             if width >= 46 {
                 Text(segment.isKept ? String(localized: "Seg \(index + 1)") : String(localized: "Cut"))
-                    .font(.caption2.weight(.medium))
+                    .font(.caption2.weight(.semibold))
                     .foregroundStyle(segment.isKept ? Color.primary : Color.secondary)
                     .strikethrough(!segment.isKept)
                     .lineLimit(1)
@@ -857,10 +926,14 @@ struct VideoViewerEditorView: View {
                 Text("Audio: \(isMuted ? String(localized: "Muted") : String(localized: "Included")) · Rotation: \(rotation.label) · Speed: \(speedLabel(speedMultiplier))")
                     .font(AppTheme.Typography.caption)
             }
-            .padding(AppTheme.Spacing.sm)
+            .padding(AppTheme.Spacing.sm + 2)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .background(AppTheme.Colors.subtleSurface)
+            .background(AppTheme.Colors.cardBackground)
             .clipShape(RoundedRectangle(cornerRadius: AppTheme.Radius.sm))
+            .overlay(
+                RoundedRectangle(cornerRadius: AppTheme.Radius.sm)
+                    .strokeBorder(AppTheme.Colors.cardBorder, lineWidth: 1)
+            )
 
             if isExporting {
                 VStack(alignment: .leading, spacing: AppTheme.Spacing.xs) {

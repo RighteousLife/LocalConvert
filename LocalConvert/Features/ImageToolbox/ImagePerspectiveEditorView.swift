@@ -111,6 +111,7 @@ struct ImagePerspectiveEditorView: View {
         } label: {
             Label("Auto Detect Quad (Vision)", systemImage: "viewfinder")
         }
+        .buttonStyle(.bordered)
         .controlSize(.small)
         .disabled(previewImage == nil)
     }
@@ -120,6 +121,7 @@ struct ImagePerspectiveEditorView: View {
             config.perspective = .fullFrame
             statusNote = "Corners reset to full frame."
         }
+        .buttonStyle(.bordered)
         .controlSize(.small)
     }
 

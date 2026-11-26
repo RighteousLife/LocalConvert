@@ -110,12 +110,14 @@ struct ImageLivePreviewCanvas: View {
     private var zoomControls: some View {
         HStack(spacing: AppTheme.Spacing.xs) {
             Button("Fit") { setZoom(1.0, resetPan: true) }
+                .buttonStyle(.bordered)
                 .controlSize(.small)
                 .fixedSize()
                 .help("Fit image to viewport")
                 .accessibilityLabel("Fit image to viewport")
 
             Button("100%") { setZoom(actualSizeZoomFactor(), resetPan: true) }
+                .buttonStyle(.bordered)
                 .controlSize(.small)
                 .fixedSize()
                 .help("Actual pixel size preview")
@@ -126,6 +128,7 @@ struct ImageLivePreviewCanvas: View {
             } label: {
                 Image(systemName: "minus.magnifyingglass")
             }
+            .buttonStyle(.bordered)
             .controlSize(.small)
             .fixedSize()
             .help("Zoom Out")
@@ -136,6 +139,7 @@ struct ImageLivePreviewCanvas: View {
             } label: {
                 Image(systemName: "plus.magnifyingglass")
             }
+            .buttonStyle(.bordered)
             .controlSize(.small)
             .fixedSize()
             .help("Zoom In")
@@ -163,6 +167,7 @@ struct ImageLivePreviewCanvas: View {
                         .lineLimit(1)
                     if let onCancel {
                         Button("Cancel", action: onCancel)
+                            .buttonStyle(.bordered)
                             .controlSize(.small)
                             .fixedSize()
                     }

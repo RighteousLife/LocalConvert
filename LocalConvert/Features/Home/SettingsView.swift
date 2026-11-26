@@ -250,7 +250,9 @@ private struct OutputFilesSettingsSection: View {
                     Button("Choose Folder...") {
                         chooseCustomFolder()
                     }
+                    .buttonStyle(.bordered)
                     .controlSize(.small)
+                    .fixedSize(horizontal: true, vertical: false)
                     .accessibilityLabel("Choose custom output folder")
                 }
             }
@@ -354,11 +356,19 @@ private struct ConversionDefaultsSettingsSection: View {
         Section("Conversion Defaults") {
             VStack(alignment: .leading, spacing: 6) {
                 let qualityPercent = Int((defaultImageQuality * 100).rounded())
-                Slider(value: $defaultImageQuality, in: 0.1...1.0, step: 0.05) {
-                    Text("Default Image Quality: \(qualityPercent)%")
+                LabeledContent("Default Image Quality") {
+                    HStack(spacing: AppTheme.Spacing.sm) {
+                        Slider(value: $defaultImageQuality, in: 0.1...1.0, step: 0.05)
+                            .frame(minWidth: 140, maxWidth: 220)
+                            .accessibilityLabel("Default Image Quality")
+                            .accessibilityValue("\(qualityPercent) percent")
+
+                        Text("\(qualityPercent)%")
+                            .font(AppTheme.Typography.monoCaption)
+                            .foregroundStyle(.secondary)
+                            .frame(width: 40, alignment: .trailing)
+                    }
                 }
-                .accessibilityLabel("Default Image Quality")
-                .accessibilityValue("\(qualityPercent) percent")
 
                 Text("Applied when exporting JPEG, WebP, and lossy image formats.")
                     .font(.caption2)
@@ -368,11 +378,10 @@ private struct ConversionDefaultsSettingsSection: View {
             Toggle("Preserve metadata by default (GPS, EXIF, Camera info)", isOn: $preserveMetadataByDefault)
                 .accessibilityLabel("Preserve metadata by default")
 
-            HStack {
-                Text("Default PDF Rasterization DPI:")
-                Spacer()
+            LabeledContent("Default PDF Rasterization DPI") {
                 TextField("DPI", value: $defaultPDFDPI, format: .number)
-                    .frame(width: 80)
+                    .textFieldStyle(.roundedBorder)
+                    .frame(width: 84)
                     .multilineTextAlignment(.trailing)
                     .accessibilityLabel("Default PDF Rasterization DPI")
             }
@@ -474,13 +483,16 @@ private struct JobsHistorySettingsSection: View {
                 .accessibilityLabel("Auto-remove History Records")
 
                 if !historyManager.items.isEmpty {
-                    Button("Clear Conversion History") {
+                    Button(role: .destructive) {
                         if historyManager.items.count > 1 {
                             showingClearHistoryAlert = true
                         } else {
                             historyManager.clearHistory()
                         }
+                    } label: {
+                        Text("Clear Conversion History")
                     }
+                    .buttonStyle(.bordered)
                     .controlSize(.small)
                     .accessibilityLabel("Clear Conversion History")
                     .alert("Clear History", isPresented: $showingClearHistoryAlert) {
@@ -576,6 +588,7 @@ private struct UndoEditingHistorySettingsSection: View {
                         recoveryUsageBytes = await undoCoordinator.currentRecoveryUsageBytes()
                     }
                 }
+                .buttonStyle(.bordered)
                 .controlSize(.small)
                 .fixedSize(horizontal: true, vertical: false)
                 .accessibilityLabel("Prune Unused Recovery Data")
@@ -634,16 +647,20 @@ private struct PrivacyDiagnosticsSettingsSection: View {
             Toggle("Enable Verbose Diagnostic Logging", isOn: $verboseLogging)
                 .accessibilityLabel("Enable Verbose Diagnostic Logging")
 
-            HStack(spacing: 12) {
+            HStack(spacing: AppTheme.Spacing.sm) {
                 Button("Open Logs Folder") {
                     DiagnosticLogManager.openLogsFolder()
                 }
+                .buttonStyle(.bordered)
                 .controlSize(.small)
                 .accessibilityLabel("Open Logs Folder")
 
-                Button("Clear Diagnostic Logs") {
+                Button(role: .destructive) {
                     DiagnosticLogManager.clearDiagnosticLogs()
+                } label: {
+                    Text("Clear Diagnostic Logs")
                 }
+                .buttonStyle(.bordered)
                 .controlSize(.small)
                 .accessibilityLabel("Clear Diagnostic Logs")
             }
@@ -654,22 +671,33 @@ private struct PrivacyDiagnosticsSettingsSection: View {
 private struct KeyboardShortcutsSettingsSection: View {
     var body: some View {
         Section("Keyboard Shortcuts") {
-            VStack(spacing: AppTheme.Spacing.xs + 2) {
-                ForEach(KeyboardShortcutDescriptor.defaultShortcuts) { shortcut in
-                    HStack {
+            VStack(spacing: 0) {
+                ForEach(Array(KeyboardShortcutDescriptor.defaultShortcuts.enumerated()), id: \.element.id) { index, shortcut in
+                    if index > 0 {
+                        Divider()
+                            .overlay(AppTheme.Colors.divider)
+                    }
+                    HStack(spacing: AppTheme.Spacing.md) {
                         Text(LocalizedStringKey(shortcut.action))
-                            .font(AppTheme.Typography.caption)
-                        Spacer()
+                            .font(AppTheme.Typography.subheadline)
+                            .lineLimit(1)
+                            .truncationMode(.tail)
+                        Spacer(minLength: AppTheme.Spacing.sm)
                         Text(shortcut.shortcut)
                             .font(AppTheme.Typography.badge.monospaced())
-                            .padding(.horizontal, AppTheme.Spacing.xs + 2)
-                            .padding(.vertical, AppTheme.Spacing.xxs)
+                            .padding(.horizontal, AppTheme.Spacing.xs + 3)
+                            .padding(.vertical, 3)
                             .background(AppTheme.Colors.neutralTint)
                             .clipShape(RoundedRectangle(cornerRadius: AppTheme.Radius.xs))
+                            .overlay(
+                                RoundedRectangle(cornerRadius: AppTheme.Radius.xs)
+                                    .strokeBorder(Color.primary.opacity(0.08), lineWidth: 1)
+                            )
+                            .fixedSize(horizontal: true, vertical: false)
                     }
+                    .padding(.vertical, AppTheme.Spacing.xs + 2)
                 }
             }
-            .padding(.vertical, AppTheme.Spacing.xs)
         }
     }
 }
@@ -713,7 +741,7 @@ private struct AboutSettingsSection: View {
             }
             .padding(.vertical, AppTheme.Spacing.xs)
 
-            HStack(spacing: 12) {
+            HStack(spacing: AppTheme.Spacing.sm) {
                 Button {
                     if let url = URL(string: "https://github.com/RighteousLife/LocalConvert") {
                         NSWorkspace.shared.open(url)
@@ -721,7 +749,9 @@ private struct AboutSettingsSection: View {
                 } label: {
                     Label("GitHub", systemImage: "link")
                 }
+                .buttonStyle(.bordered)
                 .controlSize(.small)
+                .fixedSize(horizontal: true, vertical: false)
                 .accessibilityLabel("Open GitHub repository in browser")
 
                 Button {
@@ -729,7 +759,9 @@ private struct AboutSettingsSection: View {
                 } label: {
                     Label("Third-Party Licenses", systemImage: "doc.text")
                 }
+                .buttonStyle(.bordered)
                 .controlSize(.small)
+                .fixedSize(horizontal: true, vertical: false)
                 .accessibilityLabel("View Third-Party Licenses")
 
                 Button {
@@ -737,7 +769,9 @@ private struct AboutSettingsSection: View {
                 } label: {
                     Label("Supported Formats", systemImage: "square.grid.2x2")
                 }
+                .buttonStyle(.bordered)
                 .controlSize(.small)
+                .fixedSize(horizontal: true, vertical: false)
                 .accessibilityLabel("View Supported Formats Matrix")
             }
         }
@@ -781,7 +815,8 @@ struct ApplicationVisibilitySelector: View {
                 Text(LocalizedStringKey(selection.popoverSubtitle))
                     .font(AppTheme.Typography.caption)
                     .foregroundStyle(.secondary)
-                    .lineLimit(1)
+                    .lineLimit(2)
+                    .fixedSize(horizontal: false, vertical: true)
             }
 
             Spacer(minLength: AppTheme.Spacing.sm)
@@ -1021,6 +1056,7 @@ struct LicensesSheetView: View {
                 Button("Done") {
                     isPresented = false
                 }
+                .buttonStyle(.borderedProminent)
                 .keyboardShortcut(.defaultAction)
                 .controlSize(.small)
             }
@@ -1041,22 +1077,36 @@ struct LicensesSheetView: View {
                     .accessibilityLabel("Clear license search")
                 }
             }
-            .padding(AppTheme.Spacing.xs + 2)
+            .padding(.horizontal, AppTheme.Spacing.sm)
+            .padding(.vertical, AppTheme.Spacing.xs + 2)
             .background(AppTheme.Colors.cardBackground)
             .clipShape(RoundedRectangle(cornerRadius: AppTheme.Radius.sm))
+            .overlay {
+                RoundedRectangle(cornerRadius: AppTheme.Radius.sm)
+                    .strokeBorder(Color.primary.opacity(0.08), lineWidth: 1)
+            }
             
             ScrollView {
-                Text(filteredText)
-                    .font(.system(.caption, design: .monospaced))
-                    .textSelection(.enabled)
-                    .padding(AppTheme.Spacing.md)
-                    .frame(maxWidth: .infinity, alignment: .topLeading)
+                if filteredText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                    AppEmptyStateView(
+                        icon: "magnifyingglass",
+                        title: "No Matching License Text",
+                        subtitle: "Try a different keyword or clear the search field."
+                    )
+                    .frame(minHeight: 260)
+                } else {
+                    Text(filteredText)
+                        .font(.system(.caption, design: .monospaced))
+                        .textSelection(.enabled)
+                        .padding(AppTheme.Spacing.md)
+                        .frame(maxWidth: .infinity, alignment: .topLeading)
+                }
             }
             .background(AppTheme.Colors.elevatedSurface)
-            .clipShape(RoundedRectangle(cornerRadius: AppTheme.Radius.md))
+            .clipShape(RoundedRectangle(cornerRadius: AppTheme.Radius.lg))
             .overlay {
-                RoundedRectangle(cornerRadius: AppTheme.Radius.md)
-                    .stroke(AppTheme.Colors.cardBorder, lineWidth: 1)
+                RoundedRectangle(cornerRadius: AppTheme.Radius.lg)
+                    .stroke(Color.primary.opacity(0.08), lineWidth: 1)
             }
         }
         .padding(AppTheme.Spacing.xl)

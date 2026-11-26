@@ -31,7 +31,7 @@ struct PDFCompressOptionsView: View {
 
         VStack(alignment: .leading, spacing: AppTheme.Spacing.xxs) {
             Text("Target Resolution: \(Int(options.targetDPI)) DPI")
-                .font(AppTheme.Typography.caption)
+                .font(AppTheme.Typography.monoCaption)
                 .foregroundStyle(.secondary)
             Slider(value: $options.targetDPI, in: 72...300, step: 12)
                 .frame(minWidth: 120, maxWidth: 160)
@@ -43,7 +43,7 @@ struct PDFCompressOptionsView: View {
 
         VStack(alignment: .leading, spacing: AppTheme.Spacing.xxs) {
             Text("Quality: \(Int(options.imageQuality * 100))%")
-                .font(AppTheme.Typography.caption)
+                .font(AppTheme.Typography.monoCaption)
                 .foregroundStyle(.secondary)
             Slider(value: $options.imageQuality, in: 0.25...0.98, step: 0.05)
                 .frame(minWidth: 110, maxWidth: 140)

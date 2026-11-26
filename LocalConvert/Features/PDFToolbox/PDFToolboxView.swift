@@ -249,6 +249,7 @@ struct PDFToolboxView: View {
                     onToggleItem: { toggleSelection(for: $0) }
                 ) {
                     Button("Add Files...") { openFilePicker() }
+                        .buttonStyle(.bordered)
                         .controlSize(.small)
                     Button(selectedCount == candidateFiles.count ? String(localized: "Deselect All") : String(localized: "Select All")) {
                         if selectedCount == candidateFiles.count {
@@ -257,6 +258,7 @@ struct PDFToolboxView: View {
                             selectedFileIDs = Set(candidateFiles.map(\.id))
                         }
                     }
+                    .buttonStyle(.bordered)
                     .controlSize(.small)
                 }
             }
@@ -267,23 +269,24 @@ struct PDFToolboxView: View {
                     if isMultiInputOperation {
                         AppCard(title: String(localized: "Merge Order (\(selectedCount) of \(candidateFiles.count) selected)"), icon: "list.number") {
                             VStack(spacing: AppTheme.Spacing.xs) {
-                                HStack {
-                                    Text("Drag order controls set output sequence.")
-                                        .font(AppTheme.Typography.caption)
-                                        .foregroundStyle(.secondary)
-                                    Spacer()
-                                    Button("Add Files...") { openFilePicker() }
-                                        .controlSize(.small)
-                                        .fixedSize(horizontal: true, vertical: false)
-                                    Button(selectedCount == candidateFiles.count ? String(localized: "Deselect All") : String(localized: "Select All")) {
-                                        if selectedCount == candidateFiles.count {
-                                            selectedFileIDs.removeAll()
-                                        } else {
-                                            selectedFileIDs = Set(candidateFiles.map(\.id))
+                                ViewThatFits(in: .horizontal) {
+                                    HStack {
+                                        Text("Drag order controls set output sequence.")
+                                            .font(AppTheme.Typography.caption)
+                                            .foregroundStyle(.secondary)
+                                        Spacer()
+                                        mergeOrderButtons
+                                    }
+
+                                    VStack(alignment: .leading, spacing: AppTheme.Spacing.xs) {
+                                        Text("Drag order controls set output sequence.")
+                                            .font(AppTheme.Typography.caption)
+                                            .foregroundStyle(.secondary)
+                                        HStack {
+                                            Spacer(minLength: 0)
+                                            mergeOrderButtons
                                         }
                                     }
-                                    .controlSize(.small)
-                                    .fixedSize(horizontal: true, vertical: false)
                                 }
 
                                 ForEach(orderedCandidateFiles) { file in
@@ -574,11 +577,32 @@ struct PDFToolboxView: View {
         }
         .padding(AppTheme.Spacing.sm)
         .background(AppTheme.Colors.warningTint)
-        .clipShape(RoundedRectangle(cornerRadius: AppTheme.Radius.md))
+        .clipShape(RoundedRectangle(cornerRadius: AppTheme.Radius.lg))
         .overlay(
-            RoundedRectangle(cornerRadius: AppTheme.Radius.md)
-                .strokeBorder(AppTheme.Colors.warning.opacity(0.25), lineWidth: 0.75)
+            RoundedRectangle(cornerRadius: AppTheme.Radius.lg)
+                .strokeBorder(AppTheme.Colors.warning.opacity(0.25), lineWidth: 1)
         )
+    }
+
+    @ViewBuilder
+    private var mergeOrderButtons: some View {
+        HStack(spacing: AppTheme.Spacing.xs) {
+            Button("Add Files...") { openFilePicker() }
+                .buttonStyle(.bordered)
+                .controlSize(.small)
+                .fixedSize(horizontal: true, vertical: false)
+            Button(selectedCount == candidateFiles.count ? String(localized: "Deselect All") : String(localized: "Select All")) {
+                if selectedCount == candidateFiles.count {
+                    selectedFileIDs.removeAll()
+                } else {
+                    selectedFileIDs = Set(candidateFiles.map(\.id))
+                }
+            }
+            .buttonStyle(.bordered)
+            .controlSize(.small)
+            .fixedSize(horizontal: true, vertical: false)
+        }
+        .fixedSize(horizontal: true, vertical: false)
     }
 
     @ViewBuilder

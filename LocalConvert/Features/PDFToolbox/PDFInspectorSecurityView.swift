@@ -43,6 +43,8 @@ struct PDFInspectorSecurityView: View {
                     } label: {
                         Image(systemName: "arrow.clockwise")
                     }
+                    .buttonStyle(.bordered)
+                    .controlSize(.small)
                     .disabled(isInspecting)
                     .help("Re-inspect PDF")
                     .accessibilityLabel("Re-inspect PDF")
@@ -252,29 +254,34 @@ struct PDFInspectorSecurityView: View {
                         .labelsHidden()
 
                         if securityMode == .encrypt {
-                            HStack(spacing: AppTheme.Spacing.md) {
-                                SecureField("Open / User Password (Optional)", text: $newUserPassword)
-                                    .textFieldStyle(.roundedBorder)
-                                SecureField("Permissions / Owner Password", text: $newOwnerPassword)
-                                    .textFieldStyle(.roundedBorder)
+                            ViewThatFits(in: .horizontal) {
+                                HStack(spacing: AppTheme.Spacing.md) {
+                                    SecureField("Open / User Password (Optional)", text: $newUserPassword)
+                                        .textFieldStyle(.roundedBorder)
+                                    SecureField("Permissions / Owner Password", text: $newOwnerPassword)
+                                        .textFieldStyle(.roundedBorder)
+                                }
+
+                                VStack(spacing: AppTheme.Spacing.xs) {
+                                    SecureField("Open / User Password (Optional)", text: $newUserPassword)
+                                        .textFieldStyle(.roundedBorder)
+                                    SecureField("Permissions / Owner Password", text: $newOwnerPassword)
+                                        .textFieldStyle(.roundedBorder)
+                                }
                             }
-                            Grid(alignment: .leading, horizontalSpacing: AppTheme.Spacing.lg, verticalSpacing: AppTheme.Spacing.xxs) {
-                                GridRow {
-                                    Toggle("Allow Printing", isOn: $allowPrinting)
-                                    Toggle("High-Quality Print", isOn: $allowHighQualityPrinting)
-                                }
-                                GridRow {
-                                    Toggle("Allow Content Copying", isOn: $allowCopying)
-                                    Toggle("Allow Accessibility", isOn: $allowAccessibility)
-                                }
-                                GridRow {
-                                    Toggle("Allow Comments", isOn: $allowCommenting)
-                                    Toggle("Allow Form Entry", isOn: $allowFormEntry)
-                                }
-                                GridRow {
-                                    Toggle("Allow Document Editing", isOn: $allowDocumentChanges)
-                                    Toggle("Allow Page Assembly", isOn: $allowDocumentAssembly)
-                                }
+                            LazyVGrid(
+                                columns: [GridItem(.adaptive(minimum: 165), spacing: AppTheme.Spacing.md)],
+                                alignment: .leading,
+                                spacing: AppTheme.Spacing.xs
+                            ) {
+                                Toggle("Allow Printing", isOn: $allowPrinting)
+                                Toggle("High-Quality Print", isOn: $allowHighQualityPrinting)
+                                Toggle("Allow Content Copying", isOn: $allowCopying)
+                                Toggle("Allow Accessibility", isOn: $allowAccessibility)
+                                Toggle("Allow Comments", isOn: $allowCommenting)
+                                Toggle("Allow Form Entry", isOn: $allowFormEntry)
+                                Toggle("Allow Document Editing", isOn: $allowDocumentChanges)
+                                Toggle("Allow Page Assembly", isOn: $allowDocumentAssembly)
                             }
                             .font(AppTheme.Typography.caption)
 

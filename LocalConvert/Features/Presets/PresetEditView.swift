@@ -107,6 +107,8 @@ struct PresetEditView: View {
                 Button("Cancel") {
                     dismiss()
                 }
+                .buttonStyle(.bordered)
+                .controlSize(.small)
                 .keyboardShortcut(.cancelAction)
             }
             .padding(AppTheme.Spacing.lg)
@@ -158,6 +160,7 @@ struct PresetEditView: View {
                                 Text("Quality:")
                                 Spacer()
                                 Text("\(Int(imageQuality * 100))%")
+                                    .font(AppTheme.Typography.monoCaption)
                                     .foregroundStyle(.secondary)
                             }
                             Slider(value: $imageQuality, in: 0.1...1.0, step: 0.05)
@@ -201,6 +204,8 @@ struct PresetEditView: View {
                             Button("Browse...") {
                                 chooseCustomDirectory()
                             }
+                            .buttonStyle(.bordered)
+                            .controlSize(.small)
                         }
                     }
                 }
@@ -228,6 +233,7 @@ struct PresetEditView: View {
                 }
             }
             .formStyle(.grouped)
+            .scrollContentBackground(.hidden)
             .appWorkspaceSurface()
             
             AppDivider()

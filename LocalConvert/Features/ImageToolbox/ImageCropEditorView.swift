@@ -191,12 +191,14 @@ struct ImageCropRotateSectionView: View {
                 dragStartPan = .zero
                 panModeEnabled = false
             }
+            .buttonStyle(.bordered)
             .controlSize(.small)
             .fixedSize()
 
             Button("100%") {
                 zoomScale = 2.0
             }
+            .buttonStyle(.bordered)
             .controlSize(.small)
             .fixedSize()
 
@@ -206,6 +208,7 @@ struct ImageCropRotateSectionView: View {
             } label: {
                 Image(systemName: "minus.magnifyingglass")
             }
+            .buttonStyle(.bordered)
             .controlSize(.small)
             .fixedSize()
 
@@ -214,6 +217,7 @@ struct ImageCropRotateSectionView: View {
             } label: {
                 Image(systemName: "plus.magnifyingglass")
             }
+            .buttonStyle(.bordered)
             .controlSize(.small)
             .fixedSize()
 
@@ -255,6 +259,7 @@ struct ImageCropRotateSectionView: View {
                 dragStartPan = .zero
                 panModeEnabled = false
             }
+            .buttonStyle(.bordered)
             .controlSize(.small)
             .fixedSize()
         }
@@ -611,6 +616,7 @@ struct ImageCropRotateSectionView: View {
                         config.cropTransform.straightenDegrees = 0.0
                         horizonStatusText = nil
                     }
+                    .buttonStyle(.bordered)
                     .controlSize(.small)
                     .disabled(abs(config.cropTransform.straightenDegrees) < 0.05)
                 }
@@ -630,6 +636,7 @@ struct ImageCropRotateSectionView: View {
                                 Label("Auto Horizon (Vision)", systemImage: "level")
                             }
                         }
+                        .buttonStyle(.bordered)
                         .controlSize(.small)
                         .disabled(previewImage == nil || isDetectingHorizon)
 
@@ -649,6 +656,7 @@ struct ImageCropRotateSectionView: View {
                         } label: {
                             Label("Auto Horizon (Vision)", systemImage: "level")
                         }
+                        .buttonStyle(.bordered)
                         .controlSize(.small)
                         .disabled(previewImage == nil || isDetectingHorizon)
                         if let status = horizonStatusText {
@@ -697,18 +705,24 @@ struct ImageCropRotateSectionView: View {
         } label: {
             Label("90° CCW", systemImage: "rotate.left")
         }
+        .buttonStyle(.bordered)
+        .controlSize(.small)
 
         Button {
             config.cropTransform.rotationDegrees = (config.cropTransform.rotationDegrees + 90) % 360
         } label: {
             Label("90° CW", systemImage: "rotate.right")
         }
+        .buttonStyle(.bordered)
+        .controlSize(.small)
 
         Button {
             config.cropTransform.rotationDegrees = (config.cropTransform.rotationDegrees + 180) % 360
         } label: {
             Label("180°", systemImage: "arrow.trianglehead.2.clockwise")
         }
+        .buttonStyle(.bordered)
+        .controlSize(.small)
     }
 
     @ViewBuilder
@@ -763,6 +777,7 @@ struct ImageCropRotateSectionView: View {
                         Button("Apply Ratio") {
                             applyAspectRatioPreset(.customRatio)
                         }
+                        .buttonStyle(.bordered)
                         .controlSize(.small)
                         Spacer(minLength: 0)
                     }
@@ -778,6 +793,7 @@ struct ImageCropRotateSectionView: View {
                             config.cropTransform.cropMode = .customRect
                             config.cropTransform.normalizedRect = NormalizedRect(x: 0, y: 0, width: 1, height: 1)
                         }
+                        .buttonStyle(.bordered)
                         .controlSize(.small)
                     }
                     VStack(alignment: .leading, spacing: AppTheme.Spacing.sm) {
@@ -786,6 +802,7 @@ struct ImageCropRotateSectionView: View {
                             config.cropTransform.cropMode = .customRect
                             config.cropTransform.normalizedRect = NormalizedRect(x: 0, y: 0, width: 1, height: 1)
                         }
+                        .buttonStyle(.bordered)
                         .controlSize(.small)
                     }
                 }
@@ -871,10 +888,10 @@ struct ImageCropRotateSectionView: View {
                             .padding(.vertical, AppTheme.Spacing.xs + 2)
                             .background(selected ? AppTheme.Colors.accentTint : AppTheme.Colors.subtleSurface)
                             .foregroundStyle(selected ? AppTheme.Colors.accent : .primary)
-                            .clipShape(RoundedRectangle(cornerRadius: AppTheme.Radius.sm))
+                            .clipShape(RoundedRectangle(cornerRadius: AppTheme.Radius.lg))
                             .overlay(
-                                RoundedRectangle(cornerRadius: AppTheme.Radius.sm)
-                                    .strokeBorder(selected ? AppTheme.Colors.accent : AppTheme.Colors.cardBorder, lineWidth: 1)
+                                RoundedRectangle(cornerRadius: AppTheme.Radius.lg)
+                                    .strokeBorder(selected ? AppTheme.Colors.accent : Color.primary.opacity(0.08), lineWidth: 1)
                             )
                         }
                         .buttonStyle(.plain)
@@ -985,6 +1002,7 @@ struct ImageCropRotateSectionView: View {
                 rotationDegrees: config.cropTransform.polygonRotationDegrees
             )
         }
+        .buttonStyle(.bordered)
         .controlSize(.small)
     }
 

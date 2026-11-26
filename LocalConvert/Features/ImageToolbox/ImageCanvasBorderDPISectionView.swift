@@ -429,33 +429,23 @@ struct ImageDPIEditorCardView: View {
                         .foregroundStyle(.secondary)
                 }
 
-                HStack(spacing: AppTheme.Spacing.xs) {
-                    Text("Presets:").font(AppTheme.Typography.caption).foregroundStyle(.secondary)
-                    ForEach(ImageDPIConfig.presets, id: \.self) { preset in
-                        let active = config.dpiConfig.enabled && abs(config.dpiConfig.targetDPI - preset) < 0.5
-                        Button("\(Int(preset))") {
-                            config.dpiConfig.sourceDPI = detailedMeta?.effectiveDPI ?? 72.0
-                            config.dpiConfig.targetDPI = preset
-                            config.dpiConfig.enabled = true
+                    ViewThatFits(in: .horizontal) {
+                        HStack(spacing: AppTheme.Spacing.xs) {
+                            dpiPresetButtons
+                            Spacer()
+                            dpiCustomField
                         }
-                        .controlSize(.small)
-                        .buttonStyle(.bordered)
-                        .tint(active ? AppTheme.Colors.accent : .secondary)
+
+                        VStack(alignment: .leading, spacing: AppTheme.Spacing.xs) {
+                            HStack(spacing: AppTheme.Spacing.xs) {
+                                dpiPresetButtons
+                            }
+                            HStack(spacing: AppTheme.Spacing.xs) {
+                                dpiCustomField
+                                Spacer(minLength: 0)
+                            }
+                        }
                     }
-                    Spacer()
-                    TextField("DPI", value: Binding(
-                        get: { config.dpiConfig.targetDPI },
-                        set: {
-                            config.dpiConfig.sourceDPI = detailedMeta?.effectiveDPI ?? 72.0
-                            config.dpiConfig.targetDPI = max(18, min(2400, $0))
-                            config.dpiConfig.enabled = true
-                        }
-                    ), format: .number)
-                    .textFieldStyle(.roundedBorder)
-                    .multilineTextAlignment(.trailing)
-                    .frame(width: 72)
-                    Text("DPI").font(AppTheme.Typography.caption).foregroundStyle(.secondary)
-                }
 
                 Toggle("Resample Pixel Dimensions to Match Print Size", isOn: $config.dpiConfig.resamplePixels)
 
@@ -486,6 +476,38 @@ struct ImageDPIEditorCardView: View {
                 )
             }
         }
+    }
+
+    @ViewBuilder
+    private var dpiPresetButtons: some View {
+        Text("Presets:").font(AppTheme.Typography.caption).foregroundStyle(.secondary)
+        ForEach(ImageDPIConfig.presets, id: \.self) { preset in
+            let active = config.dpiConfig.enabled && abs(config.dpiConfig.targetDPI - preset) < 0.5
+            Button("\(Int(preset))") {
+                config.dpiConfig.sourceDPI = detailedMeta?.effectiveDPI ?? 72.0
+                config.dpiConfig.targetDPI = preset
+                config.dpiConfig.enabled = true
+            }
+            .controlSize(.small)
+            .buttonStyle(.bordered)
+            .tint(active ? AppTheme.Colors.accent : .secondary)
+        }
+    }
+
+    @ViewBuilder
+    private var dpiCustomField: some View {
+        TextField("DPI", value: Binding(
+            get: { config.dpiConfig.targetDPI },
+            set: {
+                config.dpiConfig.sourceDPI = detailedMeta?.effectiveDPI ?? 72.0
+                config.dpiConfig.targetDPI = max(18, min(2400, $0))
+                config.dpiConfig.enabled = true
+            }
+        ), format: .number)
+        .textFieldStyle(.roundedBorder)
+        .multilineTextAlignment(.trailing)
+        .frame(width: 72)
+        Text("DPI").font(AppTheme.Typography.caption).foregroundStyle(.secondary)
     }
 
     private func printStat(_ label: String, _ value: String) -> some View {

@@ -42,13 +42,15 @@ struct FileOptionsView: View {
                 Button("Done") {
                     dismiss()
                 }
+                .buttonStyle(.borderedProminent)
+                .controlSize(.small)
                 .keyboardShortcut(.defaultAction)
             }
             .padding(.horizontal, AppTheme.Spacing.xl)
-            .padding(.top, AppTheme.Spacing.lg)
-            .padding(.bottom, AppTheme.Spacing.md)
+            .padding(.vertical, AppTheme.Spacing.md + 2)
+            .background(AppTheme.Colors.subtleSurface)
             
-            Divider()
+            AppDivider()
             
             ScrollView {
                 VStack(alignment: .leading, spacing: AppTheme.Spacing.lg) {
@@ -114,6 +116,7 @@ struct FileOptionsView: View {
             }
         }
         .frame(minWidth: 340, idealWidth: 380, minHeight: 280, maxHeight: 520)
+        .appWorkspaceSurface()
     }
 
     @ViewBuilder
@@ -179,6 +182,7 @@ struct FileOptionsView: View {
                         Text(preset.rawValue).tag(preset)
                     }
                 }
+                .labelsHidden()
                 .pickerStyle(.menu)
                 .accessibilityLabel(descriptor.title)
 
@@ -208,6 +212,7 @@ struct FileOptionsView: View {
                         Text(preset.rawValue).tag(preset)
                     }
                 }
+                .labelsHidden()
                 .pickerStyle(.segmented)
                 .accessibilityLabel(descriptor.title)
             } else {
@@ -224,6 +229,7 @@ struct FileOptionsView: View {
                         Text("\(preset.rawValue) (\(Int(preset.value * 100))%)").tag(preset)
                     }
                 }
+                .labelsHidden()
                 .pickerStyle(.menu)
                 .accessibilityLabel(descriptor.title)
             }
@@ -251,6 +257,7 @@ struct FileOptionsView: View {
                     Text(label).tag(Double?.some(size))
                 }
             }
+            .labelsHidden()
             .pickerStyle(.menu)
             .accessibilityLabel(descriptor.title)
             
@@ -265,6 +272,7 @@ struct FileOptionsView: View {
                     Text("\(Int(dpi)) DPI").tag(dpi)
                 }
             }
+            .labelsHidden()
             .pickerStyle(.menu)
             .accessibilityLabel(descriptor.title)
             
@@ -279,6 +287,7 @@ struct FileOptionsView: View {
                     Text(mode.rawValue).tag(mode)
                 }
             }
+            .labelsHidden()
             .pickerStyle(.menu)
             .accessibilityLabel(descriptor.title)
             
@@ -325,6 +334,7 @@ struct FileOptionsView: View {
                     Text(choice.label).tag(choice.value)
                 }
             }
+            .labelsHidden()
             .pickerStyle(.menu)
             .accessibilityLabel(descriptor.title)
         }

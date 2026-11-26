@@ -20,17 +20,23 @@ struct PDFFormsView: View {
             } else if let file = selectedFiles.first {
                 let draft = appState.pdfToolboxStore.formDraft(for: file.url)
 
-                HStack {
+                HStack(spacing: AppTheme.Spacing.sm) {
                     Button {
                         loadFormFields(url: file.url)
                     } label: {
                         Label(isLoading ? "Scanning..." : "Scan Form Fields", systemImage: "magnifyingglass")
                     }
+                    .buttonStyle(.bordered)
+                    .controlSize(.small)
                     .disabled(isLoading)
 
                     if !draft.fields.isEmpty {
                         Button("Export JSON") { exportJSON(defaultName: file.fileName, fields: draft.fields) }
+                            .buttonStyle(.bordered)
+                            .controlSize(.small)
                         Button("Import JSON") { importJSON(for: file.url) }
+                            .buttonStyle(.bordered)
+                            .controlSize(.small)
                     }
                     Spacer()
                 }
@@ -57,50 +63,17 @@ struct PDFFormsView: View {
                             ScrollView {
                                 VStack(alignment: .leading, spacing: AppTheme.Spacing.sm) {
                                     ForEach(draft.fields) { field in
-                                        HStack(alignment: .center, spacing: AppTheme.Spacing.sm) {
-                                            VStack(alignment: .leading, spacing: 2) {
-                                                Text(field.fieldName)
-                                                    .font(AppTheme.Typography.subheadline)
-                                                    .fontWeight(.medium)
-                                                Text("Page \(field.pageIndex + 1) • \(field.kind.rawValue)\(field.isReadOnly ? " • Read-Only" : "")")
-                                                    .font(.caption2)
-                                                    .foregroundStyle(.secondary)
+                                        ViewThatFits(in: .horizontal) {
+                                            HStack(alignment: .center, spacing: AppTheme.Spacing.sm) {
+                                                formFieldLabel(field)
+                                                    .frame(minWidth: 160, maxWidth: 210, alignment: .leading)
+                                                Spacer(minLength: AppTheme.Spacing.sm)
+                                                formFieldControl(for: field, fileURL: file.url)
                                             }
-                                            .frame(minWidth: 160, maxWidth: 210, alignment: .leading)
 
-                                            Spacer()
-
-                                            switch field.kind {
-                                            case .text:
-                                                TextField("Value", text: textFieldBinding(for: field, url: file.url))
-                                                    .textFieldStyle(.roundedBorder)
-                                                    .disabled(field.isReadOnly)
-                                                    .frame(maxWidth: 260)
-                                            case .checkbox:
-                                                Toggle(field.boolValue ? "Checked" : "Unchecked", isOn: checkboxBinding(for: field, url: file.url))
-                                                    .disabled(field.isReadOnly)
-                                            case .radio:
-                                                Toggle(field.boolValue ? "Selected" : "Unselected", isOn: radioBinding(for: field, url: file.url))
-                                                .disabled(field.isReadOnly)
-                                            case .choice:
-                                                if field.choices.isEmpty {
-                                                    TextField("Selection", text: textFieldBinding(for: field, url: file.url))
-                                                        .textFieldStyle(.roundedBorder)
-                                                        .disabled(field.isReadOnly)
-                                                        .frame(maxWidth: 260)
-                                                } else {
-                                                    Picker("", selection: choiceBinding(for: field, url: file.url)) {
-                                                        ForEach(field.choices, id: \.self) { opt in
-                                                            Text(opt).tag(opt)
-                                                        }
-                                                    }
-                                                    .disabled(field.isReadOnly)
-                                                    .frame(maxWidth: 260)
-                                                }
-                                            default:
-                                                Text(field.stringValue.isEmpty ? "Non-editable widget" : field.stringValue)
-                                                    .font(AppTheme.Typography.caption)
-                                                    .foregroundStyle(.secondary)
+                                            VStack(alignment: .leading, spacing: AppTheme.Spacing.xs) {
+                                                formFieldLabel(field)
+                                                formFieldControl(for: field, fileURL: file.url)
                                             }
                                         }
                                         Divider()
@@ -129,27 +102,25 @@ struct PDFFormsView: View {
                             )
                         )
 
-                        HStack(spacing: AppTheme.Spacing.md) {
-                            Text("Saves updated AcroForm PDF to a new file without modifying the original.")
-                                .font(AppTheme.Typography.caption)
-                                .foregroundStyle(.secondary)
-                            Spacer()
-                            Button("Reset Fields") {
-                                appState.pdfToolboxStore.updateFormDraft(
-                                    for: file.url,
-                                    title: "Reset Form Fields"
-                                ) { draft in
-                                    draft.fields = PDFFormService.resetFieldsToEmpty(draft.fields)
+                        ViewThatFits(in: .horizontal) {
+                            HStack(spacing: AppTheme.Spacing.md) {
+                                Text("Saves updated AcroForm PDF to a new file without modifying the original.")
+                                    .font(AppTheme.Typography.caption)
+                                    .foregroundStyle(.secondary)
+                                Spacer()
+                                formActionButtons(draft: draft, fileURL: file.url)
+                            }
+
+                            VStack(alignment: .leading, spacing: AppTheme.Spacing.sm) {
+                                Text("Saves updated AcroForm PDF to a new file without modifying the original.")
+                                    .font(AppTheme.Typography.caption)
+                                    .foregroundStyle(.secondary)
+                                    .fixedSize(horizontal: false, vertical: true)
+                                HStack {
+                                    Spacer(minLength: 0)
+                                    formActionButtons(draft: draft, fileURL: file.url)
                                 }
                             }
-                            .disabled(draft.fields.allSatisfy(\.isReadOnly))
-                            Button {
-                                onSaveForm(draft.fields, draft.flattenFields)
-                            } label: {
-                                Label(draft.flattenFields ? "Save Flattened PDF" : "Save Filled Form PDF", systemImage: "checkmark.rectangle.stack")
-                            }
-                            .buttonStyle(.borderedProminent)
-                            .controlSize(.large)
                         }
                     }
                 }
@@ -166,6 +137,80 @@ struct PDFFormsView: View {
             } else {
                 inspection = nil
             }
+        }
+    }
+
+    @ViewBuilder
+    private func formFieldLabel(_ field: PDFFormFieldItem) -> some View {
+        VStack(alignment: .leading, spacing: 2) {
+            Text(field.fieldName)
+                .font(AppTheme.Typography.subheadline)
+                .fontWeight(.medium)
+            Text("Page \(field.pageIndex + 1) • \(field.kind.rawValue)\(field.isReadOnly ? " • Read-Only" : "")")
+                .font(.caption2)
+                .foregroundStyle(.secondary)
+        }
+    }
+
+    @ViewBuilder
+    private func formFieldControl(for field: PDFFormFieldItem, fileURL: URL) -> some View {
+        switch field.kind {
+        case .text:
+            TextField("Value", text: textFieldBinding(for: field, url: fileURL))
+                .textFieldStyle(.roundedBorder)
+                .disabled(field.isReadOnly)
+                .frame(maxWidth: 260)
+        case .checkbox:
+            Toggle(field.boolValue ? "Checked" : "Unchecked", isOn: checkboxBinding(for: field, url: fileURL))
+                .disabled(field.isReadOnly)
+        case .radio:
+            Toggle(field.boolValue ? "Selected" : "Unselected", isOn: radioBinding(for: field, url: fileURL))
+                .disabled(field.isReadOnly)
+        case .choice:
+            if field.choices.isEmpty {
+                TextField("Selection", text: textFieldBinding(for: field, url: fileURL))
+                    .textFieldStyle(.roundedBorder)
+                    .disabled(field.isReadOnly)
+                    .frame(maxWidth: 260)
+            } else {
+                Picker("", selection: choiceBinding(for: field, url: fileURL)) {
+                    ForEach(field.choices, id: \.self) { opt in
+                        Text(opt).tag(opt)
+                    }
+                }
+                .disabled(field.isReadOnly)
+                .frame(maxWidth: 260)
+            }
+        default:
+            Text(field.stringValue.isEmpty ? "Non-editable widget" : field.stringValue)
+                .font(AppTheme.Typography.caption)
+                .foregroundStyle(.secondary)
+        }
+    }
+
+    @ViewBuilder
+    private func formActionButtons(draft: PDFFormDraftSnapshot, fileURL: URL) -> some View {
+        HStack(spacing: AppTheme.Spacing.sm) {
+            Button("Reset Fields") {
+                appState.pdfToolboxStore.updateFormDraft(
+                    for: fileURL,
+                    title: "Reset Form Fields"
+                ) { draft in
+                    draft.fields = PDFFormService.resetFieldsToEmpty(draft.fields)
+                }
+            }
+            .buttonStyle(.bordered)
+            .fixedSize(horizontal: true, vertical: false)
+            .disabled(draft.fields.allSatisfy(\.isReadOnly))
+
+            Button {
+                onSaveForm(draft.fields, draft.flattenFields)
+            } label: {
+                Label(draft.flattenFields ? "Save Flattened PDF" : "Save Filled Form PDF", systemImage: "checkmark.rectangle.stack")
+            }
+            .buttonStyle(.borderedProminent)
+            .controlSize(.large)
+            .fixedSize(horizontal: true, vertical: false)
         }
     }
 

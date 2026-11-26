@@ -24,13 +24,16 @@ struct ImageMetadataPrivacyView: View {
                                 auditBadgesRow(info)
                                 Spacer(minLength: 0)
                                 Button("Re-inspect", action: onReload)
+                                    .buttonStyle(.bordered)
                                     .controlSize(.small)
+                                    .fixedSize(horizontal: true, vertical: false)
                             }
                             VStack(alignment: .leading, spacing: AppTheme.Spacing.sm) {
-                                HStack(spacing: AppTheme.Spacing.sm) {
+                                LazyVGrid(columns: [GridItem(.adaptive(minimum: 145), spacing: AppTheme.Spacing.xs)], alignment: .leading, spacing: AppTheme.Spacing.xs) {
                                     auditBadgesRow(info)
                                 }
                                 Button("Re-inspect", action: onReload)
+                                    .buttonStyle(.bordered)
                                     .controlSize(.small)
                             }
                         }
@@ -93,15 +96,19 @@ struct ImageMetadataPrivacyView: View {
                                 Text(entry.category.rawValue)
                                     .font(.caption2.weight(.medium))
                                     .foregroundStyle(.secondary)
-                                    .frame(width: 110, alignment: .leading)
+                                    .frame(width: 78, alignment: .leading)
+                                    .lineLimit(1)
                                 Text(entry.key)
                                     .font(AppTheme.Typography.monoCaption)
-                                    .frame(width: 110, alignment: .leading)
+                                    .frame(width: 96, alignment: .leading)
+                                    .lineLimit(1)
+                                    .truncationMode(.middle)
                                 Text(entry.value)
                                     .font(AppTheme.Typography.caption)
                                     .strikethrough(willStrip)
                                     .foregroundStyle(willStrip ? AppTheme.Colors.error : .primary)
                                     .lineLimit(1)
+                                    .truncationMode(.tail)
                                 Spacer()
                                 AppStatusBadge(text: willStrip ? "Strip" : "Keep", tint: willStrip ? AppTheme.Colors.error : AppTheme.Colors.success)
                             }
@@ -130,7 +137,7 @@ struct ImageMetadataPrivacyView: View {
                     }
                     .pickerStyle(.menu)
 
-                    HStack(spacing: 8) {
+                    HStack(spacing: AppTheme.Spacing.sm) {
                         Button("1-Click Strip All Metadata") {
                             config.metadataEdit.policy = .stripAll
                             config.metadataEdit.stripGPS = true
@@ -140,12 +147,14 @@ struct ImageMetadataPrivacyView: View {
                             config.metadataEdit.stripIPTC = true
                             config.metadataEdit.stripXMP = true
                         }
+                        .buttonStyle(.bordered)
                         .controlSize(.small)
 
                         Button("1-Click Remove GPS Only") {
                             config.metadataEdit.policy = .stripGPSOnly
                             config.metadataEdit.stripGPS = true
                         }
+                        .buttonStyle(.bordered)
                         .controlSize(.small)
                     }
 
@@ -203,7 +212,7 @@ struct ImageMetadataPrivacyView: View {
 
                     Divider()
 
-                    HStack {
+                    HStack(spacing: AppTheme.Spacing.sm) {
                         Button("Save Privacy-Cleaned Copy...") {
                             guard let src = sourceURL else { return }
                             let panel = NSSavePanel()
@@ -212,11 +221,15 @@ struct ImageMetadataPrivacyView: View {
                                 onSaveMetadataNow(dest)
                             }
                         }
+                        .buttonStyle(.borderedProminent)
+                        .controlSize(.small)
                         .disabled(sourceURL == nil)
 
                         Button("Apply In-Place to Source File", role: .destructive) {
                             showInPlaceConfirmation = true
                         }
+                        .buttonStyle(.bordered)
+                        .controlSize(.small)
                         .disabled(sourceURL == nil)
                         .alert("Overwrite Source File Metadata?", isPresented: $showInPlaceConfirmation) {
                             Button("Cancel", role: .cancel) {}

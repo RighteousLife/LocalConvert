@@ -401,6 +401,22 @@
         }
       }
     },
+    "%lld shown": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld shown"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld gösteriliyor"
+          }
+        }
+      }
+    },
     "%lld succeeded": {
       "localizations": {
         "en": {
@@ -561,6 +577,38 @@
         }
       }
     },
+    "100%": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "100%"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%100"
+          }
+        }
+      }
+    },
+    "100% On-Device": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "100% On-Device"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%100 Cihaz Üzerinde"
+          }
+        }
+      }
+    },
     "180° Flip": {
       "localizations": {
         "en": {
@@ -589,6 +637,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "24 saat"
+          }
+        }
+      }
+    },
+    "50%": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "50%"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%50"
           }
         }
       }
@@ -961,6 +1025,22 @@
         }
       }
     },
+    "After: %@": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "After: %@"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sonra: %@"
+          }
+        }
+      }
+    },
     "All": {
       "localizations": {
         "en": {
@@ -973,6 +1053,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "Tümü"
+          }
+        }
+      }
+    },
+    "All Categories": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "All Categories"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tüm Kategoriler"
           }
         }
       }
@@ -1617,6 +1713,38 @@
         }
       }
     },
+    "Before and after split position": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Before and after split position"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Önce ve sonra bölme konumu"
+          }
+        }
+      }
+    },
+    "Before: %@": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Before: %@"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Önce: %@"
+          }
+        }
+      }
+    },
     "Blackout": {
       "localizations": {
         "en": {
@@ -2177,6 +2305,22 @@
         }
       }
     },
+    "Clear Search": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Clear Search"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Aramayı Temizle"
+          }
+        }
+      }
+    },
     "Clear Watch Folder rule filter": {
       "localizations": {
         "en": {
@@ -2237,6 +2381,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "Lisans aramasını temizle"
+          }
+        }
+      }
+    },
+    "Clear search": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Clear search"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Aramayı temizle"
           }
         }
       }
@@ -2429,6 +2589,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "Birden çok PDF belgesini sırayla tek bir dosyada birleştirin."
+          }
+        }
+      }
+    },
+    "Command Palette Search": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Command Palette Search"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Komut Paleti Araması"
           }
         }
       }
@@ -2877,6 +3053,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "Dönüştürülüyor: %1$lld / %2$lld"
+          }
+        }
+      }
+    },
+    "Converts to: %@": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Converts to: %@"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dönüştürülen biçimler: %@"
           }
         }
       }
@@ -3389,6 +3581,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "Klasör yolu: %@"
+          }
+        }
+      }
+    },
+    "Dismiss": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dismiss"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Kapat"
           }
         }
       }
@@ -4273,6 +4481,22 @@
         }
       }
     },
+    "Format": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Format"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Biçim"
+          }
+        }
+      }
+    },
     "Forms": {
       "localizations": {
         "en": {
@@ -4301,6 +4525,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "Kare"
+          }
+        }
+      }
+    },
+    "Frame Geometry": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Frame Geometry"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Çerçeve Geometrisi"
           }
         }
       }
@@ -5041,6 +5281,22 @@
         }
       }
     },
+    "Light & Color": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Light & Color"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Işık ve Renk"
+          }
+        }
+      }
+    },
     "Load source file into queue to convert again": {
       "localizations": {
         "en": {
@@ -5197,6 +5453,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "İşaretle"
+          }
+        }
+      }
+    },
+    "Markup & Redact": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Markup & Redact"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "İşaretle ve Gizle"
           }
         }
       }
@@ -5553,6 +5825,22 @@
         }
       }
     },
+    "Multi-Segment Video Trim": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Multi-Segment Video Trim"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Çoklu Bölüm Video Kırpma"
+          }
+        }
+      }
+    },
     "Multi-segment video timeline": {
       "localizations": {
         "en": {
@@ -5617,6 +5905,22 @@
         }
       }
     },
+    "Name & Category": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Name & Category"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ad ve Kategori"
+          }
+        }
+      }
+    },
     "Native Core Image Camera RAW demosaicing controls for Exposure, White Balance, Highlight/Shadow Recovery, Boost, and Noise Reduction.": {
       "localizations": {
         "en": {
@@ -5645,6 +5949,38 @@
           "stringUnit": {
             "state": "translated",
             "value": "Yerleşik macOS Dosya Dönüştürücü"
+          }
+        }
+      }
+    },
+    "Navigate": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Navigate"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Gezin"
+          }
+        }
+      }
+    },
+    "Navigation": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Navigation"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Gezinme"
           }
         }
       }
@@ -5793,6 +6129,22 @@
         }
       }
     },
+    "No Matching Formats": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No Matching Formats"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Eşleşen Biçim Yok"
+          }
+        }
+      }
+    },
     "No Matching History Items": {
       "localizations": {
         "en": {
@@ -5805,6 +6157,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "Eşleşen Geçmiş Öğesi Yok"
+          }
+        }
+      }
+    },
+    "No Matching License Text": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No Matching License Text"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Eşleşen Lisans Metni Yok"
           }
         }
       }
@@ -5985,6 +6353,38 @@
         }
       }
     },
+    "Nothing to Redo (⇧⌘Z)": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nothing to Redo (⇧⌘Z)"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Yinelenecek İşlem Yok (⇧⌘Z)"
+          }
+        }
+      }
+    },
+    "Nothing to Undo (⌘Z)": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nothing to Undo (⌘Z)"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Geri Alınacak İşlem Yok (⌘Z)"
+          }
+        }
+      }
+    },
     "Notifications": {
       "localizations": {
         "en": {
@@ -6093,6 +6493,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "Okyanus"
+          }
+        }
+      }
+    },
+    "On-Device": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "On-Device"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cihaz Üzerinde"
           }
         }
       }
@@ -7089,6 +7505,22 @@
         }
       }
     },
+    "Paste": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Paste"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Yapıştır"
+          }
+        }
+      }
+    },
     "Paste Image (⌘V)": {
       "localizations": {
         "en": {
@@ -7277,6 +7709,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "Oturumlar boyunca tamamlanan, başarısız ve iptal edilen dönüşümlerin kalıcı arşivi."
+          }
+        }
+      }
+    },
+    "Photo Markup & Redact": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Photo Markup & Redact"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Fotoğraf İşaretleme ve Gizleme"
           }
         }
       }
@@ -7777,6 +8225,22 @@
         }
       }
     },
+    "Read-Only": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Read-Only"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Salt Okunur"
+          }
+        }
+      }
+    },
     "Ready": {
       "localizations": {
         "en": {
@@ -8161,6 +8625,22 @@
         }
       }
     },
+    "Remove from queue": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Remove from queue"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Kuyruktan kaldır"
+          }
+        }
+      }
+    },
     "Remove specified pages from the PDF document.": {
       "localizations": {
         "en": {
@@ -8509,6 +8989,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "Ayarları Sıfırla"
+          }
+        }
+      }
+    },
+    "Reset split to 50%": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Reset split to 50%"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bölmeyi %50'ye sıfırla"
           }
         }
       }
@@ -10097,6 +10593,22 @@
         }
       }
     },
+    "Split:": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Split:"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bölme:"
+          }
+        }
+      }
+    },
     "Spot Heal": {
       "localizations": {
         "en": {
@@ -10785,6 +11297,22 @@
         }
       }
     },
+    "Try a different keyword or clear the search field.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Try a different keyword or clear the search field."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Farklı bir anahtar sözcük deneyin veya arama alanını temizleyin."
+          }
+        }
+      }
+    },
     "Try adjusting your search query, category, or source filter.": {
       "localizations": {
         "en": {
@@ -10797,6 +11325,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "Arama sorgunuzu, kategori veya kaynak filtrenizi değiştirmeyi deneyin."
+          }
+        }
+      }
+    },
+    "Try clearing the search query or switching to All Categories.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Try clearing the search query or switching to All Categories."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Arama sorgusunu temizlemeyi veya Tüm Kategoriler'e geçmeyi deneyin."
           }
         }
       }
@@ -11021,6 +11565,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "Sürüm %1$@ (Yapı %2$@) · Apple Silicon (arm64)"
+          }
+        }
+      }
+    },
+    "Video Trim": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Video Trim"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Video Kırpma"
           }
         }
       }

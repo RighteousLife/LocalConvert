@@ -11,6 +11,7 @@ struct FileRowView: View {
     @State private var showOptionsSheet = false
     @State private var showTrimSheet = false
     @State private var showTechnicalDetails = false
+    @State private var isHovered = false
     @State private var localComparisonItem: BeforeAfterComparisonItem? = nil
     
     private var liveFile: DroppedFile {
@@ -99,7 +100,7 @@ struct FileRowView: View {
                 } else {
                     // Ready / Idle State
                     if !currentFile.availableOutputFormats.isEmpty {
-                        HStack(spacing: 6) {
+                        HStack(spacing: AppTheme.Spacing.xs + 2) {
                             Image(systemName: "arrow.right")
                                 .font(.caption)
                                 .foregroundStyle(.secondary)
@@ -120,7 +121,9 @@ struct FileRowView: View {
                                     }
                                 }
                             }
-                            .frame(width: 110)
+                            .labelsHidden()
+                            .controlSize(.small)
+                            .frame(width: 112)
                             .accessibilityLabel("Target format for \(currentFile.fileName)")
                             
                             // Trim button (for video inputs)
@@ -130,7 +133,8 @@ struct FileRowView: View {
                                         .font(.caption)
                                         .foregroundStyle(currentFile.options.hasVideoTrim ? AppTheme.Colors.accent : .secondary)
                                 }
-                                .buttonStyle(.borderless)
+                                .buttonStyle(.bordered)
+                                .controlSize(.small)
                                 .help(currentFile.options.hasVideoTrim ? "Edit Video Trim..." : "Trim Video...")
                                 .accessibilityLabel("Trim video \(currentFile.fileName)")
                                 .accessibilityIdentifier("filerow.trimButton")
@@ -143,7 +147,8 @@ struct FileRowView: View {
                                         .font(.caption)
                                         .foregroundStyle(.secondary)
                                 }
-                                .buttonStyle(.borderless)
+                                .buttonStyle(.bordered)
+                                .controlSize(.small)
                                 .help("Conversion options")
                                 .accessibilityLabel("Options for \(currentFile.fileName)")
                                 .popover(isPresented: $showOptionsSheet) {
@@ -175,30 +180,36 @@ struct FileRowView: View {
                 Button(action: { appState.removeFile(currentFile) }) {
                     Image(systemName: "xmark.circle.fill")
                         .font(AppTheme.Typography.subheadline)
-                        .foregroundStyle(.tertiary)
+                        .foregroundStyle(isHovered ? Color.secondary : Color.secondary.opacity(0.6))
                 }
                 .buttonStyle(.plain)
                 .disabled(appState.isConverting)
+                .help("Remove from queue")
                 .accessibilityLabel("Remove \(currentFile.fileName)")
             }
         }
         .padding(.horizontal, AppTheme.Spacing.md)
-        .padding(.vertical, AppTheme.Spacing.sm)
+        .padding(.vertical, AppTheme.Spacing.sm + 1)
         .background {
             AppTheme.Colors.cardBackground
             if isSelected {
-                AppTheme.Colors.accentTint.opacity(0.6)
+                AppTheme.Colors.accentTint.opacity(0.55)
+            } else if isHovered {
+                Color.primary.opacity(0.03)
             }
         }
         .clipShape(RoundedRectangle(cornerRadius: AppTheme.Radius.md))
         .overlay(
             RoundedRectangle(cornerRadius: AppTheme.Radius.md)
                 .strokeBorder(
-                    isSelected ? AppTheme.Colors.accent.opacity(0.65) : AppTheme.Colors.cardBorder,
+                    isSelected
+                        ? AppTheme.Colors.accent.opacity(0.65)
+                        : (isHovered ? AppTheme.Colors.accent.opacity(0.28) : AppTheme.Colors.cardBorder),
                     lineWidth: isSelected ? 1.5 : 1
                 )
         )
         .contentShape(RoundedRectangle(cornerRadius: AppTheme.Radius.md))
+        .onHover { isHovered = $0 }
         .simultaneousGesture(
             TapGesture().onEnded {
                 onSelect?()
@@ -372,17 +383,17 @@ struct FileRowView: View {
                     .help("Error & Diagnostic Details")
                     .accessibilityLabel("Show error details")
                     .popover(isPresented: $showTechnicalDetails) {
-                        VStack(alignment: .leading, spacing: 8) {
+                        VStack(alignment: .leading, spacing: AppTheme.Spacing.sm) {
                             Text("Error Details")
-                                .font(.headline)
+                                .font(AppTheme.Typography.sectionTitle)
                             Text(error.userFacingMessage)
-                                .font(.caption)
+                                .font(AppTheme.Typography.caption)
                                 .foregroundStyle(.secondary)
                                 .textSelection(.enabled)
                             if let details = error.technicalDetails, !details.isEmpty {
-                                Divider()
+                                AppDivider()
                                 Text("Technical Diagnostic Details")
-                                    .font(.subheadline.weight(.semibold))
+                                    .font(AppTheme.Typography.cardTitle)
                                 ScrollView {
                                     Text(details)
                                         .font(.system(.caption, design: .monospaced))
@@ -390,10 +401,14 @@ struct FileRowView: View {
                                         .frame(maxWidth: .infinity, alignment: .leading)
                                 }
                                 .frame(height: 130)
+                                .padding(AppTheme.Spacing.xs + 2)
+                                .background(AppTheme.Colors.subtleSurface)
+                                .clipShape(RoundedRectangle(cornerRadius: AppTheme.Radius.sm))
                             }
                         }
                         .frame(width: 340)
-                        .padding()
+                        .padding(AppTheme.Spacing.lg)
+                        .appWorkspaceSurface()
                     }
                 }
             }
@@ -437,7 +452,8 @@ struct FileRowView: View {
                         .font(AppTheme.Typography.caption)
                         .foregroundStyle(AppTheme.Colors.accent)
                 }
-                .buttonStyle(.borderless)
+                .buttonStyle(.bordered)
+                .controlSize(.small)
                 .help("Compare before & after")
                 .accessibilityLabel("Compare before and after for \(liveFile.fileName)")
                 .accessibilityIdentifier("filerow.compareButton")
@@ -450,7 +466,8 @@ struct FileRowView: View {
                         .font(AppTheme.Typography.caption)
                         .foregroundStyle(AppTheme.Colors.accent)
                 }
-                .buttonStyle(.borderless)
+                .buttonStyle(.bordered)
+                .controlSize(.small)
                 .help("Quick Look preview (Space)")
                 .accessibilityLabel("Quick Look \(liveFile.fileName)")
                 .accessibilityIdentifier("filerow.quickLookButton")
@@ -470,7 +487,8 @@ struct FileRowView: View {
                 .font(AppTheme.Typography.caption)
                 .foregroundStyle(AppTheme.Colors.accent)
         }
-        .buttonStyle(.borderless)
+        .buttonStyle(.bordered)
+        .controlSize(.small)
         .help("Show \(result.outputURL.lastPathComponent) in Finder")
         .accessibilityLabel("Show output in Finder")
     }
@@ -552,8 +570,8 @@ struct SizeSavingsBadge: View {
             .font(AppTheme.Typography.badge.monospacedDigit())
             .lineLimit(1)
             .fixedSize(horizontal: true, vertical: false)
-            .padding(.horizontal, 7)
-            .padding(.vertical, 2)
+            .padding(.horizontal, 8)
+            .padding(.vertical, 2.5)
             .background(
                 summary.direction.isSavings
                     ? AppTheme.Colors.successTint
@@ -561,6 +579,15 @@ struct SizeSavingsBadge: View {
             )
             .foregroundStyle(tint)
             .clipShape(RoundedRectangle(cornerRadius: AppTheme.Radius.xs))
+            .overlay(
+                RoundedRectangle(cornerRadius: AppTheme.Radius.xs)
+                    .strokeBorder(
+                        summary.direction.isSavings
+                            ? AppTheme.Colors.success.opacity(0.28)
+                            : AppTheme.Colors.cardBorder,
+                        lineWidth: 0.75
+                    )
+            )
             .accessibilityLabel(summary.accessibilityDescription)
     }
 }
@@ -593,18 +620,25 @@ struct FileThumbnailView: View {
     @State private var thumbnailImage: NSImage?
     
     var body: some View {
-        Group {
+        ZStack {
+            RoundedRectangle(cornerRadius: AppTheme.Radius.sm)
+                .fill(AppTheme.Colors.subtleSurface)
+                .frame(width: 32, height: 32)
+                .overlay(
+                    RoundedRectangle(cornerRadius: AppTheme.Radius.sm)
+                        .strokeBorder(AppTheme.Colors.cardBorder, lineWidth: 0.75)
+                )
+
             if let image = thumbnailImage {
                 Image(nsImage: image)
                     .resizable()
-                    .aspectRatio(contentMode: .fit)
-                    .frame(width: 28, height: 28)
-                    .clipShape(RoundedRectangle(cornerRadius: 4))
+                    .aspectRatio(contentMode: .fill)
+                    .frame(width: 30, height: 30)
+                    .clipShape(RoundedRectangle(cornerRadius: AppTheme.Radius.xs + 1))
             } else {
                 Image(systemName: file.detectedFormat?.category.systemImage ?? "doc.questionmark")
-                    .font(.title3)
-                    .foregroundStyle(file.detectedFormat != nil ? Color.accentColor : Color.secondary)
-                    .frame(width: 28, height: 28)
+                    .font(.subheadline.weight(.medium))
+                    .foregroundStyle(file.detectedFormat != nil ? AppTheme.Colors.accent : Color.secondary)
             }
         }
         .accessibilityHidden(true)

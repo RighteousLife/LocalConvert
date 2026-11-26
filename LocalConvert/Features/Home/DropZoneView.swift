@@ -25,24 +25,39 @@ struct DropZoneView: View {
                 .padding(.top, AppTheme.Spacing.sm)
             }
             
-            VStack(spacing: AppTheme.Spacing.xxl) {
+            VStack(spacing: AppTheme.Spacing.lg) {
                 // MARK: - Dashed Drop Zone Box (Focused only on drop action)
                 VStack(spacing: AppTheme.Spacing.lg) {
-                    Image(systemName: isTargeted ? "arrow.down.doc.fill" : "arrow.down.doc")
-                        .font(.system(size: AppTheme.Layout.emptyIconSize, weight: .light))
-                        .foregroundStyle(isTargeted ? AppTheme.Colors.accent : Color.secondary)
-                        .symbolEffect(.bounce, value: isTargeted)
-                    
+                    ZStack {
+                        RoundedRectangle(cornerRadius: AppTheme.Radius.xl)
+                            .fill(isTargeted ? AppTheme.Colors.accentTint : AppTheme.Colors.subtleSurface)
+                            .frame(width: 68, height: 68)
+                            .overlay(
+                                RoundedRectangle(cornerRadius: AppTheme.Radius.xl)
+                                    .strokeBorder(
+                                        isTargeted ? AppTheme.Colors.accent.opacity(0.45) : AppTheme.Colors.cardBorder,
+                                        lineWidth: 1
+                                    )
+                            )
+
+                        Image(systemName: isTargeted ? "arrow.down.doc.fill" : "arrow.down.doc")
+                            .font(.system(size: 28, weight: .regular))
+                            .foregroundStyle(isTargeted ? AppTheme.Colors.accent : Color.secondary)
+                            .symbolEffect(.bounce, value: isTargeted)
+                    }
+                    .accessibilityHidden(true)
+
                     VStack(spacing: AppTheme.Spacing.xs + 2) {
                         Text(isTargeted ? String(localized: "Release to add files") : String(localized: "Drop files here"))
-                            .font(.title2)
-                            .fontWeight(.medium)
+                            .font(.title2.weight(.semibold))
                             .foregroundStyle(isTargeted ? AppTheme.Colors.accent : .primary)
-                        
+
                         Text("Images · PDF · Office · Audio · Video · Subtitles · Archives")
                             .font(AppTheme.Typography.subheadline)
                             .foregroundStyle(.secondary)
-                        
+                            .multilineTextAlignment(.center)
+                            .fixedSize(horizontal: false, vertical: true)
+
                         Button {
                             showingFormatsSheet = true
                         } label: {
@@ -50,31 +65,43 @@ struct DropZoneView: View {
                                 .font(AppTheme.Typography.caption)
                         }
                         .buttonStyle(.link)
+                        .padding(.top, AppTheme.Spacing.xxs)
                         .accessibilityLabel("View Supported Formats and Conversion Matrix")
                         .accessibilityIdentifier("dropzone.supportedFormats")
-                        
-                        Text("or")
-                            .font(AppTheme.Typography.caption)
-                            .foregroundStyle(.tertiary)
                     }
-                    
-                    VStack(spacing: AppTheme.Spacing.sm) {
+
+                    HStack(spacing: AppTheme.Spacing.md) {
                         Button(action: selectFiles) {
                             Label("Add Files", systemImage: "plus")
-                                .frame(minWidth: 120)
+                                .frame(minWidth: 112)
                         }
                         .controlSize(.large)
                         .buttonStyle(.borderedProminent)
+                        .fixedSize(horizontal: true, vertical: false)
                         .keyboardShortcut("o", modifiers: .command)
                         .accessibilityLabel("Add files to convert")
                         .accessibilityIdentifier("dropzone.addFiles")
 
                         Button(action: pasteFromClipboard) {
-                            Label("Paste from Clipboard (⌘V)", systemImage: "doc.on.clipboard")
-                                .font(AppTheme.Typography.caption)
+                            HStack(spacing: AppTheme.Spacing.sm) {
+                                Label("Paste", systemImage: "doc.on.clipboard")
+                                Text(verbatim: "⌘V")
+                                    .font(AppTheme.Typography.badge.monospaced())
+                                    .foregroundStyle(.secondary)
+                                    .padding(.horizontal, 5)
+                                    .padding(.vertical, 2)
+                                    .background(AppTheme.Colors.neutralTint)
+                                    .clipShape(RoundedRectangle(cornerRadius: AppTheme.Radius.xs))
+                                    .overlay(
+                                        RoundedRectangle(cornerRadius: AppTheme.Radius.xs)
+                                            .strokeBorder(AppTheme.Colors.cardBorder, lineWidth: 0.75)
+                                    )
+                            }
+                            .frame(minWidth: 112)
                         }
                         .buttonStyle(.bordered)
-                        .controlSize(.regular)
+                        .controlSize(.large)
+                        .fixedSize(horizontal: true, vertical: false)
                         .disabled(appState.isConverting)
                         .accessibilityLabel("Paste from Clipboard")
                         .accessibilityHint("Pastes copied files, images, or text from the clipboard into the conversion queue. Shortcut: Command-V.")
@@ -94,35 +121,46 @@ struct DropZoneView: View {
                         .padding(.vertical, AppTheme.Spacing.xs)
                         .background(AppTheme.Colors.successTint)
                         .clipShape(Capsule())
+                        .overlay(
+                            Capsule()
+                                .strokeBorder(AppTheme.Colors.success.opacity(0.28), lineWidth: 1)
+                        )
                         .transition(.opacity.combined(with: .scale))
                     }
                 }
+                .padding(.horizontal, AppTheme.Spacing.xxl)
+                .padding(.vertical, AppTheme.Spacing.xl)
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
                 .background {
                     RoundedRectangle(cornerRadius: AppTheme.Radius.xl)
-                        .strokeBorder(
-                            isTargeted ? AppTheme.Colors.accent : AppTheme.Colors.cardBorder,
-                            style: StrokeStyle(lineWidth: 2, dash: [8, 4])
-                        )
+                        .fill(isTargeted ? AppTheme.Colors.accentTint.opacity(0.35) : AppTheme.Colors.cardBackground.opacity(0.55))
+                        .overlay {
+                            RoundedRectangle(cornerRadius: AppTheme.Radius.xl)
+                                .strokeBorder(
+                                    isTargeted ? AppTheme.Colors.accent : AppTheme.Colors.cardBorder,
+                                    style: StrokeStyle(lineWidth: isTargeted ? 2 : 1.5, dash: [7, 5])
+                                )
+                        }
                 }
+                .animation(.easeInOut(duration: 0.16), value: isTargeted)
                 
                 // MARK: - Privacy & Offline Guarantee (Outside the drop zone)
-                VStack(spacing: AppTheme.Spacing.xs) {
-                    Text("Your files, Your Mac.")
-                        .font(AppTheme.Typography.subheadline)
-                        .fontWeight(.medium)
+                VStack(spacing: AppTheme.Spacing.xxs) {
+                    Label("Your files, Your Mac.", systemImage: "lock.shield")
+                        .font(AppTheme.Typography.subheadline.weight(.medium))
                         .foregroundStyle(.secondary)
                     
                     Text("All conversions happen locally on your Mac. No data is sent to the cloud.")
                         .font(AppTheme.Typography.caption)
                         .foregroundStyle(.tertiary)
+                        .multilineTextAlignment(.center)
                 }
-                .padding(.top, AppTheme.Spacing.xs)
-                .padding(.bottom, AppTheme.Spacing.md)
+                .padding(.top, AppTheme.Spacing.xxs)
+                .padding(.bottom, AppTheme.Spacing.sm)
             }
-            .padding(.horizontal, AppTheme.Spacing.xxl + 4)
-            .padding(.top, AppTheme.Spacing.xxl)
-            .padding(.bottom, AppTheme.Spacing.sm)
+            .padding(.horizontal, AppTheme.Spacing.xxl)
+            .padding(.top, AppTheme.Spacing.xl)
+            .padding(.bottom, AppTheme.Spacing.md)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .onDrop(of: [.fileURL], isTargeted: $isTargeted) { providers in

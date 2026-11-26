@@ -149,13 +149,13 @@ struct JobRowView: View {
             actionControls
                 .fixedSize(horizontal: true, vertical: false)
         }
-        .padding(.vertical, AppTheme.Spacing.sm)
+        .padding(.vertical, AppTheme.Spacing.sm + 2)
         .padding(.horizontal, AppTheme.Spacing.md)
         .background(AppTheme.Colors.cardBackground)
-        .clipShape(RoundedRectangle(cornerRadius: AppTheme.Radius.md))
+        .clipShape(RoundedRectangle(cornerRadius: AppTheme.Radius.lg))
         .overlay(
-            RoundedRectangle(cornerRadius: AppTheme.Radius.md)
-                .strokeBorder(AppTheme.Colors.cardBorder, lineWidth: 1)
+            RoundedRectangle(cornerRadius: AppTheme.Radius.lg)
+                .strokeBorder(Color.primary.opacity(0.08), lineWidth: 1)
         )
         .contextMenu {
             contextMenuItems
@@ -206,7 +206,7 @@ struct JobRowView: View {
     
     @ViewBuilder
     private var actionControls: some View {
-        HStack(spacing: AppTheme.Spacing.xs + 2) {
+        HStack(spacing: AppTheme.Spacing.xs) {
             switch status {
             case .waiting, .converting:
                 Button {
@@ -214,6 +214,8 @@ struct JobRowView: View {
                 } label: {
                     Image(systemName: "xmark.circle")
                         .font(AppTheme.Typography.subheadline)
+                        .frame(width: 24, height: 24)
+                        .contentShape(RoundedRectangle(cornerRadius: AppTheme.Radius.xs))
                 }
                 .buttonStyle(.plain)
                 .help("Cancel conversion")
@@ -227,6 +229,8 @@ struct JobRowView: View {
                         } label: {
                             Image(systemName: "arrow.up.forward.app")
                                 .font(AppTheme.Typography.subheadline)
+                                .frame(width: 24, height: 24)
+                                .contentShape(RoundedRectangle(cornerRadius: AppTheme.Radius.xs))
                         }
                         .buttonStyle(.plain)
                         .help("Open output file")
@@ -237,6 +241,8 @@ struct JobRowView: View {
                         } label: {
                             Image(systemName: "folder")
                                 .font(AppTheme.Typography.subheadline)
+                                .frame(width: 24, height: 24)
+                                .contentShape(RoundedRectangle(cornerRadius: AppTheme.Radius.xs))
                         }
                         .buttonStyle(.plain)
                         .help("Show output in Finder")
@@ -248,6 +254,8 @@ struct JobRowView: View {
                         } label: {
                             Image(systemName: "doc.on.doc")
                                 .font(AppTheme.Typography.caption)
+                                .frame(width: 24, height: 24)
+                                .contentShape(RoundedRectangle(cornerRadius: AppTheme.Radius.xs))
                         }
                         .buttonStyle(.plain)
                         .help("Copy output file path")
@@ -265,6 +273,8 @@ struct JobRowView: View {
                     Image(systemName: "trash")
                         .font(AppTheme.Typography.caption)
                         .foregroundStyle(.secondary)
+                        .frame(width: 24, height: 24)
+                        .contentShape(RoundedRectangle(cornerRadius: AppTheme.Radius.xs))
                 }
                 .buttonStyle(.plain)
                 .help("Remove from Jobs")
@@ -277,6 +287,8 @@ struct JobRowView: View {
                     Image(systemName: "info.circle")
                         .font(AppTheme.Typography.subheadline)
                         .foregroundStyle(AppTheme.Colors.error)
+                        .frame(width: 24, height: 24)
+                        .contentShape(RoundedRectangle(cornerRadius: AppTheme.Radius.xs))
                 }
                 .buttonStyle(.plain)
                 .help("View error details")
@@ -288,6 +300,8 @@ struct JobRowView: View {
                     Image(systemName: "arrow.clockwise")
                         .font(AppTheme.Typography.subheadline.weight(.semibold))
                         .foregroundStyle(AppTheme.Colors.accent)
+                        .frame(width: 24, height: 24)
+                        .contentShape(RoundedRectangle(cornerRadius: AppTheme.Radius.xs))
                 }
                 .buttonStyle(.plain)
                 .help("Retry conversion")
@@ -299,6 +313,8 @@ struct JobRowView: View {
                     Image(systemName: "trash")
                         .font(AppTheme.Typography.caption)
                         .foregroundStyle(.secondary)
+                        .frame(width: 24, height: 24)
+                        .contentShape(RoundedRectangle(cornerRadius: AppTheme.Radius.xs))
                 }
                 .buttonStyle(.plain)
                 .help("Remove from Jobs")
@@ -311,6 +327,8 @@ struct JobRowView: View {
                     Image(systemName: "arrow.clockwise")
                         .font(AppTheme.Typography.subheadline)
                         .foregroundStyle(AppTheme.Colors.accent)
+                        .frame(width: 24, height: 24)
+                        .contentShape(RoundedRectangle(cornerRadius: AppTheme.Radius.xs))
                 }
                 .buttonStyle(.plain)
                 .help("Retry conversion")
@@ -322,6 +340,8 @@ struct JobRowView: View {
                     Image(systemName: "trash")
                         .font(AppTheme.Typography.caption)
                         .foregroundStyle(.secondary)
+                        .frame(width: 24, height: 24)
+                        .contentShape(RoundedRectangle(cornerRadius: AppTheme.Radius.xs))
                 }
                 .buttonStyle(.plain)
                 .help("Remove from Jobs")
@@ -405,6 +425,8 @@ struct ErrorDetailsSheet: View {
                 Button("Done") {
                     isPresented = false
                 }
+                .buttonStyle(.borderedProminent)
+                .controlSize(.small)
                 .keyboardShortcut(.defaultAction)
             }
             
@@ -437,7 +459,11 @@ struct ErrorDetailsSheet: View {
                     .frame(maxWidth: .infinity, alignment: .topLeading)
                 }
                 .background(AppTheme.Colors.elevatedSurface)
-                .clipShape(RoundedRectangle(cornerRadius: AppTheme.Radius.sm))
+                .clipShape(RoundedRectangle(cornerRadius: AppTheme.Radius.lg))
+                .overlay(
+                    RoundedRectangle(cornerRadius: AppTheme.Radius.lg)
+                        .strokeBorder(Color.primary.opacity(0.08), lineWidth: 1)
+                )
                 .frame(maxHeight: 140)
                 .padding(.top, AppTheme.Spacing.xs)
             }
@@ -454,6 +480,8 @@ struct ErrorDetailsSheet: View {
                     NSPasteboard.general.clearContents()
                     NSPasteboard.general.setString(formatted, forType: .string)
                 }
+                .buttonStyle(.bordered)
+                .controlSize(.small)
                 .accessibilityLabel("Copy Error Details")
                 Spacer()
             }

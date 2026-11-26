@@ -212,6 +212,7 @@ struct PDFPageNormalizationView: View {
 
             HStack {
                 Button("Cancel", role: .cancel) { review = nil }
+                    .buttonStyle(.bordered)
                     .keyboardShortcut(.cancelAction)
                 Spacer()
                 Button("Continue to Queue") { submit(item) }
@@ -221,6 +222,7 @@ struct PDFPageNormalizationView: View {
         }
         .padding(AppTheme.Spacing.xl)
         .frame(minWidth: 460, idealWidth: 520, minHeight: 360)
+        .appWorkspaceSurface()
     }
 
     private func inspectAndReview() {

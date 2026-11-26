@@ -383,11 +383,12 @@ struct PresetManagerView: View {
 
     @ViewBuilder
     private func presetHeaderActions(_ preset: SavedPreset) -> some View {
-        HStack(spacing: 6) {
+        HStack(spacing: AppTheme.Spacing.xs + 2) {
             if !preset.isBuiltIn {
                 Button("Edit...") {
                     presetToEdit = preset
                 }
+                .buttonStyle(.bordered)
                 .controlSize(.small)
                 .fixedSize(horizontal: true, vertical: false)
 
@@ -397,6 +398,7 @@ struct PresetManagerView: View {
                 } label: {
                     Image(systemName: "trash")
                 }
+                .buttonStyle(.bordered)
                 .controlSize(.small)
                 .fixedSize(horizontal: true, vertical: false)
                 .accessibilityLabel("Delete preset")
@@ -407,6 +409,7 @@ struct PresetManagerView: View {
                     selectedPresetId = dup.id
                 }
             }
+            .buttonStyle(.bordered)
             .controlSize(.small)
             .fixedSize(horizontal: true, vertical: false)
         }

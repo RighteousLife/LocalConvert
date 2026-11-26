@@ -99,7 +99,7 @@ struct PhotoViewerEditorView: View {
                     AppDivider()
                         .frame(width: 1)
                     inspectorDrawer(panel)
-                        .frame(width: 246)
+                        .frame(width: 254)
                         .background(AppTheme.Colors.secondarySidebarBackground)
                 }
             }
@@ -167,7 +167,7 @@ struct PhotoViewerEditorView: View {
                 inspectorToggleGroup
             }
 
-            VStack(alignment: .leading, spacing: AppTheme.Spacing.xs) {
+            VStack(alignment: .leading, spacing: AppTheme.Spacing.xs + 2) {
                 HStack(spacing: AppTheme.Spacing.sm) {
                     siblingNavigationGroup
                     Spacer(minLength: 0)
@@ -187,33 +187,37 @@ struct PhotoViewerEditorView: View {
 
     private var siblingNavigationGroup: some View {
         HStack(spacing: AppTheme.Spacing.xs) {
-            Button {
-                Task { await model.goToPreviousSibling() }
-            } label: {
-                Image(systemName: "chevron.left")
-            }
-            .controlSize(.small)
-            .disabled(!model.canGoPrevious || model.isLoading)
-            .help("Previous Photo (←)")
-            .accessibilityLabel("Previous Photo")
-            .accessibilityIdentifier("photoviewer.prevButton")
+            HStack(spacing: 2) {
+                Button {
+                    Task { await model.goToPreviousSibling() }
+                } label: {
+                    Image(systemName: "chevron.left")
+                }
+                .buttonStyle(.bordered)
+                .controlSize(.small)
+                .disabled(!model.canGoPrevious || model.isLoading)
+                .help("Previous Photo (←)")
+                .accessibilityLabel("Previous Photo")
+                .accessibilityIdentifier("photoviewer.prevButton")
 
-            Button {
-                Task { await model.goToNextSibling() }
-            } label: {
-                Image(systemName: "chevron.right")
+                Button {
+                    Task { await model.goToNextSibling() }
+                } label: {
+                    Image(systemName: "chevron.right")
+                }
+                .buttonStyle(.bordered)
+                .controlSize(.small)
+                .disabled(!model.canGoNext || model.isLoading)
+                .help("Next Photo (→)")
+                .accessibilityLabel("Next Photo")
+                .accessibilityIdentifier("photoviewer.nextButton")
             }
-            .controlSize(.small)
-            .disabled(!model.canGoNext || model.isLoading)
-            .help("Next Photo (→)")
-            .accessibilityLabel("Next Photo")
-            .accessibilityIdentifier("photoviewer.nextButton")
 
             Text(model.currentURL.lastPathComponent)
                 .font(AppTheme.Typography.cardTitle)
                 .lineLimit(1)
                 .truncationMode(.middle)
-                .frame(maxWidth: 190, alignment: .leading)
+                .frame(maxWidth: 165, alignment: .leading)
 
             if !model.siblings.isEmpty {
                 AppHeaderPill(text: "\(model.currentSiblingIndex + 1)/\(model.siblings.count)")
@@ -226,6 +230,7 @@ struct PhotoViewerEditorView: View {
             Button("Fit") {
                 resetViewportTransform()
             }
+            .buttonStyle(.bordered)
             .controlSize(.small)
             .fixedSize()
             .help("Fit image to window")
@@ -234,6 +239,7 @@ struct PhotoViewerEditorView: View {
             Button("100%") {
                 toggleActualPixelZoom()
             }
+            .buttonStyle(.bordered)
             .controlSize(.small)
             .fixedSize()
             .help("Toggle 100% actual pixels (0)")
@@ -244,6 +250,7 @@ struct PhotoViewerEditorView: View {
             } label: {
                 Image(systemName: "minus.magnifyingglass")
             }
+            .buttonStyle(.bordered)
             .controlSize(.small)
             .help("Zoom Out")
             .accessibilityIdentifier("photoviewer.zoomOutButton")
@@ -253,6 +260,7 @@ struct PhotoViewerEditorView: View {
             } label: {
                 Image(systemName: "plus.magnifyingglass")
             }
+            .buttonStyle(.bordered)
             .controlSize(.small)
             .help("Zoom In")
             .accessibilityIdentifier("photoviewer.zoomInButton")
@@ -266,27 +274,31 @@ struct PhotoViewerEditorView: View {
 
     private var historyAndUtilityGroup: some View {
         HStack(spacing: AppTheme.Spacing.xs) {
-            Button {
-                model.undo()
-            } label: {
-                Image(systemName: "arrow.uturn.backward")
-            }
-            .controlSize(.small)
-            .disabled(!model.canUndo)
-            .help("Undo (⌘Z)")
-            .accessibilityLabel("Undo")
-            .accessibilityIdentifier("photoviewer.undoButton")
+            HStack(spacing: 2) {
+                Button {
+                    model.undo()
+                } label: {
+                    Image(systemName: "arrow.uturn.backward")
+                }
+                .buttonStyle(.bordered)
+                .controlSize(.small)
+                .disabled(!model.canUndo)
+                .help("Undo (⌘Z)")
+                .accessibilityLabel("Undo")
+                .accessibilityIdentifier("photoviewer.undoButton")
 
-            Button {
-                model.redo()
-            } label: {
-                Image(systemName: "arrow.uturn.forward")
+                Button {
+                    model.redo()
+                } label: {
+                    Image(systemName: "arrow.uturn.forward")
+                }
+                .buttonStyle(.bordered)
+                .controlSize(.small)
+                .disabled(!model.canRedo)
+                .help("Redo (⇧⌘Z)")
+                .accessibilityLabel("Redo")
+                .accessibilityIdentifier("photoviewer.redoButton")
             }
-            .controlSize(.small)
-            .disabled(!model.canRedo)
-            .help("Redo (⇧⌘Z)")
-            .accessibilityLabel("Redo")
-            .accessibilityIdentifier("photoviewer.redoButton")
 
             Button {
                 runOCRCopy()
@@ -297,6 +309,7 @@ struct PhotoViewerEditorView: View {
                     Image(systemName: "text.viewfinder")
                 }
             }
+            .buttonStyle(.bordered)
             .controlSize(.small)
             .disabled(model.sourceCGImage == nil || isRunningOCR)
             .help("Extract & Copy Text (Vision OCR)")
@@ -308,6 +321,7 @@ struct PhotoViewerEditorView: View {
             } label: {
                 Image(systemName: "doc.on.doc")
             }
+            .buttonStyle(.bordered)
             .controlSize(.small)
             .disabled(model.sourceCGImage == nil)
             .help("Copy Image (⌘C)")
@@ -319,6 +333,7 @@ struct PhotoViewerEditorView: View {
             }
             .toggleStyle(.button)
             .controlSize(.small)
+            .tint(showEXIFHUD ? AppTheme.Colors.accent : nil)
             .help("Toggle EXIF & Dimensions HUD")
             .accessibilityLabel("Toggle EXIF HUD")
             .accessibilityIdentifier("photoviewer.exifToggle")
@@ -328,6 +343,7 @@ struct PhotoViewerEditorView: View {
             }
             .toggleStyle(.button)
             .controlSize(.small)
+            .tint(showFilmstrip ? AppTheme.Colors.accent : nil)
             .help("Toggle Folder Filmstrip")
             .accessibilityLabel("Toggle Filmstrip")
             .accessibilityIdentifier("photoviewer.filmstripToggle")
@@ -338,15 +354,27 @@ struct PhotoViewerEditorView: View {
         HStack(spacing: AppTheme.Spacing.xs) {
             ForEach(InspectorPanel.allCases) { panel in
                 let isSelected = (activeInspector == panel)
-                Button {
-                    toggleInspector(panel)
-                } label: {
-                    Label(String(localized: String.LocalizationValue(panel.rawValue)), systemImage: panel.systemImage)
+                if isSelected {
+                    Button {
+                        toggleInspector(panel)
+                    } label: {
+                        Label(String(localized: String.LocalizationValue(panel.rawValue)), systemImage: panel.systemImage)
+                    }
+                    .controlSize(.small)
+                    .buttonStyle(.borderedProminent)
+                    .fixedSize(horizontal: true, vertical: false)
+                    .accessibilityIdentifier(inspectorIdentifier(for: panel))
+                } else {
+                    Button {
+                        toggleInspector(panel)
+                    } label: {
+                        Label(String(localized: String.LocalizationValue(panel.rawValue)), systemImage: panel.systemImage)
+                    }
+                    .controlSize(.small)
+                    .buttonStyle(.bordered)
+                    .fixedSize(horizontal: true, vertical: false)
+                    .accessibilityIdentifier(inspectorIdentifier(for: panel))
                 }
-                .controlSize(.small)
-                .buttonStyle(.bordered)
-                .tint(isSelected ? AppTheme.Colors.accent : .secondary)
-                .accessibilityIdentifier(inspectorIdentifier(for: panel))
             }
         }
     }
@@ -430,14 +458,20 @@ struct PhotoViewerEditorView: View {
                         if model.hasUnsavedChanges {
                             Label("Hold Before", systemImage: isHoldingBefore ? "eye.fill" : "eye")
                                 .font(AppTheme.Typography.caption.weight(.medium))
-                                .padding(.horizontal, AppTheme.Spacing.sm)
-                                .padding(.vertical, 4)
-                                .background(AppTheme.Colors.cardBackground.opacity(0.92))
-                                .clipShape(RoundedRectangle(cornerRadius: AppTheme.Radius.sm))
+                                .padding(.horizontal, AppTheme.Spacing.sm + 2)
+                                .padding(.vertical, 5)
+                                .background(
+                                    isHoldingBefore
+                                        ? AppTheme.Colors.accent.opacity(0.92)
+                                        : AppTheme.Colors.cardBackground.opacity(0.94)
+                                )
+                                .foregroundStyle(isHoldingBefore ? Color.white : Color.primary)
+                                .clipShape(Capsule())
                                 .overlay(
-                                    RoundedRectangle(cornerRadius: AppTheme.Radius.sm)
+                                    Capsule()
                                         .strokeBorder(isHoldingBefore ? AppTheme.Colors.accent : AppTheme.Colors.cardBorder, lineWidth: 1)
                                 )
+                                .shadow(color: Color.black.opacity(0.16), radius: 6, y: 2)
                                 .gesture(
                                     DragGesture(minimumDistance: 0)
                                         .onChanged { _ in if !isHoldingBefore { isHoldingBefore = true } }
@@ -477,16 +511,16 @@ struct PhotoViewerEditorView: View {
 
     private func exifHUDView(_ summary: QuickPhotoEXIFSummary) -> some View {
         let predicted = model.predictedOutputDimensions
-        return VStack(alignment: .leading, spacing: 3) {
+        return VStack(alignment: .leading, spacing: 4) {
             HStack(spacing: AppTheme.Spacing.xs) {
-                Text(summary.formatName)
-                    .font(AppTheme.Typography.badge)
-                    .foregroundStyle(AppTheme.Colors.accent)
-                Text("•")
-                    .foregroundStyle(.secondary)
+                AppStatusBadge(text: summary.formatName, tint: AppTheme.Colors.accent, style: .rounded)
+                Spacer(minLength: AppTheme.Spacing.xs)
                 Text(summary.fileSizeText)
                     .font(AppTheme.Typography.monoCaption)
+                    .foregroundStyle(.secondary)
             }
+            AppDivider()
+                .padding(.vertical, 2)
             Text("Source: \(summary.dimensionsText)")
                 .font(AppTheme.Typography.monoCaption)
             if predicted.width > 0 && (predicted.width != summary.pixelWidth || predicted.height != summary.pixelHeight) {
@@ -516,13 +550,14 @@ struct PhotoViewerEditorView: View {
                     .foregroundStyle(.secondary)
             }
         }
-        .padding(AppTheme.Spacing.sm + 2)
-        .background(AppTheme.Colors.cardBackground.opacity(0.92))
+        .padding(AppTheme.Spacing.sm + 4)
+        .background(AppTheme.Colors.cardBackground.opacity(0.95))
         .clipShape(RoundedRectangle(cornerRadius: AppTheme.Radius.md))
         .overlay(
             RoundedRectangle(cornerRadius: AppTheme.Radius.md)
                 .strokeBorder(AppTheme.Colors.cardBorder, lineWidth: 1)
         )
+        .shadow(color: Color.black.opacity(0.18), radius: 8, y: 4)
         .frame(maxWidth: 260, alignment: .leading)
         .accessibilityIdentifier("photoviewer.exifHUD")
     }
@@ -552,14 +587,17 @@ struct PhotoViewerEditorView: View {
                 isTextInputFocused = false
             }
             .controlSize(.small)
+            .buttonStyle(.bordered)
         }
-        .padding(AppTheme.Spacing.sm)
+        .padding(.horizontal, AppTheme.Spacing.md)
+        .padding(.vertical, AppTheme.Spacing.sm)
         .background(AppTheme.Colors.cardBackground)
-        .clipShape(RoundedRectangle(cornerRadius: AppTheme.Radius.md))
+        .clipShape(RoundedRectangle(cornerRadius: AppTheme.Radius.lg))
         .overlay(
-            RoundedRectangle(cornerRadius: AppTheme.Radius.md)
+            RoundedRectangle(cornerRadius: AppTheme.Radius.lg)
                 .strokeBorder(AppTheme.Colors.cardBorder, lineWidth: 1)
         )
+        .shadow(color: Color.black.opacity(0.18), radius: 10, y: 4)
     }
 
     // MARK: - Canvas Geometry & Gestures
@@ -800,12 +838,27 @@ struct PhotoViewerEditorView: View {
                 .position(x: rect.midX, y: rect.midY)
                 .allowsHitTesting(false)
 
+            // Subtle rule-of-thirds guides
+            Path { path in
+                for step in [1.0 / 3.0, 2.0 / 3.0] {
+                    let x = rect.minX + rect.width * step
+                    path.move(to: CGPoint(x: x, y: rect.minY))
+                    path.addLine(to: CGPoint(x: x, y: rect.maxY))
+                    let y = rect.minY + rect.height * step
+                    path.move(to: CGPoint(x: rect.minX, y: y))
+                    path.addLine(to: CGPoint(x: rect.maxX, y: y))
+                }
+            }
+            .stroke(Color.white.opacity(0.32), lineWidth: 0.75)
+            .allowsHitTesting(false)
+
             ForEach(CropHandle.allCases, id: \.self) { handle in
                 let pt = cropHandlePosition(handle, rect: rect)
                 Circle()
                     .fill(Color.white)
                     .frame(width: 12, height: 12)
                     .overlay(Circle().stroke(AppTheme.Colors.accent, lineWidth: 2))
+                    .shadow(color: Color.black.opacity(0.35), radius: 2, y: 1)
                     .position(pt)
                     .gesture(
                         DragGesture(minimumDistance: 1)
@@ -886,40 +939,68 @@ struct PhotoViewerEditorView: View {
 
     @ViewBuilder
     private func inspectorDrawer(_ panel: InspectorPanel) -> some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: AppTheme.Spacing.md) {
-                HStack {
-                    Label(String(localized: String.LocalizationValue(panel.rawValue)), systemImage: panel.systemImage)
-                        .font(AppTheme.Typography.sectionTitle)
-                    Spacer()
-                    Button {
-                        activeInspector = nil
-                    } label: {
-                        Image(systemName: "xmark")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                    }
-                    .buttonStyle(.plain)
-                    .help("Collapse Sidebar")
+        VStack(spacing: 0) {
+            HStack(spacing: AppTheme.Spacing.xs) {
+                Label(String(localized: String.LocalizationValue(panel.rawValue)), systemImage: panel.systemImage)
+                    .font(AppTheme.Typography.sectionTitle)
+                    .lineLimit(1)
+                Spacer()
+                Button {
+                    activeInspector = nil
+                } label: {
+                    Image(systemName: "xmark")
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(.secondary)
+                        .frame(width: 22, height: 22)
                 }
-
-                AppDivider()
-
-                switch panel {
-                case .adjust:
-                    adjustInspectorContent
-                case .markup:
-                    markupInspectorContent
-                case .backdrop:
-                    backdropInspectorContent
-                }
+                .buttonStyle(.plain)
+                .help("Collapse Sidebar")
             }
-            .padding(AppTheme.Spacing.md)
+            .padding(.horizontal, AppTheme.Spacing.md)
+            .padding(.vertical, AppTheme.Spacing.sm + 2)
+            .background(AppTheme.Colors.subtleSurface)
+
+            AppDivider()
+
+            ScrollView {
+                VStack(alignment: .leading, spacing: AppTheme.Spacing.md) {
+                    switch panel {
+                    case .adjust:
+                        adjustInspectorContent
+                    case .markup:
+                        markupInspectorContent
+                    case .backdrop:
+                        backdropInspectorContent
+                    }
+                }
+                .padding(AppTheme.Spacing.md)
+            }
         }
     }
 
+    private func inspectorSectionCard<Content: View>(
+        title: LocalizedStringKey? = nil,
+        @ViewBuilder content: () -> Content
+    ) -> some View {
+        VStack(alignment: .leading, spacing: AppTheme.Spacing.sm) {
+            if let title {
+                Text(title)
+                    .font(AppTheme.Typography.cardTitle)
+            }
+            content()
+        }
+        .padding(AppTheme.Spacing.sm + 2)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(AppTheme.Colors.cardBackground)
+        .clipShape(RoundedRectangle(cornerRadius: AppTheme.Radius.md))
+        .overlay(
+            RoundedRectangle(cornerRadius: AppTheme.Radius.md)
+                .strokeBorder(AppTheme.Colors.cardBorder, lineWidth: 1)
+        )
+    }
+
     private var adjustInspectorContent: some View {
-        VStack(alignment: .leading, spacing: AppTheme.Spacing.md) {
+        VStack(alignment: .leading, spacing: AppTheme.Spacing.sm) {
             HStack(spacing: AppTheme.Spacing.xs) {
                 Button {
                     model.toggleAutoEnhance()
@@ -934,11 +1015,12 @@ struct PhotoViewerEditorView: View {
                 Button("Reset") {
                     model.resetAllEdits()
                 }
+                .buttonStyle(.bordered)
                 .controlSize(.small)
                 .disabled(!model.hasUnsavedChanges)
             }
 
-            Group {
+            inspectorSectionCard(title: "Light & Color") {
                 sliderRow(
                     label: "Exposure",
                     value: Binding(
@@ -995,282 +1077,334 @@ struct PhotoViewerEditorView: View {
                 )
             }
 
-            AppDivider()
-
-            Text("Rotate & Flip")
-                .font(AppTheme.Typography.cardTitle)
-            HStack(spacing: AppTheme.Spacing.xs) {
-                Button { model.rotateCounterClockwise() } label: { Image(systemName: "rotate.left") }
+            inspectorSectionCard(title: "Rotate & Flip") {
+                HStack(spacing: AppTheme.Spacing.xs) {
+                    Button { model.rotateCounterClockwise() } label: {
+                        Image(systemName: "rotate.left")
+                            .frame(maxWidth: .infinity)
+                    }
+                    .buttonStyle(.bordered)
                     .controlSize(.small)
                     .help("Rotate 90° Counter-Clockwise")
-                Button { model.rotateClockwise() } label: { Image(systemName: "rotate.right") }
+                    Button { model.rotateClockwise() } label: {
+                        Image(systemName: "rotate.right")
+                            .frame(maxWidth: .infinity)
+                    }
+                    .buttonStyle(.bordered)
                     .controlSize(.small)
                     .help("Rotate 90° Clockwise")
-                Button { model.toggleFlipHorizontal() } label: { Image(systemName: "arrow.left.and.right.righttriangle.left.righttriangle.right") }
+                    Button { model.toggleFlipHorizontal() } label: {
+                        Image(systemName: "arrow.left.and.right.righttriangle.left.righttriangle.right")
+                            .frame(maxWidth: .infinity)
+                    }
+                    .buttonStyle(.bordered)
                     .controlSize(.small)
                     .help("Flip Horizontal")
-                Button { model.toggleFlipVertical() } label: { Image(systemName: "arrow.up.and.down.righttriangle.up.righttriangle.down") }
+                    Button { model.toggleFlipVertical() } label: {
+                        Image(systemName: "arrow.up.and.down.righttriangle.up.righttriangle.down")
+                            .frame(maxWidth: .infinity)
+                    }
+                    .buttonStyle(.bordered)
                     .controlSize(.small)
                     .help("Flip Vertical")
-            }
-
-            AppDivider()
-
-            Text("Crop")
-                .font(AppTheme.Typography.cardTitle)
-            LazyVGrid(columns: [GridItem(.adaptive(minimum: 50), spacing: AppTheme.Spacing.xs)], spacing: AppTheme.Spacing.xs) {
-                ForEach(QuickPhotoCropAspect.allCases) { aspect in
-                    Button(LocalizedStringKey(aspect.rawValue)) {
-                        model.applyEdit { $0.cropAspect = aspect }
-                        if let ratio = aspect.ratioValue, let img = displayedImage {
-                            let imgRatio = Double(max(1, img.size.width)) / Double(max(1, img.size.height))
-                            var w = 0.84
-                            var h = w * (imgRatio / ratio)
-                            if h > 0.84 { h = 0.84; w = h * (ratio / imgRatio) }
-                            draftCropRect = NormalizedRect(x: (1.0 - w) / 2.0, y: (1.0 - h) / 2.0, width: w, height: h)
-                        }
-                    }
-                    .controlSize(.small)
-                    .buttonStyle(.bordered)
-                    .tint(model.editState.cropAspect == aspect ? AppTheme.Colors.accent : .secondary)
                 }
             }
 
-            HStack(spacing: AppTheme.Spacing.xs) {
-                if model.activeTool == .crop {
-                    Button("Apply Crop") {
-                        let applied = draftCropRect
-                        model.applyEdit { $0.cropRect = applied }
-                        model.activeTool = .none
+            inspectorSectionCard(title: "Crop") {
+                LazyVGrid(columns: [GridItem(.adaptive(minimum: 48), spacing: AppTheme.Spacing.xs)], spacing: AppTheme.Spacing.xs) {
+                    ForEach(QuickPhotoCropAspect.allCases) { aspect in
+                        if model.editState.cropAspect == aspect {
+                            Button(LocalizedStringKey(aspect.rawValue)) {
+                                applyAspectSelection(aspect)
+                            }
+                            .controlSize(.small)
+                            .buttonStyle(.borderedProminent)
+                        } else {
+                            Button(LocalizedStringKey(aspect.rawValue)) {
+                                applyAspectSelection(aspect)
+                            }
+                            .controlSize(.small)
+                            .buttonStyle(.bordered)
+                        }
                     }
-                    .controlSize(.small)
-                    .buttonStyle(.borderedProminent)
+                }
 
-                    Button("Cancel") {
-                        model.activeTool = .none
-                    }
-                    .controlSize(.small)
-                } else {
-                    Button("Crop Frame") {
-                        draftCropRect = NormalizedRect(x: 0.08, y: 0.08, width: 0.84, height: 0.84)
-                        model.activeTool = .crop
-                    }
-                    .controlSize(.small)
-
-                    if model.editState.cropRect != nil {
-                        Button("Clear Crop") {
-                            model.clearCrop()
+                HStack(spacing: AppTheme.Spacing.xs) {
+                    if model.activeTool == .crop {
+                        Button("Apply Crop") {
+                            let applied = draftCropRect
+                            model.applyEdit { $0.cropRect = applied }
+                            model.activeTool = .none
                         }
                         .controlSize(.small)
+                        .buttonStyle(.borderedProminent)
+
+                        Button("Cancel") {
+                            model.activeTool = .none
+                        }
+                        .buttonStyle(.bordered)
+                        .controlSize(.small)
+                    } else {
+                        Button("Crop Frame") {
+                            draftCropRect = NormalizedRect(x: 0.08, y: 0.08, width: 0.84, height: 0.84)
+                            model.activeTool = .crop
+                        }
+                        .buttonStyle(.bordered)
+                        .controlSize(.small)
+
+                        if model.editState.cropRect != nil {
+                            Button("Clear Crop") {
+                                model.clearCrop()
+                            }
+                            .buttonStyle(.bordered)
+                            .controlSize(.small)
+                        }
                     }
                 }
             }
         }
     }
 
+    private func applyAspectSelection(_ aspect: QuickPhotoCropAspect) {
+        model.applyEdit { $0.cropAspect = aspect }
+        if let ratio = aspect.ratioValue, let img = displayedImage {
+            let imgRatio = Double(max(1, img.size.width)) / Double(max(1, img.size.height))
+            var w = 0.84
+            var h = w * (imgRatio / ratio)
+            if h > 0.84 { h = 0.84; w = h * (ratio / imgRatio) }
+            draftCropRect = NormalizedRect(x: (1.0 - w) / 2.0, y: (1.0 - h) / 2.0, width: w, height: h)
+        }
+    }
+
     private var markupInspectorContent: some View {
-        VStack(alignment: .leading, spacing: AppTheme.Spacing.md) {
-            Text("Annotation & Redaction Tool")
-                .font(AppTheme.Typography.cardTitle)
-
-            LazyVGrid(columns: [GridItem(.adaptive(minimum: 68), spacing: AppTheme.Spacing.xs)], spacing: AppTheme.Spacing.xs) {
-                ForEach(QuickPhotoAnnotationKind.allCases) { kind in
-                    let selected = (model.activeTool == .annotation && model.activeAnnotationKind == kind)
-                    Button {
-                        model.activeTool = .annotation
-                        model.activeAnnotationKind = kind
-                    } label: {
-                        VStack(spacing: 2) {
-                            Image(systemName: kind.systemImage)
-                                .font(.system(size: 13))
-                            Text(LocalizedStringKey(kind.rawValue))
-                                .font(.caption2)
-                                .lineLimit(1)
+        VStack(alignment: .leading, spacing: AppTheme.Spacing.sm) {
+            inspectorSectionCard(title: "Annotation & Redaction Tool") {
+                LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: AppTheme.Spacing.xs), count: 3), spacing: AppTheme.Spacing.xs) {
+                    ForEach(QuickPhotoAnnotationKind.allCases) { kind in
+                        let selected = (model.activeTool == .annotation && model.activeAnnotationKind == kind)
+                        if selected {
+                            Button {
+                                model.activeTool = .annotation
+                                model.activeAnnotationKind = kind
+                            } label: {
+                                markupToolLabel(kind)
+                            }
+                            .controlSize(.small)
+                            .buttonStyle(.borderedProminent)
+                        } else {
+                            Button {
+                                model.activeTool = .annotation
+                                model.activeAnnotationKind = kind
+                            } label: {
+                                markupToolLabel(kind)
+                            }
+                            .controlSize(.small)
+                            .buttonStyle(.bordered)
                         }
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 4)
                     }
-                    .controlSize(.small)
+                }
+
+                if model.activeTool == .annotation {
+                    Button("Switch to Browse / Pan") {
+                        model.activeTool = .none
+                    }
                     .buttonStyle(.bordered)
-                    .tint(selected ? AppTheme.Colors.accent : .secondary)
-                }
-            }
-
-            if model.activeTool == .annotation {
-                Button("Switch to Browse / Pan") {
-                    model.activeTool = .none
-                }
-                .controlSize(.small)
-            }
-
-            AppDivider()
-
-            Text("Color")
-                .font(AppTheme.Typography.cardTitle)
-
-            HStack(spacing: AppTheme.Spacing.sm) {
-                ForEach(markupColorPalette, id: \.self) { color in
-                    let isSelected = model.selectedColor == color
-                    Button {
-                        model.selectedColor = color
-                    } label: {
-                        Circle()
-                            .fill(Color(red: color.red, green: color.green, blue: color.blue))
-                            .frame(width: 20, height: 20)
-                            .overlay(
-                                Circle()
-                                    .strokeBorder(isSelected ? Color.white : Color.clear, lineWidth: 2)
-                            )
-                            .shadow(radius: isSelected ? 2 : 0)
-                    }
-                    .buttonStyle(.plain)
-                }
-            }
-
-            VStack(alignment: .leading, spacing: AppTheme.Spacing.xs) {
-                HStack {
-                    Text("Stroke / Brush")
-                        .font(AppTheme.Typography.caption)
-                    Spacer()
-                    Text("\(Int(model.strokeWidth)) px")
-                        .font(AppTheme.Typography.monoCaption)
-                        .foregroundStyle(.secondary)
-                }
-                Slider(value: $model.strokeWidth, in: 2...28)
                     .controlSize(.small)
+                }
             }
 
-            if model.activeAnnotationKind == .text {
+            inspectorSectionCard(title: "Color") {
+                HStack(spacing: AppTheme.Spacing.sm) {
+                    ForEach(markupColorPalette, id: \.self) { color in
+                        let isSelected = model.selectedColor == color
+                        Button {
+                            model.selectedColor = color
+                        } label: {
+                            Circle()
+                                .fill(Color(red: color.red, green: color.green, blue: color.blue))
+                                .frame(width: 22, height: 22)
+                                .overlay(
+                                    Circle()
+                                        .strokeBorder(isSelected ? AppTheme.Colors.accent : AppTheme.Colors.cardBorder, lineWidth: isSelected ? 2.5 : 1)
+                                )
+                                .overlay(
+                                    Circle()
+                                        .strokeBorder(isSelected ? Color.white : Color.clear, lineWidth: 1)
+                                        .padding(2)
+                                )
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+
                 VStack(alignment: .leading, spacing: AppTheme.Spacing.xs) {
                     HStack {
-                        Text("Text Size")
+                        Text("Stroke / Brush")
                             .font(AppTheme.Typography.caption)
                         Spacer()
-                        Text("\(Int(model.textFontSize)) pt")
+                        Text("\(Int(model.strokeWidth)) px")
                             .font(AppTheme.Typography.monoCaption)
                             .foregroundStyle(.secondary)
                     }
-                    Slider(value: $model.textFontSize, in: 12...64)
+                    Slider(value: $model.strokeWidth, in: 2...28)
                         .controlSize(.small)
                 }
-            }
 
-            if model.activeAnnotationKind == .stepBadge {
-                Text("Next step badge: #\(model.nextStepNumber)")
-                    .font(AppTheme.Typography.caption)
-                    .foregroundStyle(.secondary)
-            }
+                if model.activeAnnotationKind == .text {
+                    VStack(alignment: .leading, spacing: AppTheme.Spacing.xs) {
+                        HStack {
+                            Text("Text Size")
+                                .font(AppTheme.Typography.caption)
+                            Spacer()
+                            Text("\(Int(model.textFontSize)) pt")
+                                .font(AppTheme.Typography.monoCaption)
+                                .foregroundStyle(.secondary)
+                        }
+                        Slider(value: $model.textFontSize, in: 12...64)
+                            .controlSize(.small)
+                    }
+                }
 
-            AppDivider()
+                if model.activeAnnotationKind == .stepBadge {
+                    Text("Next step badge: #\(model.nextStepNumber)")
+                        .font(AppTheme.Typography.caption)
+                        .foregroundStyle(.secondary)
+                }
+            }
 
             HStack(spacing: AppTheme.Spacing.xs) {
                 Button("Remove Last") {
                     model.removeLastAnnotation()
                 }
+                .buttonStyle(.bordered)
                 .controlSize(.small)
                 .disabled(model.editState.annotations.isEmpty)
 
                 Button("Clear All") {
                     model.clearAnnotations()
                 }
+                .buttonStyle(.bordered)
                 .controlSize(.small)
                 .disabled(model.editState.annotations.isEmpty)
             }
         }
     }
 
+    private func markupToolLabel(_ kind: QuickPhotoAnnotationKind) -> some View {
+        VStack(spacing: 3) {
+            Image(systemName: kind.systemImage)
+                .font(.system(size: 13))
+            Text(LocalizedStringKey(kind.rawValue))
+                .font(.caption2)
+                .lineLimit(1)
+                .minimumScaleFactor(0.8)
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, 4)
+    }
+
     private var backdropInspectorContent: some View {
-        VStack(alignment: .leading, spacing: AppTheme.Spacing.md) {
-            Toggle(
-                "Enable Screenshot Frame",
-                isOn: Binding(
-                    get: { model.editState.backdrop.isEnabled },
-                    set: { enabled in
-                        model.applyEdit { $0.backdrop.isEnabled = enabled }
-                    }
-                )
-            )
-            .fontWeight(.medium)
-
-            Picker(
-                "Style",
-                selection: Binding(
-                    get: { model.editState.backdrop.style },
-                    set: { style in
-                        model.applyEdit { $0.backdrop.style = style }
-                    }
-                )
-            ) {
-                ForEach(QuickPhotoBackdropStyle.allCases) { style in
-                    Text(LocalizedStringKey(style.rawValue)).tag(style)
-                }
-            }
-            .pickerStyle(.segmented)
-            .disabled(!model.editState.backdrop.isEnabled)
-
-            if model.editState.backdrop.style == .gradient {
-                LazyVGrid(columns: [GridItem(.adaptive(minimum: 68), spacing: AppTheme.Spacing.xs)], spacing: AppTheme.Spacing.xs) {
-                    ForEach(QuickPhotoBackdropGradientPreset.allCases.filter { $0 != .custom }) { preset in
-                        let pair = preset.colors
-                        Button {
-                            model.applyEdit { $0.backdrop.applyPreset(preset) }
-                        } label: {
-                            VStack(spacing: 3) {
-                                RoundedRectangle(cornerRadius: AppTheme.Radius.xs)
-                                    .fill(
-                                        LinearGradient(
-                                            colors: [
-                                                Color(red: pair.start.red, green: pair.start.green, blue: pair.start.blue),
-                                                Color(red: pair.end.red, green: pair.end.green, blue: pair.end.blue)
-                                            ],
-                                            startPoint: .topLeading,
-                                            endPoint: .bottomTrailing
-                                        )
-                                    )
-                                    .frame(height: 22)
-                                Text(LocalizedStringKey(preset.rawValue))
-                                    .font(.caption2)
-                            }
+        VStack(alignment: .leading, spacing: AppTheme.Spacing.sm) {
+            inspectorSectionCard {
+                Toggle(
+                    "Enable Screenshot Frame",
+                    isOn: Binding(
+                        get: { model.editState.backdrop.isEnabled },
+                        set: { enabled in
+                            model.applyEdit { $0.backdrop.isEnabled = enabled }
                         }
-                        .buttonStyle(.plain)
-                        .opacity(model.editState.backdrop.isEnabled ? 1.0 : 0.45)
-                        .disabled(!model.editState.backdrop.isEnabled)
+                    )
+                )
+                .fontWeight(.medium)
+
+                Picker(
+                    "Style",
+                    selection: Binding(
+                        get: { model.editState.backdrop.style },
+                        set: { style in
+                            model.applyEdit { $0.backdrop.style = style }
+                        }
+                    )
+                ) {
+                    ForEach(QuickPhotoBackdropStyle.allCases) { style in
+                        Text(LocalizedStringKey(style.rawValue)).tag(style)
+                    }
+                }
+                .pickerStyle(.segmented)
+                .disabled(!model.editState.backdrop.isEnabled)
+
+                if model.editState.backdrop.style == .gradient {
+                    LazyVGrid(columns: [GridItem(.adaptive(minimum: 68), spacing: AppTheme.Spacing.xs)], spacing: AppTheme.Spacing.xs) {
+                        ForEach(QuickPhotoBackdropGradientPreset.allCases.filter { $0 != .custom }) { preset in
+                            let pair = preset.colors
+                            let isSelected = (model.editState.backdrop.gradientPreset == preset)
+                            Button {
+                                model.applyEdit { $0.backdrop.applyPreset(preset) }
+                            } label: {
+                                VStack(spacing: 3) {
+                                    RoundedRectangle(cornerRadius: AppTheme.Radius.xs)
+                                        .fill(
+                                            LinearGradient(
+                                                colors: [
+                                                    Color(red: pair.start.red, green: pair.start.green, blue: pair.start.blue),
+                                                    Color(red: pair.end.red, green: pair.end.green, blue: pair.end.blue)
+                                                ],
+                                                startPoint: .topLeading,
+                                                endPoint: .bottomTrailing
+                                            )
+                                        )
+                                        .frame(height: 24)
+                                        .overlay(
+                                            RoundedRectangle(cornerRadius: AppTheme.Radius.xs)
+                                                .strokeBorder(isSelected ? AppTheme.Colors.accent : AppTheme.Colors.cardBorder, lineWidth: isSelected ? 2 : 1)
+                                        )
+                                    Text(LocalizedStringKey(preset.rawValue))
+                                        .font(.caption2.weight(isSelected ? .semibold : .regular))
+                                        .foregroundStyle(isSelected ? AppTheme.Colors.accent : .primary)
+                                }
+                            }
+                            .buttonStyle(.plain)
+                            .opacity(model.editState.backdrop.isEnabled ? 1.0 : 0.45)
+                            .disabled(!model.editState.backdrop.isEnabled)
+                        }
                     }
                 }
             }
 
-            sliderRow(
-                label: "Padding",
-                value: Binding(
-                    get: { model.editState.backdrop.padding },
-                    set: { val in model.updateInteractiveState { $0.backdrop.padding = val } }
-                ),
-                range: 0...180,
-                formatted: "\(Int(model.editState.backdrop.padding.rounded())) px"
-            )
-            .disabled(!model.editState.backdrop.isEnabled)
+            inspectorSectionCard(title: "Frame Geometry") {
+                sliderRow(
+                    label: "Padding",
+                    value: Binding(
+                        get: { model.editState.backdrop.padding },
+                        set: { val in model.updateInteractiveState { $0.backdrop.padding = val } }
+                    ),
+                    range: 0...180,
+                    formatted: "\(Int(model.editState.backdrop.padding.rounded())) px"
+                )
+                .disabled(!model.editState.backdrop.isEnabled)
 
-            sliderRow(
-                label: "Corner Radius",
-                value: Binding(
-                    get: { model.editState.backdrop.cornerRadius },
-                    set: { val in model.updateInteractiveState { $0.backdrop.cornerRadius = val } }
-                ),
-                range: 0...48,
-                formatted: "\(Int(model.editState.backdrop.cornerRadius.rounded())) px"
-            )
-            .disabled(!model.editState.backdrop.isEnabled)
+                sliderRow(
+                    label: "Corner Radius",
+                    value: Binding(
+                        get: { model.editState.backdrop.cornerRadius },
+                        set: { val in model.updateInteractiveState { $0.backdrop.cornerRadius = val } }
+                    ),
+                    range: 0...48,
+                    formatted: "\(Int(model.editState.backdrop.cornerRadius.rounded())) px"
+                )
+                .disabled(!model.editState.backdrop.isEnabled)
 
-            sliderRow(
-                label: "Shadow Blur",
-                value: Binding(
-                    get: { model.editState.backdrop.shadowRadius },
-                    set: { val in model.updateInteractiveState { $0.backdrop.shadowRadius = val } }
-                ),
-                range: 0...40,
-                formatted: "\(Int(model.editState.backdrop.shadowRadius.rounded())) px"
-            )
-            .disabled(!model.editState.backdrop.isEnabled)
+                sliderRow(
+                    label: "Shadow Blur",
+                    value: Binding(
+                        get: { model.editState.backdrop.shadowRadius },
+                        set: { val in model.updateInteractiveState { $0.backdrop.shadowRadius = val } }
+                    ),
+                    range: 0...40,
+                    formatted: "\(Int(model.editState.backdrop.shadowRadius.rounded())) px"
+                )
+                .disabled(!model.editState.backdrop.isEnabled)
+            }
         }
     }
 
@@ -1315,15 +1449,15 @@ struct PhotoViewerEditorView: View {
 
     private var filmstripBar: some View {
         ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: AppTheme.Spacing.xs) {
+            HStack(spacing: AppTheme.Spacing.xs + 2) {
                 ForEach(Array(model.siblings.enumerated()), id: \.element) { idx, siblingURL in
                     let isSelected = (idx == model.currentSiblingIndex)
                     Button {
                         Task { await model.goToSibling(at: idx) }
                     } label: {
                         ZStack {
-                            RoundedRectangle(cornerRadius: AppTheme.Radius.xs)
-                                .fill(AppTheme.Colors.cardBackground)
+                            RoundedRectangle(cornerRadius: AppTheme.Radius.sm)
+                                .fill(AppTheme.Colors.elevatedSurface)
                             if let thumb = thumbnailCache[siblingURL] {
                                 Image(nsImage: thumb)
                                     .resizable()
@@ -1333,10 +1467,10 @@ struct PhotoViewerEditorView: View {
                                     .foregroundStyle(.secondary)
                             }
                         }
-                        .frame(width: 56, height: 48)
-                        .clipShape(RoundedRectangle(cornerRadius: AppTheme.Radius.xs))
+                        .frame(width: 60, height: 48)
+                        .clipShape(RoundedRectangle(cornerRadius: AppTheme.Radius.sm))
                         .overlay(
-                            RoundedRectangle(cornerRadius: AppTheme.Radius.xs)
+                            RoundedRectangle(cornerRadius: AppTheme.Radius.sm)
                                 .strokeBorder(isSelected ? AppTheme.Colors.accent : AppTheme.Colors.cardBorder, lineWidth: isSelected ? 2 : 1)
                         )
                     }
@@ -1348,9 +1482,9 @@ struct PhotoViewerEditorView: View {
                 }
             }
             .padding(.horizontal, AppTheme.Spacing.md)
-            .padding(.vertical, AppTheme.Spacing.xs + 2)
+            .padding(.vertical, AppTheme.Spacing.sm)
         }
-        .frame(height: 64)
+        .frame(minWidth: 0, idealWidth: 0, maxWidth: .infinity, minHeight: 68, maxHeight: 68)
         .background(AppTheme.Colors.subtleSurface)
         .accessibilityIdentifier("photoviewer.filmstrip")
     }
@@ -1399,12 +1533,13 @@ struct PhotoViewerEditorView: View {
     }
 
     private var bottomActionButtons: some View {
-        HStack(spacing: AppTheme.Spacing.xs) {
+        HStack(spacing: AppTheme.Spacing.xs + 2) {
             Button(role: .destructive) {
                 showTrashConfirmation = true
             } label: {
                 Label("Trash", systemImage: "trash")
             }
+            .buttonStyle(.bordered)
             .controlSize(.small)
             .help("Move to Trash (⌘⌫)")
             .accessibilityIdentifier("photoviewer.trashButton")
@@ -1424,6 +1559,7 @@ struct PhotoViewerEditorView: View {
                 Button("Overwrite Original") {
                     showOverwriteConfirmation = true
                 }
+                .buttonStyle(.bordered)
                 .controlSize(.small)
                 .disabled(isSavingOutput || !model.hasUnsavedChanges)
                 .accessibilityIdentifier("photoviewer.overwriteButton")
@@ -1442,6 +1578,7 @@ struct PhotoViewerEditorView: View {
                 Button("Done") {
                     onDismiss()
                 }
+                .buttonStyle(.bordered)
                 .controlSize(.small)
                 .accessibilityIdentifier("photoviewer.dismissButton")
             }

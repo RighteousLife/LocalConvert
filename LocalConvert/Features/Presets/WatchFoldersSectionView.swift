@@ -317,6 +317,7 @@ struct WatchFoldersSectionView: View {
                 Button(rule.isPaused ? "Resume" : "Pause") {
                     manager.setPaused(!rule.isPaused, for: rule.id)
                 }
+                .buttonStyle(.bordered)
                 .controlSize(.small)
                 .fixedSize(horizontal: true, vertical: false)
                 .disabled(manager.isGloballyPaused)
@@ -326,6 +327,7 @@ struct WatchFoldersSectionView: View {
                     manager.rescanRule(id: rule.id)
                     actionFeedbackMessage = "Scanning '\(rule.inputDirectoryURL.lastPathComponent)' for convertible files..."
                 }
+                .buttonStyle(.bordered)
                 .controlSize(.small)
                 .fixedSize(horizontal: true, vertical: false)
                 .disabled(manager.isGloballyPaused || rule.isPaused)
@@ -335,6 +337,7 @@ struct WatchFoldersSectionView: View {
             Button("Edit...") {
                 ruleToEdit = rule
             }
+            .buttonStyle(.bordered)
             .controlSize(.small)
             .fixedSize(horizontal: true, vertical: false)
 
@@ -344,6 +347,7 @@ struct WatchFoldersSectionView: View {
             } label: {
                 Image(systemName: "trash")
             }
+            .buttonStyle(.bordered)
             .controlSize(.small)
             .fixedSize(horizontal: true, vertical: false)
             .accessibilityLabel("Delete watch folder \(rule.name)")
@@ -834,6 +838,8 @@ struct WatchFolderEditSheetView: View {
                         Button("Choose Folder...") {
                             chooseInputDirectory()
                         }
+                        .buttonStyle(.bordered)
+                        .controlSize(.small)
                         .accessibilityLabel("Choose watched input folder")
                     }
 
@@ -870,6 +876,8 @@ struct WatchFolderEditSheetView: View {
                             Button("Choose Output...") {
                                 chooseCustomOutputDirectory()
                             }
+                            .buttonStyle(.bordered)
+                            .controlSize(.small)
                             .accessibilityLabel("Choose custom output folder")
                         }
                     }
@@ -891,6 +899,7 @@ struct WatchFolderEditSheetView: View {
                 }
             }
             .formStyle(.grouped)
+            .scrollContentBackground(.hidden)
 
             if let errorMsg = saveErrorMessage ?? (!inputDirectoryPath.isEmpty ? validationResult.errorMessage : nil) {
                 AppInfoBanner(style: .error, message: errorMsg)
@@ -909,6 +918,7 @@ struct WatchFolderEditSheetView: View {
                 Button("Cancel") {
                     dismiss()
                 }
+                .buttonStyle(.bordered)
                 .keyboardShortcut(.cancelAction)
                 .accessibilityIdentifier("watchfolders.sheet.cancel")
 
@@ -921,8 +931,10 @@ struct WatchFolderEditSheetView: View {
                 .accessibilityIdentifier("watchfolders.sheet.save")
             }
             .padding(AppTheme.Spacing.lg)
+            .background(AppTheme.Colors.subtleSurface)
         }
         .frame(width: 560, height: 520)
+        .appWorkspaceSurface()
     }
 
     private func chooseInputDirectory() {

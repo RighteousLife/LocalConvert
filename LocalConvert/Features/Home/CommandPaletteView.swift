@@ -813,7 +813,7 @@ struct CommandPaletteView: View {
 
     var body: some View {
         ZStack(alignment: .top) {
-            Color.black.opacity(0.28)
+            Color.black.opacity(0.24)
                 .ignoresSafeArea()
                 .contentShape(Rectangle())
                 .onTapGesture {
@@ -822,7 +822,7 @@ struct CommandPaletteView: View {
                 .accessibilityHidden(true)
 
             palettePanel
-                .padding(.top, 44)
+                .padding(.top, 36)
                 .padding(.horizontal, AppTheme.Spacing.xl)
         }
         .background(
@@ -858,66 +858,76 @@ struct CommandPaletteView: View {
             AppDivider()
             footerBar
         }
-        .frame(maxWidth: 560)
-        .frame(maxHeight: 420)
-        .background(AppTheme.Colors.cardBackground)
+        .frame(maxWidth: 580)
+        .frame(maxHeight: 410)
+        .background(.regularMaterial)
         .clipShape(RoundedRectangle(cornerRadius: AppTheme.Radius.xl))
         .overlay(
             RoundedRectangle(cornerRadius: AppTheme.Radius.xl)
-                .strokeBorder(AppTheme.Colors.cardBorder, lineWidth: 1)
+                .strokeBorder(Color.primary.opacity(0.14), lineWidth: 1)
         )
-        .shadow(color: .black.opacity(0.28), radius: 24, y: 12)
+        .shadow(color: .black.opacity(0.28), radius: 28, y: 12)
     }
 
     private var searchHeader: some View {
-        HStack(spacing: AppTheme.Spacing.sm + 2) {
-            Image(systemName: "magnifyingglass")
-                .font(.system(size: 16, weight: .medium))
-                .foregroundStyle(AppTheme.Colors.accent)
+        HStack(spacing: AppTheme.Spacing.sm) {
+            HStack(spacing: AppTheme.Spacing.sm + 2) {
+                Image(systemName: "magnifyingglass")
+                    .font(.system(size: 15, weight: .medium))
+                    .foregroundStyle(isSearchFocused ? AppTheme.Colors.accent : Color.secondary)
 
-            TextField("Jump to tab, PDF/Image tool, Audio mode, or preset...", text: $query)
-                .textFieldStyle(.plain)
-                .font(.title3)
-                .focused($isSearchFocused)
-                .onSubmit {
-                    confirmSelection()
-                }
-                .accessibilityLabel("Command Palette Search")
-                .accessibilityIdentifier("commandPalette.searchField")
+                TextField("Jump to tab, PDF/Image tool, Audio mode, or preset...", text: $query)
+                    .textFieldStyle(.plain)
+                    .font(.title3)
+                    .focused($isSearchFocused)
+                    .onSubmit {
+                        confirmSelection()
+                    }
+                    .accessibilityLabel("Command Palette Search")
+                    .accessibilityIdentifier("commandPalette.searchField")
 
-            if !query.isEmpty {
-                Button {
-                    query = ""
-                    selectedItemID = results.first?.id
-                    isSearchFocused = true
-                } label: {
-                    Image(systemName: "xmark.circle.fill")
-                        .font(.subheadline)
-                        .foregroundStyle(.secondary)
+                if !query.isEmpty {
+                    Button {
+                        query = ""
+                        selectedItemID = results.first?.id
+                        isSearchFocused = true
+                    } label: {
+                        Image(systemName: "xmark.circle.fill")
+                            .font(.subheadline)
+                            .foregroundStyle(.secondary)
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel("Clear Search")
+                    .accessibilityIdentifier("commandPalette.clearButton")
                 }
-                .buttonStyle(.plain)
-                .accessibilityLabel("Clear Search")
-                .accessibilityIdentifier("commandPalette.clearButton")
             }
+            .padding(.horizontal, AppTheme.Spacing.sm + 2)
+            .padding(.vertical, AppTheme.Spacing.xs + 3)
+            .background(
+                Color.primary.opacity(0.04),
+                in: RoundedRectangle(cornerRadius: AppTheme.Radius.md)
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: AppTheme.Radius.md)
+                    .strokeBorder(
+                        isSearchFocused ? AppTheme.Colors.accent.opacity(0.75) : Color.primary.opacity(0.10),
+                        lineWidth: isSearchFocused ? 1.5 : 1
+                    )
+            )
+            .animation(.easeOut(duration: 0.12), value: isSearchFocused)
 
             Button {
                 controller.dismiss()
             } label: {
-                Text("Esc")
-                    .font(AppTheme.Typography.badge.monospaced())
-                    .padding(.horizontal, 6)
-                    .padding(.vertical, 3)
-                    .background(AppTheme.Colors.neutralTint)
-                    .foregroundStyle(.secondary)
-                    .clipShape(RoundedRectangle(cornerRadius: AppTheme.Radius.xs))
+                CommandPaletteKeycapBadge(text: "Esc", isInverted: false)
             }
             .buttonStyle(.plain)
             .help("Dismiss Command Palette (Esc)")
             .accessibilityLabel("Dismiss Command Palette")
             .accessibilityIdentifier("commandPalette.dismissButton")
         }
-        .padding(.horizontal, AppTheme.Spacing.lg)
-        .padding(.vertical, AppTheme.Spacing.md + 2)
+        .padding(.horizontal, AppTheme.Spacing.md + 2)
+        .padding(.vertical, AppTheme.Spacing.md)
     }
 
     @ViewBuilder
@@ -957,7 +967,7 @@ struct CommandPaletteView: View {
                     }
                     .padding(AppTheme.Spacing.sm)
                 }
-                .frame(maxHeight: 310)
+                .frame(maxHeight: 300)
                 .accessibilityIdentifier("commandPalette.resultsList")
                 .onChange(of: selectedItemID) { _, newID in
                     if let newID {
@@ -972,9 +982,18 @@ struct CommandPaletteView: View {
 
     private var footerBar: some View {
         HStack(spacing: AppTheme.Spacing.md) {
-            Text("↑↓ Navigate")
-            Text("↩ Open")
-            Text("Esc Dismiss")
+            HStack(spacing: AppTheme.Spacing.xs) {
+                CommandPaletteKeycapBadge(text: "↑↓", isInverted: false)
+                Text("Navigate")
+            }
+            HStack(spacing: AppTheme.Spacing.xs) {
+                CommandPaletteKeycapBadge(text: "↩", isInverted: false)
+                Text("Open")
+            }
+            HStack(spacing: AppTheme.Spacing.xs) {
+                CommandPaletteKeycapBadge(text: "Esc", isInverted: false)
+                Text("Dismiss")
+            }
             Spacer(minLength: 0)
             let count = results.count
             Text("\(count) \(count == 1 ? "result" : "results")")
@@ -984,7 +1003,7 @@ struct CommandPaletteView: View {
         .foregroundStyle(.secondary)
         .padding(.horizontal, AppTheme.Spacing.lg)
         .padding(.vertical, AppTheme.Spacing.sm)
-        .background(AppTheme.Colors.subtleSurface)
+        .background(Color.primary.opacity(0.03))
     }
 
     private func effectiveSelectedID(in items: [CommandPaletteItem]) -> String? {
@@ -1019,20 +1038,45 @@ struct CommandPaletteView: View {
     }
 }
 
-// MARK: - Command Palette Row
+// MARK: - Command Palette Keycap & Row
+
+private struct CommandPaletteKeycapBadge: View {
+    let text: String
+    let isInverted: Bool
+
+    var body: some View {
+        Text(verbatim: text)
+            .font(.system(size: 11, weight: .medium, design: .monospaced))
+            .padding(.horizontal, 6)
+            .padding(.vertical, 2.5)
+            .background(
+                isInverted ? Color.white.opacity(0.22) : AppTheme.Colors.cardBackground.opacity(0.85),
+                in: RoundedRectangle(cornerRadius: AppTheme.Radius.xs)
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: AppTheme.Radius.xs)
+                    .strokeBorder(
+                        isInverted ? Color.white.opacity(0.32) : Color.primary.opacity(0.14),
+                        lineWidth: 0.75
+                    )
+            )
+            .foregroundStyle(isInverted ? Color.white : Color.secondary)
+    }
+}
 
 private struct CommandPaletteRow: View {
     let item: CommandPaletteItem
     let isSelected: Bool
+    @State private var isHovered = false
 
     var body: some View {
         HStack(spacing: AppTheme.Spacing.md) {
             Image(systemName: item.systemImage)
                 .font(.system(size: 14, weight: .medium))
-                .frame(width: 24, height: 24)
+                .frame(width: 26, height: 26)
                 .foregroundStyle(isSelected ? Color.white : item.category.badgeTint)
                 .background(
-                    (isSelected ? Color.white.opacity(0.18) : item.category.badgeTint.opacity(0.12)),
+                    (isSelected ? Color.white.opacity(0.18) : item.category.badgeTint.opacity(0.13)),
                     in: RoundedRectangle(cornerRadius: AppTheme.Radius.sm)
                 )
 
@@ -1051,7 +1095,7 @@ private struct CommandPaletteRow: View {
 
             Spacer(minLength: AppTheme.Spacing.sm)
 
-            Text(item.category.rawValue)
+            Text(LocalizedStringKey(item.category.rawValue))
                 .font(AppTheme.Typography.badge)
                 .lineLimit(1)
                 .padding(.horizontal, 7)
@@ -1063,23 +1107,18 @@ private struct CommandPaletteRow: View {
                 .foregroundStyle(isSelected ? Color.white : item.category.badgeTint)
 
             if let shortcutHint = item.shortcutHint {
-                Text(shortcutHint)
-                    .font(AppTheme.Typography.badge.monospaced())
-                    .padding(.horizontal, 6)
-                    .padding(.vertical, 2)
-                    .background(
-                        isSelected ? Color.white.opacity(0.22) : AppTheme.Colors.neutralTint,
-                        in: RoundedRectangle(cornerRadius: AppTheme.Radius.xs)
-                    )
-                    .foregroundStyle(isSelected ? Color.white : Color.secondary)
+                CommandPaletteKeycapBadge(text: shortcutHint, isInverted: isSelected)
             }
         }
         .padding(.horizontal, AppTheme.Spacing.md)
         .padding(.vertical, AppTheme.Spacing.sm)
         .background(
-            isSelected ? AppTheme.Colors.accent : Color.clear,
+            isSelected
+                ? AppTheme.Colors.accent
+                : (isHovered ? Color.primary.opacity(0.06) : Color.clear),
             in: RoundedRectangle(cornerRadius: AppTheme.Radius.md)
         )
+        .onHover { isHovered = $0 }
         .accessibilityElement(children: .combine)
         .accessibilityLabel("\(item.title), \(item.category.rawValue)")
         .accessibilityAddTraits(isSelected ? [.isButton, .isSelected] : [.isButton])

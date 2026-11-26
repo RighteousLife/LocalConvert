@@ -26,16 +26,17 @@ struct ImageHistogramAnalysisCardView: View {
                             channelToggle("B", isOn: $showBlue, tint: .blue)
                             Spacer()
                             Button("Recompute") { computeHistogram() }
+                                .buttonStyle(.bordered)
                                 .controlSize(.small)
                         }
 
                         histogramCanvas(hist)
                             .frame(height: 150)
                             .background(Color.black.opacity(0.84))
-                            .clipShape(RoundedRectangle(cornerRadius: AppTheme.Radius.sm))
+                            .clipShape(RoundedRectangle(cornerRadius: AppTheme.Radius.lg))
                             .overlay(
-                                RoundedRectangle(cornerRadius: AppTheme.Radius.sm)
-                                    .strokeBorder(AppTheme.Colors.cardBorder, lineWidth: 1)
+                                RoundedRectangle(cornerRadius: AppTheme.Radius.lg)
+                                    .strokeBorder(Color.primary.opacity(0.08), lineWidth: 1)
                             )
 
                         LazyVGrid(columns: [GridItem(.adaptive(minimum: 125), spacing: AppTheme.Spacing.md)], alignment: .leading, spacing: AppTheme.Spacing.sm) {
@@ -168,21 +169,37 @@ struct ImageColorPaletteExtractorCardView: View {
                                 RoundedRectangle(cornerRadius: 4)
                                     .fill(Color(red: Double(sw.red) / 255.0, green: Double(sw.green) / 255.0, blue: Double(sw.blue) / 255.0))
                                     .frame(width: 24, height: 24)
-                                    .overlay(RoundedRectangle(cornerRadius: 4).strokeBorder(AppTheme.Colors.cardBorder, lineWidth: 1))
+                                    .overlay(RoundedRectangle(cornerRadius: 4).strokeBorder(Color.primary.opacity(0.08), lineWidth: 1))
 
                                 Text(sw.hex)
                                     .font(AppTheme.Typography.monoCaption.weight(.semibold))
                                     .frame(width: 66, alignment: .leading)
 
-                                Text(sw.rgbString)
-                                    .font(AppTheme.Typography.monoCaption)
-                                    .foregroundStyle(.secondary)
-                                    .lineLimit(1)
+                                ViewThatFits(in: .horizontal) {
+                                    HStack(spacing: AppTheme.Spacing.sm) {
+                                        Text(sw.rgbString)
+                                            .font(AppTheme.Typography.monoCaption)
+                                            .foregroundStyle(.secondary)
+                                            .lineLimit(1)
 
-                                Text(sw.hsl)
-                                    .font(AppTheme.Typography.monoCaption)
-                                    .foregroundStyle(.secondary)
-                                    .lineLimit(1)
+                                        Text(sw.hsl)
+                                            .font(AppTheme.Typography.monoCaption)
+                                            .foregroundStyle(.secondary)
+                                            .lineLimit(1)
+                                    }
+
+                                    VStack(alignment: .leading, spacing: 1) {
+                                        Text(sw.rgbString)
+                                            .font(AppTheme.Typography.monoCaption)
+                                            .foregroundStyle(.secondary)
+                                            .lineLimit(1)
+
+                                        Text(sw.hsl)
+                                            .font(.caption2.monospaced())
+                                            .foregroundStyle(.tertiary)
+                                            .lineLimit(1)
+                                    }
+                                }
 
                                 Spacer(minLength: 4)
 
@@ -195,6 +212,7 @@ struct ImageColorPaletteExtractorCardView: View {
                                     NSPasteboard.general.setString(sw.hex, forType: .string)
                                     copyFeedback = "Copied \(sw.hex)"
                                 }
+                                .buttonStyle(.bordered)
                                 .controlSize(.small)
                             }
                             .padding(.vertical, 3)
@@ -235,12 +253,15 @@ struct ImageColorPaletteExtractorCardView: View {
     private var exportButtons: some View {
         HStack(spacing: AppTheme.Spacing.xs) {
             Button("Export PNG") { exportPalettePNG() }
+                .buttonStyle(.bordered)
                 .controlSize(.small)
                 .disabled(result?.swatches.isEmpty ?? true)
             Button("Export JSON") { exportTextFile(content: ImageColorAnalysisService.exportJSON(swatches: result?.swatches ?? []), ext: "json", defaultName: "palette.json") }
+                .buttonStyle(.bordered)
                 .controlSize(.small)
                 .disabled(result?.swatches.isEmpty ?? true)
             Button("Export CSS") { exportTextFile(content: ImageColorAnalysisService.exportCSS(swatches: result?.swatches ?? []), ext: "css", defaultName: "palette.css") }
+                .buttonStyle(.bordered)
                 .controlSize(.small)
                 .disabled(result?.swatches.isEmpty ?? true)
         }

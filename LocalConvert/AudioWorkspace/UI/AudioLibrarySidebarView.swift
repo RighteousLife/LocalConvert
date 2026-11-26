@@ -231,6 +231,8 @@ struct AudioLibrarySidebarView: View {
                 HStack {
                     Spacer()
                     Button("Cancel") { showNewPlaylistSheet = false }
+                        .buttonStyle(.bordered)
+                        .keyboardShortcut(.cancelAction)
                     Button("Create") {
                         let name = newPlaylistName.trimmingCharacters(in: .whitespacesAndNewlines)
                         guard !name.isEmpty else { return }
@@ -243,12 +245,14 @@ struct AudioLibrarySidebarView: View {
                         }
                     }
                     .buttonStyle(.borderedProminent)
+                    .keyboardShortcut(.defaultAction)
                     .disabled(newPlaylistName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
                     .accessibilityIdentifier("audioworkspace.playlist.create_confirm")
                 }
             }
             .padding(AppTheme.Spacing.lg)
             .frame(width: 340)
+            .appWorkspaceSurface()
         }
         .sheet(isPresented: $showNewCollectionSheet) {
             VStack(alignment: .leading, spacing: AppTheme.Spacing.md) {
@@ -263,6 +267,8 @@ struct AudioLibrarySidebarView: View {
                 HStack {
                     Spacer()
                     Button("Cancel") { showNewCollectionSheet = false }
+                        .buttonStyle(.bordered)
+                        .keyboardShortcut(.cancelAction)
                     Button("Create") {
                         let name = newCollectionName.trimmingCharacters(in: .whitespacesAndNewlines)
                         guard !name.isEmpty else { return }
@@ -283,12 +289,14 @@ struct AudioLibrarySidebarView: View {
                         }
                     }
                     .buttonStyle(.borderedProminent)
+                    .keyboardShortcut(.defaultAction)
                     .disabled(newCollectionName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
                     .accessibilityIdentifier("audioworkspace.collection.create_confirm")
                 }
             }
             .padding(AppTheme.Spacing.lg)
             .frame(width: 360)
+            .appWorkspaceSurface()
         }
         .sheet(item: $renamingPlaylist) { playlist in
             VStack(alignment: .leading, spacing: AppTheme.Spacing.md) {
@@ -299,6 +307,8 @@ struct AudioLibrarySidebarView: View {
                 HStack {
                     Spacer()
                     Button("Cancel") { renamingPlaylist = nil }
+                        .buttonStyle(.bordered)
+                        .keyboardShortcut(.cancelAction)
                     Button("Rename") {
                         let trimmed = renameText.trimmingCharacters(in: .whitespacesAndNewlines)
                         guard !trimmed.isEmpty else { return }
@@ -306,11 +316,13 @@ struct AudioLibrarySidebarView: View {
                         Task { await store.renamePlaylist(id: playlist.id, newName: trimmed) }
                     }
                     .buttonStyle(.borderedProminent)
+                    .keyboardShortcut(.defaultAction)
                     .disabled(renameText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
                 }
             }
             .padding(AppTheme.Spacing.lg)
             .frame(width: 340)
+            .appWorkspaceSurface()
         }
     }
 

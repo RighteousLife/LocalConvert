@@ -726,6 +726,9 @@ struct ContextualSmartBarView: View {
                 HStack(spacing: AppTheme.Spacing.sm) {
                     smartCategoryBadge
 
+                    AppDivider()
+                        .frame(width: 1, height: 16)
+
                     ScrollView(.horizontal, showsIndicators: false) {
                         HStack(spacing: AppTheme.Spacing.xs + 2) {
                             ForEach(plan.actions) { action in
@@ -734,6 +737,7 @@ struct ContextualSmartBarView: View {
                         }
                         .padding(.vertical, 2)
                     }
+                    .frame(minWidth: 0, idealWidth: 0, maxWidth: .infinity)
                 }
                 .padding(.horizontal, AppTheme.Spacing.lg)
                 .padding(.vertical, AppTheme.Spacing.xs + 2)
@@ -767,9 +771,13 @@ struct ContextualSmartBarView: View {
                 .lineLimit(1)
         }
         .padding(.horizontal, AppTheme.Spacing.sm)
-        .padding(.vertical, 3)
+        .padding(.vertical, 4)
         .background(AppTheme.Colors.accentTint)
         .clipShape(Capsule())
+        .overlay(
+            Capsule()
+                .strokeBorder(AppTheme.Colors.accent.opacity(0.28), lineWidth: 0.75)
+        )
         .fixedSize(horizontal: true, vertical: false)
         .accessibilityLabel("Smart suggestions for \(plan.category.displayTitle)")
         .accessibilityIdentifier("smartbar.categoryLabel")
@@ -795,15 +803,6 @@ struct ContextualSmartBarView: View {
                     .lineLimit(1)
             }
             .controlSize(.small)
-            .menuStyle(.borderlessButton)
-            .padding(.horizontal, AppTheme.Spacing.sm)
-            .padding(.vertical, 3)
-            .background(AppTheme.Colors.cardBackground)
-            .clipShape(RoundedRectangle(cornerRadius: AppTheme.Radius.sm))
-            .overlay(
-                RoundedRectangle(cornerRadius: AppTheme.Radius.sm)
-                    .strokeBorder(AppTheme.Colors.cardBorder, lineWidth: 1)
-            )
             .fixedSize(horizontal: true, vertical: false)
             .disabled(!action.isEnabled || appState.isConverting)
             .help(action.helpText)
@@ -837,15 +836,6 @@ struct ContextualSmartBarView: View {
                     .lineLimit(1)
             }
             .controlSize(.small)
-            .menuStyle(.borderlessButton)
-            .padding(.horizontal, AppTheme.Spacing.sm)
-            .padding(.vertical, 3)
-            .background(AppTheme.Colors.cardBackground)
-            .clipShape(RoundedRectangle(cornerRadius: AppTheme.Radius.sm))
-            .overlay(
-                RoundedRectangle(cornerRadius: AppTheme.Radius.sm)
-                    .strokeBorder(AppTheme.Colors.cardBorder, lineWidth: 1)
-            )
             .fixedSize(horizontal: true, vertical: false)
             .disabled(!action.isEnabled || appState.isConverting)
             .help(action.helpText)

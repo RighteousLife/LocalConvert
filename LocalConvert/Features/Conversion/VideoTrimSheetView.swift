@@ -288,7 +288,7 @@ struct VideoTrimSheetView: View {
             Divider().overlay(AppTheme.Colors.divider)
             footerBar
         }
-        .frame(minWidth: 680, idealWidth: 760, minHeight: 620, idealHeight: 690)
+        .frame(minWidth: 680, idealWidth: 760, minHeight: 500, idealHeight: 640)
         .background(AppTheme.Colors.workspaceBackground)
         .task {
             await loadMediaAndThumbnails()
@@ -340,6 +340,7 @@ struct VideoTrimSheetView: View {
         }
         .padding(.horizontal, AppTheme.Spacing.xl)
         .padding(.vertical, AppTheme.Spacing.md)
+        .background(AppTheme.Colors.subtleSurface)
     }
 
     // MARK: - Preview Player
@@ -786,6 +787,7 @@ struct VideoTrimSheetView: View {
         }
         .padding(.horizontal, AppTheme.Spacing.xl)
         .padding(.vertical, AppTheme.Spacing.md)
+        .background(AppTheme.Colors.subtleSurface)
     }
 
     // MARK: - Helpers & Async Load

@@ -33,13 +33,18 @@ struct ImageColorAdjustmentsView: View {
             LazyVGrid(columns: [GridItem(.adaptive(minimum: 115), spacing: AppTheme.Spacing.xs)], spacing: AppTheme.Spacing.xs) {
                 ForEach(SubTab.allCases) { tab in
                     let selected = (activeTab == tab)
-                    Button(tab.rawValue) { activeTab = tab }
-                        .controlSize(.small)
-                        .buttonStyle(.bordered)
-                        .tint(selected ? AppTheme.Colors.accent : .secondary)
-                        .frame(maxWidth: .infinity)
-                        .accessibilityLabel(tab.rawValue)
-                        .accessibilityValue(selected ? "Selected" : "")
+                    Button {
+                        activeTab = tab
+                    } label: {
+                        Text(tab.rawValue)
+                            .lineLimit(1)
+                            .frame(maxWidth: .infinity)
+                    }
+                    .controlSize(.small)
+                    .buttonStyle(.bordered)
+                    .tint(selected ? AppTheme.Colors.accent : .secondary)
+                    .accessibilityLabel(tab.rawValue)
+                    .accessibilityValue(selected ? "Selected" : "")
                 }
             }
 
@@ -82,6 +87,7 @@ struct ImageColorAdjustmentsView: View {
                     }
                     selectedCurvePointID = nil
                 }
+                .buttonStyle(.bordered)
                 .controlSize(.small)
                 .disabled(!config.colorAdjustments.hasActiveAdjustments && config.colorAdjustments.isEnabled)
                 .accessibilityLabel("Reset Color & Light")
@@ -101,6 +107,7 @@ struct ImageColorAdjustmentsView: View {
                             $0.colorAdjustments.resetLight()
                         }
                     }
+                    .buttonStyle(.bordered)
                     .controlSize(.small)
                 }
 
@@ -129,6 +136,7 @@ struct ImageColorAdjustmentsView: View {
                             $0.colorAdjustments.resetColor()
                         }
                     }
+                    .buttonStyle(.bordered)
                     .controlSize(.small)
                 }
 
@@ -213,6 +221,7 @@ struct ImageColorAdjustmentsView: View {
                     }
                     selectedCurvePointID = nil
                 }
+                .buttonStyle(.bordered)
                 .controlSize(.small)
                 .fixedSize(horizontal: true, vertical: false)
             }
@@ -223,6 +232,7 @@ struct ImageColorAdjustmentsView: View {
                 }
                 selectedCurvePointID = nil
             }
+            .buttonStyle(.bordered)
             .controlSize(.small)
             .fixedSize(horizontal: true, vertical: false)
         }
@@ -250,6 +260,7 @@ struct ImageColorAdjustmentsView: View {
                             cfg.colorAdjustments.levels[selectedLevelsChannel] = ImageChannelLevels()
                         }
                     }
+                    .buttonStyle(.bordered)
                     .controlSize(.small)
                     .fixedSize(horizontal: true, vertical: false)
                 }
@@ -357,6 +368,7 @@ struct ImageColorAdjustmentsView: View {
                             cfg.colorAdjustments.colorBalance[selectedBalanceRegion] = ImageRGBBalanceOffset()
                         }
                     }
+                    .buttonStyle(.bordered)
                     .controlSize(.small)
                 }
 
@@ -513,10 +525,10 @@ private struct ToneCurveEditorCanvas: View {
                         }
                 }
             }
-            .clipShape(RoundedRectangle(cornerRadius: AppTheme.Radius.sm))
+            .clipShape(RoundedRectangle(cornerRadius: AppTheme.Radius.lg))
             .overlay(
-                RoundedRectangle(cornerRadius: AppTheme.Radius.sm)
-                    .strokeBorder(AppTheme.Colors.cardBorder, lineWidth: 1)
+                RoundedRectangle(cornerRadius: AppTheme.Radius.lg)
+                    .strokeBorder(Color.primary.opacity(0.08), lineWidth: 1)
             )
             .contentShape(Rectangle())
             .gesture(

@@ -29,6 +29,8 @@ struct LibraryMissingRelinkSheet: View {
                 } label: {
                     Label("Re-check Bookmarks", systemImage: "arrow.clockwise")
                 }
+                .buttonStyle(.bordered)
+                .controlSize(.small)
                 .accessibilityIdentifier("audioworkspace.relink.recheck")
 
                 Button {
@@ -36,6 +38,8 @@ struct LibraryMissingRelinkSheet: View {
                 } label: {
                     Label(isScanningFolder ? "Scanning..." : "Scan Folder...", systemImage: "folder.badge.magnifyingglass")
                 }
+                .buttonStyle(.bordered)
+                .controlSize(.small)
                 .disabled(missingRecords.isEmpty || isScanningFolder)
                 .accessibilityIdentifier("audioworkspace.relink.scan_folder")
             }
@@ -122,6 +126,7 @@ struct LibraryMissingRelinkSheet: View {
             Button("Locate...") {
                 chooseReplacementFile(for: record)
             }
+            .buttonStyle(.bordered)
             .controlSize(.small)
             .fixedSize(horizontal: true, vertical: false)
             .accessibilityLabel("Locate file for \(record.asset.displayFilename)")
@@ -133,6 +138,7 @@ struct LibraryMissingRelinkSheet: View {
                     reloadMissingList()
                 }
             }
+            .buttonStyle(.bordered)
             .controlSize(.small)
             .fixedSize(horizontal: true, vertical: false)
             .help("Remove from Library index only (does not delete any files on disk)")
@@ -171,9 +177,13 @@ struct LibraryMissingRelinkSheet: View {
             .fixedSize(horizontal: true, vertical: false)
             .accessibilityIdentifier("audioworkspace.relink.apply_candidate")
         }
-        .padding(.horizontal, AppTheme.Spacing.xs)
-        .padding(.vertical, 4)
-        .background(AppTheme.Colors.subtleSurface, in: RoundedRectangle(cornerRadius: AppTheme.Radius.xs))
+        .padding(.horizontal, AppTheme.Spacing.sm)
+        .padding(.vertical, AppTheme.Spacing.xs + 2)
+        .background(AppTheme.Colors.subtleSurface, in: RoundedRectangle(cornerRadius: AppTheme.Radius.sm))
+        .overlay(
+            RoundedRectangle(cornerRadius: AppTheme.Radius.sm)
+                .strokeBorder(Color.primary.opacity(0.08), lineWidth: 1)
+        )
     }
 
     private func reloadMissingList() {

@@ -85,17 +85,30 @@ struct PDFAnnotationStudioView: View {
                     AppInfoBanner(style: .warning, message: loadError)
                 }
 
-                HStack(alignment: .top, spacing: AppTheme.Spacing.md) {
-                    // Canvas Area
-                    VStack(alignment: .leading, spacing: AppTheme.Spacing.xs) {
-                        pageNavBar
-                        annotationCanvas(for: file.url, draft: draft)
-                    }
-                    .frame(maxWidth: .infinity)
+                ViewThatFits(in: .horizontal) {
+                    HStack(alignment: .top, spacing: AppTheme.Spacing.md) {
+                        // Canvas Area
+                        VStack(alignment: .leading, spacing: AppTheme.Spacing.xs) {
+                            pageNavBar
+                            annotationCanvas(for: file.url, draft: draft)
+                        }
+                        .frame(minWidth: 320, maxWidth: .infinity)
 
-                    // Inspector Sidebar
-                    inspectorSidebar(for: file.url, draft: draft)
-                        .frame(width: 268)
+                        // Inspector Sidebar
+                        inspectorSidebar(for: file.url, draft: draft)
+                            .frame(width: 268)
+                    }
+
+                    VStack(alignment: .leading, spacing: AppTheme.Spacing.md) {
+                        VStack(alignment: .leading, spacing: AppTheme.Spacing.xs) {
+                            pageNavBar
+                            annotationCanvas(for: file.url, draft: draft)
+                        }
+                        .frame(maxWidth: .infinity)
+
+                        inspectorSidebar(for: file.url, draft: draft)
+                            .frame(maxWidth: .infinity)
+                    }
                 }
             }
         }
@@ -127,44 +140,101 @@ struct PDFAnnotationStudioView: View {
                     }
                 }
 
-                HStack(spacing: AppTheme.Spacing.md) {
-                    Text("\(draft.records.count) annotation(s) in document")
-                        .font(AppTheme.Typography.caption)
-                        .foregroundStyle(.secondary)
+                ViewThatFits(in: .horizontal) {
+                    HStack(spacing: AppTheme.Spacing.md) {
+                        Text("\(draft.records.count) annotation(s) in document")
+                            .font(AppTheme.Typography.caption)
+                            .foregroundStyle(.secondary)
+                            .fixedSize(horizontal: true, vertical: false)
 
-                    Spacer()
+                        Spacer(minLength: AppTheme.Spacing.sm)
 
-                    Toggle("Flatten annotations into page graphics (irreversible)", isOn: Binding(
-                        get: { draft.flattenOnSave },
-                        set: { newVal in
-                            appState.pdfToolboxStore.updateAnnotationDraft(for: fileURL, title: newVal ? "Enable Flatten Annotations" : "Disable Flatten Annotations") { d in
-                                d.flattenOnSave = newVal
-                            }
-                        }
-                    ))
-                    .toggleStyle(.checkbox)
-                    .font(AppTheme.Typography.caption)
-
-                    Button {
-                        onSaveAnnotations(PDFAnnotationSaveOptions(
-                            records: draft.records,
-                            flattenAnnotations: draft.flattenOnSave,
-                            password: password.isEmpty ? nil : password
-                        ))
-                    } label: {
-                        Label("Save Annotated PDF", systemImage: "square.and.arrow.down")
+                        flattenToggle(for: fileURL, draft: draft)
+                        saveAnnotatedButton(for: draft)
                     }
-                    .buttonStyle(.borderedProminent)
-                    .disabled(totalPages == 0)
+
+                    VStack(alignment: .leading, spacing: AppTheme.Spacing.xs) {
+                        Text("\(draft.records.count) annotation(s) in document")
+                            .font(AppTheme.Typography.caption)
+                            .foregroundStyle(.secondary)
+
+                        HStack(spacing: AppTheme.Spacing.sm) {
+                            flattenToggle(for: fileURL, draft: draft)
+                            Spacer(minLength: 0)
+                            saveAnnotatedButton(for: draft)
+                        }
+                    }
                 }
             }
         }
     }
 
+    @ViewBuilder
+    private func flattenToggle(for fileURL: URL, draft: PDFAnnotationWorkspaceDraft) -> some View {
+        Toggle("Flatten annotations into page graphics (irreversible)", isOn: Binding(
+            get: { draft.flattenOnSave },
+            set: { newVal in
+                appState.pdfToolboxStore.updateAnnotationDraft(for: fileURL, title: newVal ? "Enable Flatten Annotations" : "Disable Flatten Annotations") { d in
+                    d.flattenOnSave = newVal
+                }
+            }
+        ))
+        .toggleStyle(.checkbox)
+        .font(AppTheme.Typography.caption)
+    }
+
+    @ViewBuilder
+    private func saveAnnotatedButton(for draft: PDFAnnotationWorkspaceDraft) -> some View {
+        Button {
+            onSaveAnnotations(PDFAnnotationSaveOptions(
+                records: draft.records,
+                flattenAnnotations: draft.flattenOnSave,
+                password: password.isEmpty ? nil : password
+            ))
+        } label: {
+            Label("Save Annotated PDF", systemImage: "square.and.arrow.down")
+                .lineLimit(1)
+        }
+        .buttonStyle(.borderedProminent)
+        .controlSize(.small)
+        .fixedSize(horizontal: true, vertical: false)
+        .disabled(totalPages == 0)
+    }
+
     // MARK: - Page Navigation & Zoom Bar
 
     private var pageNavBar: some View {
-        HStack(spacing: AppTheme.Spacing.sm) {
+        ViewThatFits(in: .horizontal) {
+            HStack(spacing: AppTheme.Spacing.sm) {
+                pageNavControls
+                Divider().frame(height: 14)
+                zoomSegmentedPicker
+                Spacer(minLength: AppTheme.Spacing.xs)
+                Text(toolHintText)
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+                    .truncationMode(.tail)
+            }
+
+            VStack(alignment: .leading, spacing: AppTheme.Spacing.xs) {
+                HStack(spacing: AppTheme.Spacing.sm) {
+                    pageNavControls
+                    Spacer(minLength: 0)
+                    zoomSegmentedPicker
+                }
+                Text(toolHintText)
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+                    .truncationMode(.tail)
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var pageNavControls: some View {
+        HStack(spacing: AppTheme.Spacing.xs) {
             Button {
                 if currentPageIndex > 0 {
                     currentPageIndex -= 1
@@ -174,11 +244,14 @@ struct PDFAnnotationStudioView: View {
             } label: {
                 Image(systemName: "chevron.left")
             }
+            .buttonStyle(.bordered)
+            .controlSize(.small)
             .disabled(currentPageIndex <= 0)
 
             Text("Page \(currentPageIndex + 1) of \(max(1, totalPages))")
                 .font(AppTheme.Typography.caption)
                 .monospacedDigit()
+                .fixedSize(horizontal: true, vertical: false)
 
             Button {
                 if currentPageIndex + 1 < totalPages {
@@ -189,27 +262,21 @@ struct PDFAnnotationStudioView: View {
             } label: {
                 Image(systemName: "chevron.right")
             }
+            .buttonStyle(.bordered)
+            .controlSize(.small)
             .disabled(currentPageIndex + 1 >= totalPages)
-
-            Divider().frame(height: 14)
-
-            Picker("Zoom", selection: $zoomMode) {
-                ForEach(ZoomMode.allCases) { mode in
-                    Text(mode.rawValue).tag(mode)
-                }
-            }
-            .pickerStyle(.segmented)
-            .labelsHidden()
-            .frame(minWidth: 160, maxWidth: 230)
-
-            Spacer()
-
-            Text(toolHintText)
-                .font(.caption2)
-                .foregroundStyle(.secondary)
-                .lineLimit(1)
-                .truncationMode(.tail)
         }
+    }
+
+    private var zoomSegmentedPicker: some View {
+        Picker("Zoom", selection: $zoomMode) {
+            ForEach(ZoomMode.allCases) { mode in
+                Text(mode.rawValue).tag(mode)
+            }
+        }
+        .pickerStyle(.segmented)
+        .labelsHidden()
+        .frame(minWidth: 160, maxWidth: 230)
     }
 
     @ViewBuilder
@@ -227,12 +294,11 @@ struct PDFAnnotationStudioView: View {
         } label: {
             Label(tool.rawValue, systemImage: tool.systemImage)
                 .font(AppTheme.Typography.caption)
-                .padding(.horizontal, 8)
-                .padding(.vertical, 5)
+                .lineLimit(1)
         }
-        .buttonStyle(.borderedProminent)
-        .tint(isActive ? Color.accentColor : Color.secondary.opacity(0.22))
-        .foregroundStyle(isActive ? Color.white : Color.primary)
+        .buttonStyle(.bordered)
+        .controlSize(.small)
+        .tint(isActive ? AppTheme.Colors.accent : .secondary)
     }
 
     private var toolHintText: String {
@@ -311,10 +377,10 @@ struct PDFAnnotationStudioView: View {
                 .padding(8)
             }
             .background(Color(NSColor.controlBackgroundColor).opacity(0.45))
-            .clipShape(RoundedRectangle(cornerRadius: AppTheme.Radius.md))
+            .clipShape(RoundedRectangle(cornerRadius: AppTheme.Radius.lg))
             .overlay(
-                RoundedRectangle(cornerRadius: AppTheme.Radius.md)
-                    .strokeBorder(AppTheme.Colors.cardBorder, lineWidth: 1)
+                RoundedRectangle(cornerRadius: AppTheme.Radius.lg)
+                    .strokeBorder(Color.primary.opacity(0.08), lineWidth: 1)
             )
         }
         .frame(minHeight: 420)
@@ -680,6 +746,7 @@ struct PDFAnnotationStudioView: View {
                             Label("Delete Selected", systemImage: "trash")
                                 .frame(maxWidth: .infinity)
                         }
+                        .buttonStyle(.bordered)
                         .controlSize(.small)
                     }
                 }

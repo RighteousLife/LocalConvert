@@ -93,7 +93,7 @@ struct FileListView: View {
     
     @ViewBuilder
     private var toolbarArea: some View {
-        HStack(alignment: .center) {
+        HStack(alignment: .center, spacing: AppTheme.Spacing.sm) {
             VStack(alignment: .leading, spacing: AppTheme.Spacing.xxs) {
                 Text(
                     appState.droppedFiles.count == 1
@@ -101,77 +101,92 @@ struct FileListView: View {
                         : String(localized: "\(appState.droppedFiles.count) files in queue")
                 )
                     .font(AppTheme.Typography.sectionTitle)
+                    .lineLimit(1)
                     .accessibilityIdentifier("filelist.countLabel")
                 
                 if appState.isConverting {
                     Text(String(localized: "\(appState.activeJobCount) active • \(appState.completedJobCount) / \(appState.totalJobCount) completed"))
                         .font(AppTheme.Typography.monoCaption)
                         .foregroundStyle(.secondary)
+                        .lineLimit(1)
                 }
             }
             
-            Spacer()
+            Spacer(minLength: AppTheme.Spacing.sm)
 
-            if let compareTarget = toolbarComparisonItem {
-                Button(action: {
-                    selectedFileID = compareTarget.id
-                    activeComparisonItem = compareTarget
-                }) {
-                    Label("Compare", systemImage: "square.split.2x1")
+            if toolbarComparisonItem != nil || !resolvedQueueQuickLookItems.urls.isEmpty {
+                HStack(spacing: AppTheme.Spacing.xs + 2) {
+                    if let compareTarget = toolbarComparisonItem {
+                        Button(action: {
+                            selectedFileID = compareTarget.id
+                            activeComparisonItem = compareTarget
+                        }) {
+                            Label("Compare", systemImage: "square.split.2x1")
+                        }
+                        .buttonStyle(.bordered)
+                        .controlSize(.small)
+                        .fixedSize(horizontal: true, vertical: false)
+                        .help(String(localized: "Compare before and after for \(compareTarget.fileName)"))
+                        .accessibilityLabel("Compare before and after")
+                        .accessibilityIdentifier("filelist.compareButton")
+                    }
+
+                    if !resolvedQueueQuickLookItems.urls.isEmpty {
+                        Button(action: {
+                            _ = toggleQuickLookForSelectedFile()
+                        }) {
+                            Image(systemName: "eye")
+                        }
+                        .buttonStyle(.bordered)
+                        .controlSize(.small)
+                        .fixedSize(horizontal: true, vertical: false)
+                        .help("Quick Look selected file (Space)")
+                        .accessibilityLabel("Quick Look selected file")
+                        .accessibilityIdentifier("filelist.quickLookButton")
+                    }
+                }
+
+                AppDivider()
+                    .frame(width: 1, height: 16)
+            }
+            
+            HStack(spacing: AppTheme.Spacing.xs + 2) {
+                Menu {
+                    ForEach(PresetManager.shared.presets) { preset in
+                        Button(action: {
+                            PresetManager.shared.apply(preset: preset, to: appState)
+                        }) {
+                            Label(preset.name, systemImage: "wand.and.stars")
+                        }
+                    }
+                } label: {
+                    Label("Apply Preset", systemImage: "wand.and.stars")
+                }
+                .controlSize(.small)
+                .fixedSize(horizontal: true, vertical: false)
+                .disabled(appState.isConverting || appState.droppedFiles.isEmpty)
+                .accessibilityLabel("Apply saved preset to queue")
+                
+                Button(action: addMoreFiles) {
+                    Label("Add Files", systemImage: "plus")
                 }
                 .buttonStyle(.bordered)
                 .controlSize(.small)
                 .fixedSize(horizontal: true, vertical: false)
-                .help(String(localized: "Compare before and after for \(compareTarget.fileName)"))
-                .accessibilityLabel("Compare before and after")
-                .accessibilityIdentifier("filelist.compareButton")
-            }
-
-            if !resolvedQueueQuickLookItems.urls.isEmpty {
-                Button(action: {
-                    _ = toggleQuickLookForSelectedFile()
-                }) {
-                    Image(systemName: "eye")
+                .disabled(appState.isConverting)
+                .keyboardShortcut("o", modifiers: .command)
+                .accessibilityLabel("Add files")
+                
+                Button(role: .destructive, action: { appState.removeAllFiles() }) {
+                    Label("Clear All", systemImage: "trash")
                 }
-                .buttonStyle(.borderless)
+                .buttonStyle(.bordered)
+                .controlSize(.small)
                 .fixedSize(horizontal: true, vertical: false)
-                .help("Quick Look selected file (Space)")
-                .accessibilityLabel("Quick Look selected file")
-                .accessibilityIdentifier("filelist.quickLookButton")
+                .disabled(appState.isConverting)
+                .accessibilityLabel("Clear all files")
+                .accessibilityIdentifier("filelist.clearAll")
             }
-            
-            Menu {
-                ForEach(PresetManager.shared.presets) { preset in
-                    Button(action: {
-                        PresetManager.shared.apply(preset: preset, to: appState)
-                    }) {
-                        Label(preset.name, systemImage: "wand.and.stars")
-                    }
-                }
-            } label: {
-                Label("Apply Preset", systemImage: "wand.and.stars")
-            }
-            .fixedSize(horizontal: true, vertical: false)
-            .disabled(appState.isConverting || appState.droppedFiles.isEmpty)
-            .accessibilityLabel("Apply saved preset to queue")
-            
-            Button(action: addMoreFiles) {
-                Label("Add Files", systemImage: "plus")
-            }
-            .buttonStyle(.borderless)
-            .fixedSize(horizontal: true, vertical: false)
-            .disabled(appState.isConverting)
-            .keyboardShortcut("o", modifiers: .command)
-            .accessibilityLabel("Add files")
-            
-            Button(role: .destructive, action: { appState.removeAllFiles() }) {
-                Label("Clear All", systemImage: "trash")
-            }
-            .buttonStyle(.borderless)
-            .fixedSize(horizontal: true, vertical: false)
-            .disabled(appState.isConverting)
-            .accessibilityLabel("Clear all files")
-            .accessibilityIdentifier("filelist.clearAll")
         }
         .padding(.horizontal, AppTheme.Spacing.lg)
         .padding(.vertical, AppTheme.Spacing.md)
@@ -238,9 +253,16 @@ struct FileListView: View {
     @ViewBuilder
     private var batchCompletionSummaryContent: some View {
         HStack(spacing: AppTheme.Spacing.md) {
-            Image(systemName: appState.failedJobCount == 0 ? "checkmark.circle.fill" : "exclamationmark.triangle.fill")
-                .font(.title3)
-                .foregroundStyle(appState.failedJobCount == 0 ? AppTheme.Colors.success : AppTheme.Colors.warning)
+            ZStack {
+                RoundedRectangle(cornerRadius: AppTheme.Radius.sm)
+                    .fill(appState.failedJobCount == 0 ? AppTheme.Colors.successTint : AppTheme.Colors.warningTint)
+                    .frame(width: 28, height: 28)
+
+                Image(systemName: appState.failedJobCount == 0 ? "checkmark.circle.fill" : "exclamationmark.triangle.fill")
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(appState.failedJobCount == 0 ? AppTheme.Colors.success : AppTheme.Colors.warning)
+            }
+            .accessibilityHidden(true)
 
             VStack(alignment: .leading, spacing: AppTheme.Spacing.xxs) {
                 Text(appState.failedJobCount == 0 ? String(localized: "Batch Conversion Complete") : String(localized: "Batch Finished with Issues"))
@@ -290,7 +312,7 @@ struct FileListView: View {
     @ViewBuilder
     private var quickActionsStrip: some View {
         ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: 10) {
+            HStack(spacing: AppTheme.Spacing.md) {
                 // Repeat Last Conversion
                 if let last = appState.lastConversionConfig {
                     if appState.isRepeatConversionCompatible {
@@ -317,20 +339,24 @@ struct FileListView: View {
                             .padding(.vertical, 3)
                             .background(AppTheme.Colors.neutralTint)
                             .clipShape(RoundedRectangle(cornerRadius: AppTheme.Radius.sm))
+                            .overlay(
+                                RoundedRectangle(cornerRadius: AppTheme.Radius.sm)
+                                    .strokeBorder(AppTheme.Colors.cardBorder, lineWidth: 1)
+                            )
                             .help("Your last conversion isn't compatible with the selected files.")
                             .accessibilityLabel("Repeat last conversion — unavailable for the selected files")
                             .accessibilityHint("Last conversion is not compatible with the selected files.")
                     }
                     
-                    Divider()
-                        .frame(height: 14)
+                    AppDivider()
+                        .frame(width: 1, height: 14)
                 }
                 
                 // Quick Convert Formats
                 if !appState.quickConvertFormats.isEmpty {
-                    HStack(spacing: 6) {
+                    HStack(spacing: AppTheme.Spacing.xs + 2) {
                         Text("Quick Convert:")
-                            .font(.caption2)
+                            .font(AppTheme.Typography.caption.weight(.medium))
                             .foregroundStyle(.secondary)
                         
                         ForEach(appState.quickConvertFormats, id: \.self) { format in
@@ -349,12 +375,12 @@ struct FileListView: View {
                 
                 // Quick Presets
                 if !appState.quickPresets.isEmpty {
-                    Divider()
-                        .frame(height: 14)
+                    AppDivider()
+                        .frame(width: 1, height: 14)
                     
-                    HStack(spacing: 6) {
+                    HStack(spacing: AppTheme.Spacing.xs + 2) {
                         Text("Quick Presets:")
-                            .font(.caption2)
+                            .font(AppTheme.Typography.caption.weight(.medium))
                             .foregroundStyle(.secondary)
                         
                         ForEach(appState.quickPresets) { preset in
@@ -374,8 +400,9 @@ struct FileListView: View {
                 }
             }
             .padding(.horizontal, AppTheme.Spacing.lg)
-            .padding(.vertical, AppTheme.Spacing.xs + 2)
+            .padding(.vertical, AppTheme.Spacing.xs + 3)
         }
+        .frame(minWidth: 0, idealWidth: 0, maxWidth: .infinity)
         .background(AppTheme.Colors.subtleSurface)
     }
     
@@ -471,6 +498,7 @@ struct FileListView: View {
                     Text(LocalizedStringKey(location.rawValue)).tag(location)
                 }
             }
+            .labelsHidden()
             .frame(minWidth: 150, maxWidth: 200)
             .accessibilityLabel("Output destination selection")
         }

@@ -96,10 +96,10 @@ struct PDFPageStudioView: View {
                     }
                     .frame(minHeight: 300, maxHeight: 460)
                     .background(AppTheme.Colors.subtleSurface)
-                    .clipShape(RoundedRectangle(cornerRadius: AppTheme.Radius.md))
+                    .clipShape(RoundedRectangle(cornerRadius: AppTheme.Radius.lg))
                     .overlay(
-                        RoundedRectangle(cornerRadius: AppTheme.Radius.md)
-                            .strokeBorder(AppTheme.Colors.divider, lineWidth: 0.75)
+                        RoundedRectangle(cornerRadius: AppTheme.Radius.lg)
+                            .strokeBorder(Color.primary.opacity(0.08), lineWidth: 1)
                     )
                 }
 
@@ -188,6 +188,7 @@ struct PDFPageStudioView: View {
                 onExtractSelected(oneBased)
             }
         }
+        .buttonStyle(.bordered)
         .fixedSize(horizontal: true, vertical: false)
         .disabled(selectedPageIDs.isEmpty)
     }
@@ -216,15 +217,16 @@ struct PDFPageStudioView: View {
                     .font(AppTheme.Typography.caption)
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: true, vertical: false)
-                Button("All") { selectedPageIDs = Set(draft.pages.map(\.id)) }.controlSize(.small).fixedSize(horizontal: true, vertical: false)
+                Button("All") { selectedPageIDs = Set(draft.pages.map(\.id)) }.buttonStyle(.bordered).controlSize(.small).fixedSize(horizontal: true, vertical: false)
                 Button("Odd") {
                     selectedPageIDs = Set(draft.pages.enumerated().compactMap { ($0.offset + 1) % 2 == 1 ? $0.element.id : nil })
-                }.controlSize(.small).fixedSize(horizontal: true, vertical: false)
+                }.buttonStyle(.bordered).controlSize(.small).fixedSize(horizontal: true, vertical: false)
                 Button("Even") {
                     selectedPageIDs = Set(draft.pages.enumerated().compactMap { ($0.offset + 1) % 2 == 0 ? $0.element.id : nil })
-                }.controlSize(.small).fixedSize(horizontal: true, vertical: false)
-                Button("None") { selectedPageIDs.removeAll() }.controlSize(.small).fixedSize(horizontal: true, vertical: false)
+                }.buttonStyle(.bordered).controlSize(.small).fixedSize(horizontal: true, vertical: false)
+                Button("None") { selectedPageIDs.removeAll() }.buttonStyle(.bordered).controlSize(.small).fixedSize(horizontal: true, vertical: false)
                 Button("Range...") { showRangePopover = true }
+                    .buttonStyle(.bordered)
                     .controlSize(.small)
                     .fixedSize(horizontal: true, vertical: false)
                     .popover(isPresented: $showRangePopover) {
@@ -334,6 +336,7 @@ struct PDFPageStudioView: View {
                 }
                 .disabled(draft.pages.isEmpty)
             }
+            .buttonStyle(.bordered)
             .controlSize(.small)
         }
     }
@@ -394,8 +397,11 @@ struct PDFPageStudioView: View {
 
             HStack {
                 Button("Reset Crop") { cropDraftRect = .fullPage }
+                    .buttonStyle(.bordered)
                 Spacer()
                 Button("Cancel") { showCropSheet = false }
+                    .buttonStyle(.bordered)
+                    .keyboardShortcut(.cancelAction)
                 Button("Apply Crop") {
                     let applyAll = cropApplyAll || selectedPageIDs.isEmpty
                     let appliedRect: NormalizedPDFCropRect? = cropDraftRect.isFullPage ? nil : cropDraftRect
@@ -409,10 +415,12 @@ struct PDFPageStudioView: View {
                     showCropSheet = false
                 }
                 .buttonStyle(.borderedProminent)
+                .keyboardShortcut(.defaultAction)
             }
         }
         .padding(AppTheme.Spacing.xl)
         .frame(width: 560)
+        .appWorkspaceSurface()
     }
 
     @ViewBuilder
@@ -470,6 +478,8 @@ struct PDFPageStudioView: View {
             HStack {
                 Spacer()
                 Button("Cancel") { showResizeSheet = false }
+                    .buttonStyle(.bordered)
+                    .keyboardShortcut(.cancelAction)
                 Button("Apply Dimensions") {
                     let chosenPreset: PDFPageSizePreset = {
                         if case .custom = resizePreset {
@@ -490,10 +500,12 @@ struct PDFPageStudioView: View {
                     showResizeSheet = false
                 }
                 .buttonStyle(.borderedProminent)
+                .keyboardShortcut(.defaultAction)
             }
         }
         .padding(AppTheme.Spacing.xl)
         .frame(width: 440)
+        .appWorkspaceSurface()
     }
 
     private var splitEveryNSheet: some View {
@@ -504,15 +516,19 @@ struct PDFPageStudioView: View {
             HStack {
                 Spacer()
                 Button("Cancel") { showSplitEveryNSheet = false }
+                    .buttonStyle(.bordered)
+                    .keyboardShortcut(.cancelAction)
                 Button("Split Now") {
                     showSplitEveryNSheet = false
                     onSplitStrategy(.everyNPages(splitChunkCount))
                 }
                 .buttonStyle(.borderedProminent)
+                .keyboardShortcut(.defaultAction)
             }
         }
         .padding(AppTheme.Spacing.xl)
         .frame(width: 340)
+        .appWorkspaceSurface()
     }
 
     @ViewBuilder
@@ -534,6 +550,8 @@ struct PDFPageStudioView: View {
                         insertSourceURL = panel.url
                     }
                 }
+                .buttonStyle(.bordered)
+                .controlSize(.small)
             }
 
             TextField("Source pages (blank = all, e.g. 1-3, 5)", text: $insertPageRange)
@@ -544,6 +562,8 @@ struct PDFPageStudioView: View {
             HStack {
                 Spacer()
                 Button("Cancel") { showInsertSheet = false }
+                    .buttonStyle(.bordered)
+                    .keyboardShortcut(.cancelAction)
                 Button("Insert Into Workspace") {
                     guard let srcURL = insertSourceURL,
                           let srcDoc = PDFDocument(url: srcURL),
@@ -569,11 +589,13 @@ struct PDFPageStudioView: View {
                     showInsertSheet = false
                 }
                 .buttonStyle(.borderedProminent)
+                .keyboardShortcut(.defaultAction)
                 .disabled(insertSourceURL == nil)
             }
         }
         .padding(AppTheme.Spacing.xl)
         .frame(width: 440)
+        .appWorkspaceSurface()
     }
 
     // MARK: - Actions

@@ -140,6 +140,7 @@ struct EditingHistoryView: View {
                             AccessibilityAnnouncer.announce("Pruned unused recovery artifacts.", priority: .low)
                         }
                     }
+                    .buttonStyle(.bordered)
                     .controlSize(.small)
                     .fixedSize(horizontal: true, vertical: false)
                     .accessibilityLabel("Prune unused recovery artifacts")
@@ -154,6 +155,7 @@ struct EditingHistoryView: View {
                                 AccessibilityAnnouncer.announce("Cleared editing history.", priority: .medium)
                             }
                         }
+                        .buttonStyle(.bordered)
                         .controlSize(.small)
                         .accessibilityLabel("Clear editing history")
                         .accessibilityHint("Clears active and archived entries in the displayed editing history scope")
@@ -219,6 +221,7 @@ struct EditingHistoryView: View {
                     Label(currentUndoButtonTitle, systemImage: "arrow.uturn.backward")
                         .lineLimit(1)
                 }
+                .buttonStyle(.bordered)
                 .controlSize(.small)
                 .fixedSize(horizontal: true, vertical: false)
                 .disabled(!currentCanUndo || coordinator.isExecutingUndoRedo)
@@ -231,6 +234,7 @@ struct EditingHistoryView: View {
                     Label(currentRedoButtonTitle, systemImage: "arrow.uturn.forward")
                         .lineLimit(1)
                 }
+                .buttonStyle(.bordered)
                 .controlSize(.small)
                 .fixedSize(horizontal: true, vertical: false)
                 .disabled(!currentCanRedo || coordinator.isExecutingUndoRedo)
@@ -423,6 +427,7 @@ struct EditingHistoryView: View {
                     AccessibilityAnnouncer.announce("Jumped to initial state in \(context.displayName).", priority: .medium)
                 }
             }
+            .buttonStyle(.bordered)
             .controlSize(.small)
             .disabled(!validation.isSafe || coordinator.isExecutingUndoRedo)
             .help(helpText)
@@ -431,10 +436,10 @@ struct EditingHistoryView: View {
         }
         .padding(AppTheme.Spacing.md)
         .background(AppTheme.Colors.elevatedSurface)
-        .clipShape(RoundedRectangle(cornerRadius: AppTheme.Radius.md))
+        .clipShape(RoundedRectangle(cornerRadius: AppTheme.Radius.lg))
         .overlay(
-            RoundedRectangle(cornerRadius: AppTheme.Radius.md)
-                .strokeBorder(AppTheme.Colors.cardBorder, lineWidth: 1)
+            RoundedRectangle(cornerRadius: AppTheme.Radius.lg)
+                .strokeBorder(Color.primary.opacity(0.08), lineWidth: 1)
         )
     }
 
@@ -565,6 +570,7 @@ struct EditingHistoryView: View {
                             AccessibilityAnnouncer.announce("Jumped to \(entry.title).", priority: .medium)
                         }
                     }
+                    .buttonStyle(.bordered)
                     .controlSize(.small)
                     .fixedSize(horizontal: true, vertical: false)
                     .disabled(disabled)
@@ -577,18 +583,18 @@ struct EditingHistoryView: View {
         .padding(AppTheme.Spacing.md)
         .background(isArchived ? AppTheme.Colors.elevatedSurface : AppTheme.Colors.cardBackground)
         .opacity(isUndone ? 0.72 : (isArchived ? 0.82 : 1.0))
-        .clipShape(RoundedRectangle(cornerRadius: AppTheme.Radius.md))
+        .clipShape(RoundedRectangle(cornerRadius: AppTheme.Radius.lg))
         .overlay {
             if isUndone {
-                RoundedRectangle(cornerRadius: AppTheme.Radius.md)
+                RoundedRectangle(cornerRadius: AppTheme.Radius.lg)
                     .strokeBorder(
                         AppTheme.Colors.warning.opacity(0.65),
                         style: StrokeStyle(lineWidth: 1, dash: [4, 3])
                     )
             } else {
-                RoundedRectangle(cornerRadius: AppTheme.Radius.md)
+                RoundedRectangle(cornerRadius: AppTheme.Radius.lg)
                     .strokeBorder(
-                        isCurrentHead ? AppTheme.Colors.accent.opacity(0.55) : AppTheme.Colors.cardBorder,
+                        isCurrentHead ? AppTheme.Colors.accent.opacity(0.55) : Color.primary.opacity(0.08),
                         lineWidth: isCurrentHead ? 1.5 : 1
                     )
             }

@@ -359,14 +359,17 @@ struct ImageToolboxView: View {
             }
         ) {
             Button("Add Images...") { openImagePicker() }
+                .buttonStyle(.bordered)
                 .controlSize(.small)
             Button("Select All") { selectedFileIds = Set(candidateFiles.map(\.id)) }
+                .buttonStyle(.bordered)
                 .controlSize(.small)
             Button("Only First") {
                 if let first = candidateFiles.first {
                     selectedFileIds = [first.id]
                 }
             }
+            .buttonStyle(.bordered)
             .controlSize(.small)
         }
     }
@@ -542,6 +545,7 @@ struct ImageToolboxView: View {
             previewPresetID = nil
             bannerMessage = nil
         }
+        .buttonStyle(.bordered)
         .controlSize(.small)
         .fixedSize()
 
@@ -550,6 +554,7 @@ struct ImageToolboxView: View {
             presetDescInput = ""
             showingSavePresetPopover = true
         }
+        .buttonStyle(.bordered)
         .fixedSize()
         .popover(isPresented: $showingSavePresetPopover) {
             VStack(alignment: .leading, spacing: 10) {
@@ -564,6 +569,8 @@ struct ImageToolboxView: View {
                 HStack {
                     Spacer()
                     Button("Cancel") { showingSavePresetPopover = false }
+                        .buttonStyle(.bordered)
+                        .keyboardShortcut(.cancelAction)
                     Button("Save") {
                         let trimmed = presetNameInput.trimmingCharacters(in: .whitespacesAndNewlines)
                         guard !trimmed.isEmpty else { return }
@@ -577,6 +584,7 @@ struct ImageToolboxView: View {
                         bannerMessage = (String(localized: "Saved preset \"\(trimmed)\" to Presets."), false)
                     }
                     .buttonStyle(.borderedProminent)
+                    .keyboardShortcut(.defaultAction)
                 }
             }
             .padding()
@@ -586,6 +594,7 @@ struct ImageToolboxView: View {
             selectedSection = .compare
             triggerComparisonBuild()
         }
+        .buttonStyle(.bordered)
         .fixedSize()
         .accessibilityLabel("Compare Output")
 

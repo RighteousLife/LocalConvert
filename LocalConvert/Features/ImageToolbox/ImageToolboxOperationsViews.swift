@@ -197,25 +197,50 @@ struct ImageConvertCodecSectionView: View {
                             }
 
                             if !config.jxlLossless {
-                                HStack {
-                                    Toggle("Custom Butteraugli Distance", isOn: Binding(
-                                        get: { config.jxlDistance != nil },
-                                        set: { config.jxlDistance = $0 ? 1.0 : nil }
-                                    ))
-                                    Spacer()
-                                    if let dist = config.jxlDistance {
-                                        Text(String(format: "%.2f", dist))
-                                            .monospacedDigit()
-                                            .foregroundStyle(.secondary)
-                                        Slider(
-                                            value: Binding(
-                                                get: { dist },
-                                                set: { config.jxlDistance = $0 }
-                                            ),
-                                            in: 0.0...12.0,
-                                            step: 0.1
-                                        )
-                                        .frame(width: 160)
+                                ViewThatFits(in: .horizontal) {
+                                    HStack(spacing: AppTheme.Spacing.sm) {
+                                        Toggle("Custom Butteraugli Distance", isOn: Binding(
+                                            get: { config.jxlDistance != nil },
+                                            set: { config.jxlDistance = $0 ? 1.0 : nil }
+                                        ))
+                                        .fixedSize()
+                                        Spacer(minLength: AppTheme.Spacing.sm)
+                                        if let dist = config.jxlDistance {
+                                            Text(String(format: "%.2f", dist))
+                                                .monospacedDigit()
+                                                .foregroundStyle(.secondary)
+                                            Slider(
+                                                value: Binding(
+                                                    get: { dist },
+                                                    set: { config.jxlDistance = $0 }
+                                                ),
+                                                in: 0.0...12.0,
+                                                step: 0.1
+                                            )
+                                            .frame(minWidth: 100, maxWidth: 160)
+                                        }
+                                    }
+
+                                    VStack(alignment: .leading, spacing: AppTheme.Spacing.xs) {
+                                        Toggle("Custom Butteraugli Distance", isOn: Binding(
+                                            get: { config.jxlDistance != nil },
+                                            set: { config.jxlDistance = $0 ? 1.0 : nil }
+                                        ))
+                                        if let dist = config.jxlDistance {
+                                            HStack(spacing: AppTheme.Spacing.sm) {
+                                                Slider(
+                                                    value: Binding(
+                                                        get: { dist },
+                                                        set: { config.jxlDistance = $0 }
+                                                    ),
+                                                    in: 0.0...12.0,
+                                                    step: 0.1
+                                                )
+                                                Text(String(format: "%.2f", dist))
+                                                    .monospacedDigit()
+                                                    .foregroundStyle(.secondary)
+                                            }
+                                        }
                                     }
                                 }
                             }
@@ -348,11 +373,16 @@ struct ImageResizeSectionView: View {
             LazyVGrid(columns: [GridItem(.adaptive(minimum: 118), spacing: AppTheme.Spacing.xs)], spacing: AppTheme.Spacing.xs) {
                 ForEach(ResizeSubTool.allCases) { tool in
                     let isSelected = (activeSubTool == tool)
-                    Button(tool.rawValue) { activeSubTool = tool }
-                        .controlSize(.small)
-                        .buttonStyle(.bordered)
-                        .tint(isSelected ? AppTheme.Colors.accent : .secondary)
-                        .frame(maxWidth: .infinity)
+                    Button {
+                        activeSubTool = tool
+                    } label: {
+                        Text(tool.rawValue)
+                            .lineLimit(1)
+                            .frame(maxWidth: .infinity)
+                    }
+                    .controlSize(.small)
+                    .buttonStyle(.bordered)
+                    .tint(isSelected ? AppTheme.Colors.accent : .secondary)
                 }
             }
 
@@ -583,6 +613,8 @@ struct ImageResizeSectionView: View {
                         HStack(spacing: AppTheme.Spacing.sm) {
                             addSizeInputs
                             Button("Add Size") { appendCustomPreset() }
+                                .buttonStyle(.bordered)
+                                .controlSize(.small)
                                 .fixedSize(horizontal: true, vertical: false)
                         }
                         VStack(alignment: .leading, spacing: AppTheme.Spacing.sm) {
@@ -590,6 +622,8 @@ struct ImageResizeSectionView: View {
                                 addSizeInputs
                             }
                             Button("Add Size") { appendCustomPreset() }
+                                .buttonStyle(.bordered)
+                                .controlSize(.small)
                         }
                     }
                 }
@@ -673,6 +707,7 @@ struct ImageResizeSectionView: View {
             ]
             config.exportMultipleSizes = true
         }
+        .buttonStyle(.bordered)
         .controlSize(.small)
 
         Button("+ macOS App Icons (128 / 256 / 512 / 1024)") {
@@ -684,6 +719,7 @@ struct ImageResizeSectionView: View {
             ]
             config.exportMultipleSizes = true
         }
+        .buttonStyle(.bordered)
         .controlSize(.small)
     }
 
@@ -759,14 +795,17 @@ struct ImageTargetSizeSectionView: View {
                     LazyVGrid(columns: [GridItem(.adaptive(minimum: 78), spacing: AppTheme.Spacing.xs)], alignment: .leading, spacing: AppTheme.Spacing.xs) {
                         ForEach(quickTargets, id: \.0) { item in
                             let isActive = config.targetFileSizeEnabled && config.targetFileSizeBytes == item.1
-                            Button(item.0) {
+                            Button {
                                 config.targetFileSizeEnabled = true
                                 config.targetFileSizeBytes = item.1
                                 unit = (item.1 >= 1024 * 1024) ? .mb : .kb
+                            } label: {
+                                Text(item.0)
+                                    .frame(maxWidth: .infinity)
                             }
+                            .controlSize(.small)
                             .buttonStyle(.bordered)
                             .tint(isActive ? AppTheme.Colors.accent : .secondary)
-                            .frame(maxWidth: .infinity)
                         }
                     }
 
@@ -854,6 +893,8 @@ struct ImageTargetSizeSectionView: View {
                 Label("Test Real Output Size", systemImage: "gauge.with.dots.needle.33percent")
             }
         }
+        .buttonStyle(.bordered)
+        .controlSize(.small)
         .disabled(sourceURL == nil || isBenchmarking)
     }
 }
@@ -887,13 +928,13 @@ struct ImageCompressionSectionView: View {
                                         .lineLimit(2)
                                 }
                                 .frame(maxWidth: .infinity, alignment: .leading)
-                                .padding(AppTheme.Spacing.sm + 2)
+                                .padding(AppTheme.Spacing.md)
                                 .background(selected ? AppTheme.Colors.accentTint : AppTheme.Colors.cardBackground)
                                 .overlay(
-                                    RoundedRectangle(cornerRadius: AppTheme.Radius.md)
-                                        .stroke(selected ? AppTheme.Colors.accent : AppTheme.Colors.cardBorder, lineWidth: 1)
+                                    RoundedRectangle(cornerRadius: AppTheme.Radius.lg)
+                                        .stroke(selected ? AppTheme.Colors.accent : Color.primary.opacity(0.08), lineWidth: 1)
                                 )
-                                .clipShape(RoundedRectangle(cornerRadius: AppTheme.Radius.md))
+                                .clipShape(RoundedRectangle(cornerRadius: AppTheme.Radius.lg))
                             }
                             .buttonStyle(.plain)
                         }
@@ -945,6 +986,8 @@ struct ImageCompressionSectionView: View {
                 Text("Measure Full Encoded Bytes")
             }
         }
+        .buttonStyle(.bordered)
+        .controlSize(.small)
         .disabled(sourceURL == nil || isBenchmarking)
     }
 
@@ -1029,6 +1072,8 @@ struct ImageWatermarkSectionView: View {
                                     config.watermark.enabled = true
                                 }
                             }
+                            .buttonStyle(.bordered)
+                            .controlSize(.small)
                         }
 
                         HStack {
@@ -1079,6 +1124,8 @@ struct ImageWatermarkSectionView: View {
                                 Label("Enable & Refresh Live Preview", systemImage: "eye")
                             }
                         }
+                        .buttonStyle(.bordered)
+                        .controlSize(.small)
                         .disabled(sourceURL == nil || isGeneratingPreview)
                         Spacer()
                     }
@@ -1135,11 +1182,16 @@ struct ImageColorManagementSectionView: View {
         VStack(alignment: .leading, spacing: AppTheme.Spacing.lg) {
             LazyVGrid(columns: [GridItem(.adaptive(minimum: 125), spacing: AppTheme.Spacing.xs)], spacing: AppTheme.Spacing.xs) {
                 ForEach(ColorSubTool.allCases) { tool in
-                    Button(tool.rawValue) { activeSubTool = tool }
-                        .controlSize(.small)
-                        .buttonStyle(.bordered)
-                        .tint(activeSubTool == tool ? AppTheme.Colors.accent : .secondary)
-                        .frame(maxWidth: .infinity)
+                    Button {
+                        activeSubTool = tool
+                    } label: {
+                        Text(tool.rawValue)
+                            .lineLimit(1)
+                            .frame(maxWidth: .infinity)
+                    }
+                    .controlSize(.small)
+                    .buttonStyle(.bordered)
+                    .tint(activeSubTool == tool ? AppTheme.Colors.accent : .secondary)
                 }
             }
 
@@ -1159,28 +1211,59 @@ struct ImageColorManagementSectionView: View {
         VStack(alignment: .leading, spacing: AppTheme.Spacing.lg) {
             AppCard(title: "Source Color Profile Inspection", icon: "paintpalette") {
                 if let info = colorInfo {
-                    Grid(alignment: .leading, horizontalSpacing: 20, verticalSpacing: AppTheme.Spacing.sm) {
-                        GridRow {
-                            Text("Profile Name").foregroundStyle(.secondary)
-                            Text(info.profileName).fontWeight(.medium)
-                            Text("Color Model").foregroundStyle(.secondary)
-                            Text(info.colorModel)
+                    ViewThatFits(in: .horizontal) {
+                        Grid(alignment: .leading, horizontalSpacing: 20, verticalSpacing: AppTheme.Spacing.sm) {
+                            GridRow {
+                                Text("Profile Name").foregroundStyle(.secondary)
+                                Text(info.profileName).fontWeight(.medium)
+                                Text("Color Model").foregroundStyle(.secondary)
+                                Text(info.colorModel)
+                            }
+                            GridRow {
+                                Text("Bit Depth").foregroundStyle(.secondary)
+                                Text("\(info.bitDepth)-bit per component")
+                                Text("Alpha Channel").foregroundStyle(.secondary)
+                                Text(info.hasAlpha ? "Present" : "Opaque")
+                            }
+                            GridRow {
+                                Text("Embedded ICC").foregroundStyle(.secondary)
+                                Text(info.hasEmbeddedICC ? "\(ByteCountFormatter.string(fromByteCount: Int64(info.iccSizeBytes), countStyle: .file))" : "None")
+                                Text("Gamut").foregroundStyle(.secondary)
+                                Text(info.isWideGamut ? "Wide Gamut (P3 / Adobe RGB / Rec.2020)" : "Standard sRGB")
+                                    .foregroundStyle(info.isWideGamut ? AppTheme.Colors.accent : .secondary)
+                            }
                         }
-                        GridRow {
-                            Text("Bit Depth").foregroundStyle(.secondary)
-                            Text("\(info.bitDepth)-bit per component")
-                            Text("Alpha Channel").foregroundStyle(.secondary)
-                            Text(info.hasAlpha ? "Present" : "Opaque")
+                        .font(AppTheme.Typography.caption)
+
+                        Grid(alignment: .leading, horizontalSpacing: 16, verticalSpacing: AppTheme.Spacing.xs + 2) {
+                            GridRow {
+                                Text("Profile Name").foregroundStyle(.secondary)
+                                Text(info.profileName).fontWeight(.medium)
+                            }
+                            GridRow {
+                                Text("Color Model").foregroundStyle(.secondary)
+                                Text(info.colorModel)
+                            }
+                            GridRow {
+                                Text("Bit Depth").foregroundStyle(.secondary)
+                                Text("\(info.bitDepth)-bit per component")
+                            }
+                            GridRow {
+                                Text("Alpha Channel").foregroundStyle(.secondary)
+                                Text(info.hasAlpha ? "Present" : "Opaque")
+                            }
+                            GridRow {
+                                Text("Embedded ICC").foregroundStyle(.secondary)
+                                Text(info.hasEmbeddedICC ? "\(ByteCountFormatter.string(fromByteCount: Int64(info.iccSizeBytes), countStyle: .file))" : "None")
+                            }
+                            GridRow {
+                                Text("Gamut").foregroundStyle(.secondary)
+                                Text(info.isWideGamut ? "Wide Gamut (P3 / Adobe RGB / Rec.2020)" : "Standard sRGB")
+                                    .foregroundStyle(info.isWideGamut ? AppTheme.Colors.accent : .secondary)
+                            }
                         }
-                        GridRow {
-                            Text("Embedded ICC").foregroundStyle(.secondary)
-                            Text(info.hasEmbeddedICC ? "\(ByteCountFormatter.string(fromByteCount: Int64(info.iccSizeBytes), countStyle: .file))" : "None")
-                            Text("Gamut").foregroundStyle(.secondary)
-                            Text(info.isWideGamut ? "Wide Gamut (P3 / Adobe RGB / Rec.2020)" : "Standard sRGB")
-                                .foregroundStyle(info.isWideGamut ? AppTheme.Colors.accent : .secondary)
-                        }
+                        .font(AppTheme.Typography.caption)
                     }
-                    .font(AppTheme.Typography.caption)
                 } else {
                     Text("Select an image to inspect its ICC profile and bit depth.")
                         .font(AppTheme.Typography.caption)
@@ -1268,6 +1351,8 @@ struct ImageBackgroundRemovalSectionView: View {
                             Label("Run Vision Cutout in Live Preview", systemImage: "person.crop.rectangle")
                         }
                     }
+                    .buttonStyle(.bordered)
+                    .controlSize(.small)
                     .disabled(isGeneratingPreview)
                 }
             }

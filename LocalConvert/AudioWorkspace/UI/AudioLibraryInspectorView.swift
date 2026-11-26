@@ -132,11 +132,11 @@ struct AudioLibraryInspectorView: View {
             specRow("File Size", sizeText)
             specRow("Availability", asset.status.rawValue.capitalized)
         }
-        .padding(AppTheme.Spacing.sm)
-        .background(AppTheme.Colors.cardBackground, in: RoundedRectangle(cornerRadius: AppTheme.Radius.sm))
+        .padding(AppTheme.Spacing.md)
+        .background(AppTheme.Colors.cardBackground, in: RoundedRectangle(cornerRadius: AppTheme.Radius.lg))
         .overlay(
-            RoundedRectangle(cornerRadius: AppTheme.Radius.sm)
-                .strokeBorder(AppTheme.Colors.cardBorder, lineWidth: 1)
+            RoundedRectangle(cornerRadius: AppTheme.Radius.lg)
+                .strokeBorder(Color.primary.opacity(0.08), lineWidth: 1)
         )
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("audioworkspace.inspector.tech_specs")
@@ -225,7 +225,7 @@ struct AudioLibraryInspectorView: View {
     private func labeledField(_ title: String, text: Binding<String>, id: String) -> some View {
         VStack(alignment: .leading, spacing: 2) {
             Text(title)
-                .font(.system(size: 10, weight: .medium))
+                .font(AppTheme.Typography.caption.weight(.medium))
                 .foregroundStyle(.secondary)
             TextField(title, text: text)
                 .textFieldStyle(.roundedBorder)

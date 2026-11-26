@@ -26,6 +26,8 @@ struct AudioOutputDevicePicker: View {
                     deviceMonitor.refreshDevices()
                 } label: {
                     Image(systemName: "arrow.clockwise")
+                        .frame(width: 24, height: 24)
+                        .contentShape(RoundedRectangle(cornerRadius: AppTheme.Radius.xs))
                 }
                 .buttonStyle(.plain)
                 .help("Refresh Audio Devices")
@@ -126,9 +128,9 @@ struct AudioOutputDevicePicker: View {
                 }
                 Spacer()
             }
-            .padding(.horizontal, AppTheme.Spacing.xs)
+            .padding(.horizontal, AppTheme.Spacing.sm)
             .padding(.vertical, 5)
-            .background(isSelected ? AppTheme.Colors.accentTint : Color.clear, in: RoundedRectangle(cornerRadius: AppTheme.Radius.xs))
+            .background(isSelected ? AppTheme.Colors.accentTint : Color.clear, in: RoundedRectangle(cornerRadius: AppTheme.Radius.sm))
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)

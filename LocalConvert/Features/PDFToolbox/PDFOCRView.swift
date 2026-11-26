@@ -115,6 +115,8 @@ struct PDFOCRView: View {
                         } label: {
                             Label(isAnalyzingPreview ? "Inspecting..." : "Preview / Check Searchable Text", systemImage: "doc.text.magnifyingglass")
                         }
+                        .buttonStyle(.bordered)
+                        .controlSize(.small)
                         .disabled(isAnalyzingPreview)
                     }
 
@@ -124,19 +126,25 @@ struct PDFOCRView: View {
                 }
             }
 
-            HStack(spacing: AppTheme.Spacing.md) {
-                Text("Generates a new PDF embedding an invisible CoreText layer over each OCR'd page, leaving your source PDF untouched. Batch selection supported.")
-                    .font(AppTheme.Typography.caption)
-                    .foregroundStyle(.secondary)
-                Spacer()
-                Button {
-                    onRunOCR(resolvedOptions())
-                } label: {
-                    Label(selectedFiles.count > 1 ? "Batch OCR (\(selectedFiles.count) PDFs)" : "Create Searchable PDF", systemImage: "text.viewfinder")
+            ViewThatFits(in: .horizontal) {
+                HStack(spacing: AppTheme.Spacing.md) {
+                    Text("Generates a new PDF embedding an invisible CoreText layer over each OCR'd page, leaving your source PDF untouched. Batch selection supported.")
+                        .font(AppTheme.Typography.caption)
+                        .foregroundStyle(.secondary)
+                    Spacer()
+                    runOCRButton
                 }
-                .buttonStyle(.borderedProminent)
-                .controlSize(.large)
-                .disabled(selectedFiles.isEmpty)
+
+                VStack(alignment: .leading, spacing: AppTheme.Spacing.sm) {
+                    Text("Generates a new PDF embedding an invisible CoreText layer over each OCR'd page, leaving your source PDF untouched. Batch selection supported.")
+                        .font(AppTheme.Typography.caption)
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                    HStack {
+                        Spacer(minLength: 0)
+                        runOCRButton
+                    }
+                }
             }
         }
         .onAppear {
@@ -145,6 +153,18 @@ struct PDFOCRView: View {
         .onChange(of: options.recognitionLevel) {
             loadLanguages()
         }
+    }
+
+    private var runOCRButton: some View {
+        Button {
+            onRunOCR(resolvedOptions())
+        } label: {
+            Label(selectedFiles.count > 1 ? "Batch OCR (\(selectedFiles.count) PDFs)" : "Create Searchable PDF", systemImage: "text.viewfinder")
+        }
+        .buttonStyle(.borderedProminent)
+        .controlSize(.large)
+        .fixedSize(horizontal: true, vertical: false)
+        .disabled(selectedFiles.isEmpty)
     }
 
     @ViewBuilder

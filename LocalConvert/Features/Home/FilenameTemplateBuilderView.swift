@@ -42,6 +42,7 @@ struct FilenameTemplateBuilderView: View {
                     Button("Reset") {
                         templateBinding.wrappedValue = OutputManager.defaultFilenameTemplate
                     }
+                    .buttonStyle(.bordered)
                     .controlSize(.small)
                     .fixedSize(horizontal: true, vertical: false)
                     .accessibilityLabel("Reset filename template to default")
@@ -109,12 +110,12 @@ struct FilenameTemplateBuilderView: View {
                     .accessibilityLabel("Live filename preview: \(livePreviewFilename)")
                     .accessibilityIdentifier("settings.filenameTemplate.preview")
             }
-            .padding(AppTheme.Spacing.sm)
+            .padding(AppTheme.Spacing.md)
             .background(AppTheme.Colors.elevatedSurface)
-            .clipShape(RoundedRectangle(cornerRadius: AppTheme.Radius.sm))
+            .clipShape(RoundedRectangle(cornerRadius: AppTheme.Radius.lg))
             .overlay(
-                RoundedRectangle(cornerRadius: AppTheme.Radius.sm)
-                    .strokeBorder(AppTheme.Colors.cardBorder, lineWidth: 1)
+                RoundedRectangle(cornerRadius: AppTheme.Radius.lg)
+                    .strokeBorder(Color.primary.opacity(0.08), lineWidth: 1)
             )
 
             Text("Path separators (/ and :) are sanitized automatically and filenames are clamped to 240 UTF-8 bytes.")

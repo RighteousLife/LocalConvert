@@ -48,6 +48,8 @@ struct PDFArchivalView: View {
                         } label: {
                             Label(isValidating ? "Validating..." : "Validate Current PDF Against \(selectedProfile.rawValue)", systemImage: "checkmark.shield")
                         }
+                        .buttonStyle(.bordered)
+                        .controlSize(.small)
                         .disabled(selectedFiles.count != 1 || isValidating)
 
                         Spacer()
@@ -99,21 +101,39 @@ struct PDFArchivalView: View {
                 }
             }
 
-            HStack(spacing: AppTheme.Spacing.md) {
-                Text("Uses bundled LibreOffice archival PDF export (embedded fonts, ICC OutputIntents, XMP pdfaid) followed by structural validation.")
-                    .font(AppTheme.Typography.caption)
-                    .foregroundStyle(.secondary)
-                Spacer()
-                Button {
-                    onConvertPDFA(selectedProfile)
-                } label: {
-                    Label("Convert to \(selectedProfile.rawValue)", systemImage: "archivebox.fill")
+            ViewThatFits(in: .horizontal) {
+                HStack(spacing: AppTheme.Spacing.md) {
+                    Text("Uses bundled LibreOffice archival PDF export (embedded fonts, ICC OutputIntents, XMP pdfaid) followed by structural validation.")
+                        .font(AppTheme.Typography.caption)
+                        .foregroundStyle(.secondary)
+                    Spacer()
+                    convertPDFAButton
                 }
-                .buttonStyle(.borderedProminent)
-                .controlSize(.large)
-                .disabled(selectedFiles.isEmpty || !selectedProfile.isGenerationSupported)
+
+                VStack(alignment: .leading, spacing: AppTheme.Spacing.sm) {
+                    Text("Uses bundled LibreOffice archival PDF export (embedded fonts, ICC OutputIntents, XMP pdfaid) followed by structural validation.")
+                        .font(AppTheme.Typography.caption)
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                    HStack {
+                        Spacer(minLength: 0)
+                        convertPDFAButton
+                    }
+                }
             }
         }
+    }
+
+    private var convertPDFAButton: some View {
+        Button {
+            onConvertPDFA(selectedProfile)
+        } label: {
+            Label("Convert to \(selectedProfile.rawValue)", systemImage: "archivebox.fill")
+        }
+        .buttonStyle(.borderedProminent)
+        .controlSize(.large)
+        .fixedSize(horizontal: true, vertical: false)
+        .disabled(selectedFiles.isEmpty || !selectedProfile.isGenerationSupported)
     }
 
     private func validateSelectedFile() {

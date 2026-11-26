@@ -203,7 +203,7 @@ struct AudioWorkspaceRootView<AudioToolsContent: View>: View {
 
     private var workspaceHeaderBar: some View {
         HStack(spacing: AppTheme.Spacing.md) {
-            HStack(spacing: 4) {
+            HStack(spacing: AppTheme.Spacing.xs) {
                 ForEach(AudioWorkspaceMode.allCases) { mode in
                     let isSelected = localMode == mode
                     Button {
@@ -218,7 +218,15 @@ struct AudioWorkspaceRootView<AudioToolsContent: View>: View {
                                 isSelected ? AppTheme.Colors.accent : AppTheme.Colors.cardBackground,
                                 in: RoundedRectangle(cornerRadius: AppTheme.Radius.sm)
                             )
+                            .overlay(
+                                RoundedRectangle(cornerRadius: AppTheme.Radius.sm)
+                                    .strokeBorder(
+                                        isSelected ? Color.clear : Color.primary.opacity(0.08),
+                                        lineWidth: 1
+                                    )
+                            )
                             .foregroundStyle(isSelected ? Color.white : Color.primary)
+                            .contentShape(RoundedRectangle(cornerRadius: AppTheme.Radius.sm))
                     }
                     .buttonStyle(.plain)
                     .accessibilityLabel("\(mode.rawValue) Mode")
@@ -226,6 +234,12 @@ struct AudioWorkspaceRootView<AudioToolsContent: View>: View {
                     .accessibilityIdentifier(mode.accessibilityIdentifier)
                 }
             }
+            .padding(3)
+            .background(AppTheme.Colors.subtleSurface, in: RoundedRectangle(cornerRadius: AppTheme.Radius.md))
+            .overlay(
+                RoundedRectangle(cornerRadius: AppTheme.Radius.md)
+                    .strokeBorder(Color.primary.opacity(0.08), lineWidth: 1)
+            )
 
             Spacer()
 
@@ -692,6 +706,8 @@ private struct OfflineTranscriptionSheetView: View {
                 model.cancelTranscription()
                 dismiss()
             }
+            .buttonStyle(.bordered)
+            .controlSize(.small)
             .keyboardShortcut(.cancelAction)
             .accessibilityIdentifier("audioworkspace.transcribe.close")
         }
@@ -729,6 +745,7 @@ private struct OfflineTranscriptionSheetView: View {
                     Button("Choose File...") {
                         model.chooseMediaFile()
                     }
+                    .buttonStyle(.bordered)
                     .controlSize(.small)
                     .disabled(model.isTranscribing)
                     .accessibilityIdentifier("audioworkspace.transcribe.choose_file")
@@ -786,6 +803,8 @@ private struct OfflineTranscriptionSheetView: View {
                 HStack {
                     Text("Output Folder:")
                         .font(AppTheme.Typography.caption)
+                        .lineLimit(1)
+                        .fixedSize(horizontal: true, vertical: false)
                         .frame(width: 110, alignment: .leading)
                     Text(model.resolvedOutputDirectory?.path ?? "Same folder as source")
                         .font(AppTheme.Typography.caption)
@@ -796,6 +815,7 @@ private struct OfflineTranscriptionSheetView: View {
                     Button("Choose...") {
                         model.chooseOutputFolder()
                     }
+                    .buttonStyle(.bordered)
                     .controlSize(.small)
                     .disabled(model.isTranscribing)
                 }
@@ -816,6 +836,7 @@ private struct OfflineTranscriptionSheetView: View {
                     Button("Cancel", role: .cancel) {
                         model.cancelTranscription()
                     }
+                    .buttonStyle(.bordered)
                     .controlSize(.small)
                 }
                 Text(model.progressMessage.isEmpty ? "Transcribing on-device..." : model.progressMessage)
@@ -842,18 +863,24 @@ private struct OfflineTranscriptionSheetView: View {
                 }
                 .frame(height: 120)
                 .background(AppTheme.Colors.subtleSurface)
-                .clipShape(RoundedRectangle(cornerRadius: AppTheme.Radius.sm))
+                .clipShape(RoundedRectangle(cornerRadius: AppTheme.Radius.lg))
+                .overlay(
+                    RoundedRectangle(cornerRadius: AppTheme.Radius.lg)
+                        .strokeBorder(Color.primary.opacity(0.08), lineWidth: 1)
+                )
 
                 HStack(spacing: AppTheme.Spacing.sm) {
                     Button("Copy Text") {
                         NSPasteboard.general.clearContents()
                         NSPasteboard.general.setString(model.previewOutputText, forType: .string)
                     }
+                    .buttonStyle(.bordered)
                     .controlSize(.small)
 
                     Button("Reveal in Finder") {
                         NSWorkspace.shared.activateFileViewerSelecting([result.outputURL])
                     }
+                    .buttonStyle(.bordered)
                     .controlSize(.small)
                 }
             }

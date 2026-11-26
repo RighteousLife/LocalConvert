@@ -32,6 +32,7 @@ struct ImageComparisonView: View {
                         Button { onRefresh() } label: {
                             Label("Recompute", systemImage: "arrow.clockwise")
                         }
+                        .buttonStyle(.bordered)
                         .controlSize(.small)
                     }
                 }
@@ -45,7 +46,7 @@ struct ImageComparisonView: View {
                                 .frame(minHeight: 280, maxHeight: 380)
                                 .frame(maxWidth: .infinity)
                                 .background(Color.black)
-                                .clipShape(RoundedRectangle(cornerRadius: AppTheme.Radius.sm))
+                                .clipShape(RoundedRectangle(cornerRadius: AppTheme.Radius.lg))
                             Text("Dark blue/black indicates near-zero delta; yellow/magenta highlights pixel shift or compression residuals.")
                                 .font(AppTheme.Typography.caption)
                                 .foregroundStyle(.secondary)
