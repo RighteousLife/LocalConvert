@@ -12,7 +12,7 @@ struct Phase14Tests {
         options.applyPreset()
         
         #expect(options.mediaQuality == .medium)
-        #expect(options.customOptions["vcodec"] == "libx264")
+        #expect(options.customOptions["vcodec"] == "h264_videotoolbox")
         #expect(options.customOptions["acodec"] == "aac")
         #expect(options.customOptions["pix_fmt"] == "yuv420p")
         

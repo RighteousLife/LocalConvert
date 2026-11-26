@@ -6,12 +6,15 @@ final class VideoMetadataProvider: MetadataProvider, @unchecked Sendable {
     
     let providerName = "VideoMetadataProvider"
     private let logger = Logger(subsystem: "com.localconvert.app", category: "VideoMetadataProvider")
+    private let ffprobeExecutableOverride: URL?
     
     var supportedFormats: Set<FileFormat> {
-        [.mp4, .mov, .mkv, .webm, .avi, .wmv, .m4v, .threeGP, .mts, .m2ts]
+        [.mp4, .mov, .mkv, .webm, .avi, .wmv, .m4v, .threeGP, .threeG2, .mts, .m2ts]
     }
     
-    init() {}
+    init(ffprobeExecutableOverride: URL? = nil) {
+        self.ffprobeExecutableOverride = ffprobeExecutableOverride
+    }
     
     // MARK: - Capabilities
     
@@ -90,11 +93,17 @@ final class VideoMetadataProvider: MetadataProvider, @unchecked Sendable {
             logger.warning("AVAsset read partial video metadata: \(error.localizedDescription, privacy: .public)")
         }
         
-        // 2. FFprobe Technical & Format Tags
-        let provider = BundledFFmpegProvider(fallbackToSystem: true)
-        if let ffprobePath = await provider.findFFprobePath() {
+        // 2. FFprobe Technical & Format Tags (via AsyncProcessRunner to avoid 64 KB pipe buffer deadlock)
+        let resolvedFFprobePath: String?
+        if let overrideURL = ffprobeExecutableOverride {
+            resolvedFFprobePath = overrideURL.path
+        } else {
+            let provider = BundledFFmpegProvider(fallbackToSystem: BundledBinarySecurityPolicy.allowsSystemFallback)
+            resolvedFFprobePath = await provider.findFFprobePath()
+        }
+        if let ffprobePath = resolvedFFprobePath {
+            try Task.checkCancellation()
             let process = Process()
-            let pipe = Pipe()
             process.executableURL = URL(fileURLWithPath: ffprobePath)
             process.arguments = [
                 "-v", "error",
@@ -103,13 +112,11 @@ final class VideoMetadataProvider: MetadataProvider, @unchecked Sendable {
                 "-of", "json",
                 url.path
             ]
-            process.standardOutput = pipe
-            process.standardError = FileHandle.nullDevice
-            
-            if (try? process.run()) != nil {
-                process.waitUntilExit()
-                let data = pipe.fileHandleForReading.readDataToEndOfFile()
-                if let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] {
+
+            do {
+                let output = try await AsyncProcessRunner.run(process)
+                if output.terminationStatus == 0,
+                   let json = try? JSONSerialization.jsonObject(with: output.stdout) as? [String: Any] {
                     if let formatDict = json["format"] as? [String: Any] {
                         if let durationStr = formatDict["duration"] as? String, let sec = Double(durationStr), sec > 0 {
                             let mins = Int(sec) / 60
@@ -157,6 +164,10 @@ final class VideoMetadataProvider: MetadataProvider, @unchecked Sendable {
                         }
                     }
                 }
+            } catch is CancellationError {
+                throw CancellationError()
+            } catch {
+                logger.warning("ffprobe metadata read failed: \(error.localizedDescription, privacy: .public)")
             }
         }
         
@@ -190,40 +201,48 @@ final class VideoMetadataProvider: MetadataProvider, @unchecked Sendable {
     }
     
     private func executeWrite(metadata: MetadataDocument, tempURL: URL) async throws {
-        let ffmpegProvider = BundledFFmpegProvider(fallbackToSystem: true)
+        let ffmpegProvider = BundledFFmpegProvider(fallbackToSystem: BundledBinarySecurityPolicy.allowsSystemFallback)
         guard let ffmpegPath = await ffmpegProvider.findFFmpegPath() else {
             throw MetadataError.writeFailure("Bundled FFmpeg runtime is required for safe video container metadata updates.")
         }
         
-        let parent = tempURL.deletingLastPathComponent()
-        let scratchOut = parent.appendingPathComponent("scratch-\(UUID().uuidString).\(metadata.format.fileExtension)")
-        defer { try? FileManager.default.removeItem(at: scratchOut) }
+        let scratchDir = FileManager.default.temporaryDirectory
+            .appendingPathComponent("LocalConvert-VideoMeta-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: scratchDir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: scratchDir) }
+        let scratchOut = scratchDir.appendingPathComponent("out.\(metadata.format.fileExtension)")
         
-        var args = ["-y", "-i", tempURL.path, "-c", "copy"]
+        var args = ["-y", "-i", tempURL.path, "-map", "0", "-c", "copy"]
         
-        if let title = metadata.common.title { args.append(contentsOf: ["-metadata", "title=\(title)"]) }
-        if let artist = metadata.common.artist { args.append(contentsOf: ["-metadata", "artist=\(artist)"]) }
-        if let desc = metadata.common.description { args.append(contentsOf: ["-metadata", "description=\(desc)"]) }
-        if let genre = metadata.common.genre { args.append(contentsOf: ["-metadata", "genre=\(genre)"]) }
-        if let year = metadata.common.year { args.append(contentsOf: ["-metadata", "date=\(year)"]) }
-        if let copyright = metadata.common.copyright { args.append(contentsOf: ["-metadata", "copyright=\(copyright)"]) }
-        if let comment = metadata.common.comment { args.append(contentsOf: ["-metadata", "comment=\(comment)"]) }
+        if metadata.isStrippedAll || metadata.isEditableMetadataEmpty {
+            args.append(contentsOf: ["-map_metadata", "-1", "-map_chapters", "-1"])
+        } else {
+            args.append(contentsOf: ["-map_metadata", "0"])
+            args.append(contentsOf: ["-metadata", "title=\(metadata.common.title ?? "")"])
+            args.append(contentsOf: ["-metadata", "artist=\(metadata.common.artist ?? "")"])
+            args.append(contentsOf: ["-metadata", "description=\(metadata.common.description ?? "")"])
+            args.append(contentsOf: ["-metadata", "genre=\(metadata.common.genre ?? "")"])
+            args.append(contentsOf: ["-metadata", "date=\(metadata.common.year.map(String.init) ?? "")"])
+            args.append(contentsOf: ["-metadata", "copyright=\(metadata.common.copyright ?? "")"])
+            args.append(contentsOf: ["-metadata", "comment=\(metadata.common.comment ?? "")"])
+            if metadata.gps == nil {
+                args.append(contentsOf: [
+                    "-metadata", "location=",
+                    "-metadata", "location-eng=",
+                    "-metadata", "com.apple.quicktime.location.ISO6709="
+                ])
+            }
+        }
         
         args.append(scratchOut.path)
         
         let process = Process()
         process.executableURL = URL(fileURLWithPath: ffmpegPath)
         process.arguments = args
-        let errPipe = Pipe()
-        process.standardError = errPipe
-        process.standardOutput = FileHandle.nullDevice
+        let result = try await AsyncProcessRunner.run(process)
         
-        try process.run()
-        process.waitUntilExit()
-        
-        guard process.terminationStatus == 0, FileManager.default.fileExists(atPath: scratchOut.path) else {
-            let errData = errPipe.fileHandleForReading.readDataToEndOfFile()
-            let errStr = String(data: errData, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard result.terminationStatus == 0, FileManager.default.fileExists(atPath: scratchOut.path) else {
+            let errStr = String(data: result.stderr, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines)
             throw MetadataError.writeFailure("FFmpeg video tag rewrite failed", underlying: errStr)
         }
         

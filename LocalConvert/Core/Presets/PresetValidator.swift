@@ -74,13 +74,16 @@ struct PresetValidator: Sendable {
             return (false, "Preset requires \(categoryConstraint.rawValue.capitalized) input (file is \(fileFormat.category.rawValue.capitalized)).")
         }
         
-        // 3. Same format check (avoid redundant same-to-same unless options like quality apply)
-        if fileFormat == preset.targetFormat && preset.sourceConstraint == nil {
+        // 3. Same format check (allow same-format when Audio Toolbox / Image Toolbox processing applies)
+        let isToolboxPreset = preset.options.customOptions["audio_operation"] != nil
+            || AudioToolboxConfig.from(options: preset.options).requiresAudioFilterProcessing
+            || preset.options.customOptions["image_toolbox"] == "true"
+        if fileFormat == preset.targetFormat && preset.sourceConstraint == nil && !isToolboxPreset {
             return (false, "File is already in \(preset.targetFormat.displayName) format.")
         }
         
         // 4. Registry capability check (Single Source of Truth)
-        guard registry.canConvert(from: fileFormat, to: preset.targetFormat) else {
+        guard registry.findEngine(from: fileFormat, to: preset.targetFormat, options: preset.options) != nil else {
             return (false, "Conversion from \(fileFormat.displayName) to \(preset.targetFormat.displayName) is not supported.")
         }
         

@@ -1,17 +1,5 @@
 import SwiftUI
 
-// MARK: - History Category Filter
-
-enum HistoryCategoryFilter: String, CaseIterable, Identifiable {
-    case all = "All"
-    case conversions = "Conversions"
-    case pdfTools = "PDF Tools"
-    case presets = "Presets"
-    case failed = "Failed"
-    
-    var id: String { rawValue }
-}
-
 // MARK: - History View
 
 struct HistoryView: View {
@@ -20,105 +8,114 @@ struct HistoryView: View {
     
     @State private var searchText = ""
     @State private var categoryFilter: HistoryCategoryFilter = .all
+    @State private var sourceFilter: HistorySourceFilter = .all
+    @State private var watchFolderRuleFilterID: UUID? = nil
+    @State private var watchFolderRuleFilterName: String? = nil
     @State private var showingClearAllAlert = false
     @State private var showingClearCompletedAlert = false
     @State private var showingClearFailedAlert = false
     
     private var filteredItems: [ConversionHistoryItem] {
-        historyManager.items.filter { item in
-            // Category filter
-            let matchesCategory: Bool
-            switch categoryFilter {
-            case .all:
-                matchesCategory = true
-            case .conversions:
-                matchesCategory = item.presetName == nil && !(item.inputFormatName.lowercased() == "pdf" && item.outputFormatName.lowercased() == "pdf")
-            case .pdfTools:
-                matchesCategory = (item.inputFormatName.lowercased() == "pdf" && item.outputFormatName.lowercased() == "pdf") || (item.presetName?.lowercased().contains("pdf") ?? false)
-            case .presets:
-                matchesCategory = item.presetName != nil
-            case .failed:
-                matchesCategory = item.status == .failed || item.status == .cancelled
-            }
-            guard matchesCategory else { return false }
-            
-            // Search filter
-            let query = searchText.trimmingCharacters(in: .whitespacesAndNewlines)
-            if query.isEmpty { return true }
-            
-            return item.inputFilename.localizedCaseInsensitiveContains(query)
-                || item.outputFilename.localizedCaseInsensitiveContains(query)
-                || item.inputFormatName.localizedCaseInsensitiveContains(query)
-                || item.outputFormatName.localizedCaseInsensitiveContains(query)
-                || (item.presetName?.localizedCaseInsensitiveContains(query) ?? false)
-        }
+        HistoryFilterEngine.filter(
+            items: historyManager.items,
+            category: categoryFilter,
+            source: sourceFilter,
+            watchFolderRuleID: watchFolderRuleFilterID,
+            searchText: searchText
+        )
     }
     
     var body: some View {
         VStack(spacing: 0) {
             // Top Toolbar / Action Header
-            VStack(spacing: 8) {
-                HStack {
-                    Text("\(filteredItems.count) of \(historyManager.items.count) record\(historyManager.items.count == 1 ? "" : "s")")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                    
-                    Spacer()
-                    
-                    if !historyManager.items.isEmpty {
-                        Menu {
-                            Button(role: .destructive, action: {
-                                let count = historyManager.items.filter { $0.status == .failed || $0.status == .cancelled }.count
-                                if count > 1 {
-                                    showingClearFailedAlert = true
-                                } else {
-                                    historyManager.clearFailed()
-                                }
-                            }) {
-                                Label("Clear Failed", systemImage: "xmark.circle")
-                            }
-                            Button(role: .destructive, action: {
-                                let count = historyManager.items.filter { $0.status == .completed }.count
-                                if count > 1 {
-                                    showingClearCompletedAlert = true
-                                } else {
-                                    historyManager.clearCompleted()
-                                }
-                            }) {
-                                Label("Clear Completed", systemImage: "checkmark.circle")
-                            }
-                            Divider()
-                            Button(role: .destructive, action: {
-                                if historyManager.items.count > 1 {
-                                    showingClearAllAlert = true
-                                } else {
-                                    historyManager.clearHistory()
-                                }
-                            }) {
-                                Label("Clear All History", systemImage: "trash")
-                            }
-                        } label: {
-                            Label("Clear", systemImage: "trash")
+            VStack(alignment: .leading, spacing: AppTheme.Spacing.sm) {
+                ViewThatFits(in: .horizontal) {
+                    HStack(alignment: .center, spacing: AppTheme.Spacing.sm) {
+                        Text("\(filteredItems.count) of \(historyManager.items.count) record\(historyManager.items.count == 1 ? "" : "s")")
+                            .font(AppTheme.Typography.monoCaption)
+                            .foregroundStyle(.secondary)
+                            .lineLimit(1)
+                            .fixedSize(horizontal: true, vertical: false)
+
+                        Text("·")
+                            .foregroundStyle(.tertiary)
+
+                        Text("Persistent archive of completed, failed, and cancelled conversions across sessions.")
+                            .font(AppTheme.Typography.caption)
+                            .foregroundStyle(.secondary)
+                            .lineLimit(2)
+                            .fixedSize(horizontal: false, vertical: true)
+                            .accessibilityIdentifier("history.surfaceDescription")
+
+                        Spacer(minLength: AppTheme.Spacing.sm)
+
+                        historyHeaderActionButtons
+                    }
+
+                    VStack(alignment: .leading, spacing: AppTheme.Spacing.xs) {
+                        HStack(spacing: AppTheme.Spacing.sm) {
+                            Text("\(filteredItems.count) of \(historyManager.items.count) record\(historyManager.items.count == 1 ? "" : "s")")
+                                .font(AppTheme.Typography.monoCaption)
+                                .foregroundStyle(.secondary)
+                                .lineLimit(1)
+                                .fixedSize(horizontal: true, vertical: false)
+
+                            Spacer(minLength: 0)
+
+                            historyHeaderActionButtons
                         }
-                        .controlSize(.small)
-                        .accessibilityLabel("Clear history options")
+
+                        Text("Persistent archive of completed, failed, and cancelled conversions across sessions.")
+                            .font(AppTheme.Typography.caption)
+                            .foregroundStyle(.secondary)
+                            .lineLimit(2)
+                            .fixedSize(horizontal: false, vertical: true)
+                            .accessibilityIdentifier("history.surfaceDescription")
                     }
                 }
                 
-                // Category Filter Tabs
-                Picker("Category", selection: $categoryFilter) {
-                    ForEach(HistoryCategoryFilter.allCases) { cat in
-                        Text(cat.rawValue).tag(cat)
+                // Category & Source Filters
+                ViewThatFits(in: .horizontal) {
+                    HStack(spacing: AppTheme.Spacing.md) {
+                        categoryFilterPicker
+                        sourceFilterPicker
+                        Spacer(minLength: 0)
+                    }
+
+                    VStack(alignment: .leading, spacing: AppTheme.Spacing.xs) {
+                        categoryFilterPicker
+                        sourceFilterPicker
                     }
                 }
-                .pickerStyle(.segmented)
-                .labelsHidden()
+
+                if watchFolderRuleFilterID != nil {
+                    HStack(spacing: AppTheme.Spacing.xs) {
+                        AppStatusBadge(
+                            text: "Rule: \(watchFolderRuleFilterName ?? "Watch Folder")",
+                            tint: AppTheme.Colors.info,
+                            style: .rounded
+                        )
+
+                        Button("Clear Rule Filter") {
+                            watchFolderRuleFilterID = nil
+                            watchFolderRuleFilterName = nil
+                        }
+                        .controlSize(.mini)
+                        .buttonStyle(.bordered)
+                        .accessibilityLabel("Clear Watch Folder rule filter")
+                        .accessibilityIdentifier("history.clearRuleFilter")
+
+                        Spacer(minLength: 0)
+                    }
+                    .accessibilityElement(children: .contain)
+                    .accessibilityIdentifier("history.ruleFilterChip")
+                }
             }
-            .padding(.horizontal, 16)
-            .padding(.vertical, 10)
-            .background(Color(nsColor: .controlBackgroundColor).opacity(0.4))
+            .padding(.horizontal, AppTheme.Spacing.lg)
+            .padding(.vertical, AppTheme.Spacing.sm + 2)
+            .background(AppTheme.Colors.subtleSurface)
             
-            Divider()
+            AppDivider()
             
             // Content
             if historyManager.items.isEmpty {
@@ -128,13 +125,27 @@ struct HistoryView: View {
             } else {
                 List(filteredItems) { item in
                     HistoryRowView(item: item)
+                        .listRowBackground(AppTheme.Colors.workspaceBackground)
+                        .listRowSeparatorTint(AppTheme.Colors.divider)
                 }
                 .listStyle(.inset)
+                .appWorkspaceSurface()
             }
         }
         .navigationTitle("History")
-        .searchable(text: $searchText, prompt: "Search filename, format, or preset...")
-        .frame(minWidth: 500, minHeight: 400)
+        .searchable(text: $searchText, prompt: "Search filename, format, preset, or source...")
+        .onAppear {
+            consumePendingNavigationFilters()
+        }
+        .onChange(of: appState.pendingHistoryNavigationNonce) { _, _ in
+            consumePendingNavigationFilters()
+        }
+        .onChange(of: sourceFilter) { _, newValue in
+            if newValue != .watchFolder && watchFolderRuleFilterID != nil {
+                watchFolderRuleFilterID = nil
+                watchFolderRuleFilterName = nil
+            }
+        }
         .alert("Clear All History", isPresented: $showingClearAllAlert) {
             Button("Cancel", role: .cancel) { }
             Button("Clear All", role: .destructive) {
@@ -162,55 +173,131 @@ struct HistoryView: View {
             Text("Remove \(count) failed items from conversion history?")
         }
     }
-    
-    @ViewBuilder
-    private var emptyStateView: some View {
-        VStack(spacing: 12) {
-            Spacer()
-            Image(systemName: "clock.arrow.circlepath")
-                .font(.system(size: 40))
-                .foregroundStyle(.tertiary)
-            
-            VStack(spacing: 4) {
-                Text("No Conversion History")
-                    .font(.headline)
-                Text("Completed and previous conversion jobs will appear here.")
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
+
+    private var categoryFilterPicker: some View {
+        Picker("Category", selection: $categoryFilter) {
+            ForEach(HistoryCategoryFilter.allCases) { cat in
+                Text(cat.rawValue).tag(cat)
             }
-            Spacer()
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .padding(24)
+        .pickerStyle(.segmented)
+        .labelsHidden()
+        .fixedSize()
+        .accessibilityLabel("Filter conversion history category")
+        .accessibilityIdentifier("history.categoryFilter")
+    }
+
+    private var sourceFilterPicker: some View {
+        Picker("Source", selection: $sourceFilter) {
+            ForEach(HistorySourceFilter.allCases) { source in
+                Text(source.rawValue).tag(source)
+            }
+        }
+        .pickerStyle(.segmented)
+        .labelsHidden()
+        .fixedSize()
+        .accessibilityLabel("Filter conversion history source")
+        .accessibilityIdentifier("history.sourceFilter")
+    }
+
+    @ViewBuilder
+    private var historyHeaderActionButtons: some View {
+        HStack(spacing: AppTheme.Spacing.sm) {
+            Button {
+                appState.selectedTab = .jobs
+            } label: {
+                Label("Jobs Center", systemImage: "list.bullet.rectangle")
+            }
+            .controlSize(.small)
+            .buttonStyle(.bordered)
+            .fixedSize(horizontal: true, vertical: false)
+            .help("View live and recent conversion jobs in Jobs Center")
+            .accessibilityLabel("Open Jobs Center")
+            .accessibilityIdentifier("history.openJobsCenter")
+
+            if !historyManager.items.isEmpty {
+                Menu {
+                    Button(role: .destructive, action: {
+                        let count = historyManager.items.filter { $0.status == .failed || $0.status == .cancelled }.count
+                        if count > 1 {
+                            showingClearFailedAlert = true
+                        } else {
+                            historyManager.clearFailed()
+                        }
+                    }) {
+                        Label("Clear Failed", systemImage: "xmark.circle")
+                    }
+                    Button(role: .destructive, action: {
+                        let count = historyManager.items.filter { $0.status == .completed }.count
+                        if count > 1 {
+                            showingClearCompletedAlert = true
+                        } else {
+                            historyManager.clearCompleted()
+                        }
+                    }) {
+                        Label("Clear Completed", systemImage: "checkmark.circle")
+                    }
+                    Divider()
+                    Button(role: .destructive, action: {
+                        if historyManager.items.count > 1 {
+                            showingClearAllAlert = true
+                        } else {
+                            historyManager.clearHistory()
+                        }
+                    }) {
+                        Label("Clear All History", systemImage: "trash")
+                    }
+                } label: {
+                    Label("Clear", systemImage: "trash")
+                }
+                .controlSize(.small)
+                .fixedSize(horizontal: true, vertical: false)
+                .accessibilityLabel("Clear history options")
+            }
+        }
+        .fixedSize(horizontal: true, vertical: false)
+    }
+
+    private func consumePendingNavigationFilters() {
+        guard let pendingSource = appState.pendingHistorySourceFilter else { return }
+        categoryFilter = .all
+        sourceFilter = pendingSource
+        watchFolderRuleFilterID = appState.pendingHistoryWatchFolderRuleID
+        watchFolderRuleFilterName = appState.pendingHistoryWatchFolderRuleName
+        appState.pendingHistorySourceFilter = nil
+        appState.pendingHistoryWatchFolderRuleID = nil
+        appState.pendingHistoryWatchFolderRuleName = nil
     }
     
     @ViewBuilder
-    private var filteredEmptyStateView: some View {
-        VStack(spacing: 12) {
-            Spacer()
-            Image(systemName: "magnifyingglass")
-                .font(.system(size: 36))
-                .foregroundStyle(.tertiary)
-            
-            VStack(spacing: 4) {
-                Text("No Matching History Items")
-                    .font(.headline)
-                Text("Try adjusting your search query or category filter.")
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
+    private var emptyStateView: some View {
+        AppEmptyStateView(
+            icon: "clock.arrow.circlepath",
+            title: "No Conversion History",
+            subtitle: "Completed and previous conversion jobs will appear here once you convert files.",
+            primaryButtonTitle: "Go to Convert",
+            primaryButtonIcon: "arrow.triangle.2.circlepath",
+            onPrimaryAction: {
+                appState.selectedTab = .convert
             }
-            
-            Button("Reset Filters") {
+        )
+    }
+
+    @ViewBuilder
+    private var filteredEmptyStateView: some View {
+        AppEmptyStateView(
+            icon: "magnifyingglass",
+            title: "No Matching History Items",
+            subtitle: "Try adjusting your search query, category, or source filter.",
+            primaryButtonTitle: "Reset Filters",
+            onPrimaryAction: {
                 searchText = ""
                 categoryFilter = .all
+                sourceFilter = .all
+                watchFolderRuleFilterID = nil
+                watchFolderRuleFilterName = nil
             }
-            .buttonStyle(.bordered)
-            .controlSize(.small)
-            
-            Spacer()
-        }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .padding(24)
+        )
     }
 }
 
@@ -229,18 +316,26 @@ struct HistoryRowView: View {
         guard let url = item.inputURL else { return false }
         return FileManager.default.fileExists(atPath: url.path)
     }
+
+    private var sourceTint: Color {
+        switch item.source {
+        case .manual: return .secondary
+        case .watchFolder: return AppTheme.Colors.info
+        case .unknown: return .secondary
+        }
+    }
     
     var body: some View {
-        HStack(spacing: 12) {
+        HStack(spacing: AppTheme.Spacing.md) {
             // Status Icon
             Group {
                 switch item.status {
                 case .completed:
                     Image(systemName: "checkmark.circle.fill")
-                        .foregroundStyle(.green)
+                        .foregroundStyle(AppTheme.Colors.success)
                 case .failed:
                     Image(systemName: "xmark.circle.fill")
-                        .foregroundStyle(.red)
+                        .foregroundStyle(AppTheme.Colors.error)
                 case .cancelled:
                     Image(systemName: "slash.circle.fill")
                         .foregroundStyle(.secondary)
@@ -249,58 +344,47 @@ struct HistoryRowView: View {
             .font(.title3)
             
             // Details
-            VStack(alignment: .leading, spacing: 3) {
+            VStack(alignment: .leading, spacing: AppTheme.Spacing.xxs + 1) {
                 Text(item.inputFilename)
-                    .font(.body)
+                    .font(AppTheme.Typography.body)
                     .fontWeight(.medium)
                     .lineLimit(1)
                     .truncationMode(.middle)
                 
-                HStack(spacing: 6) {
-                    Text("\(item.inputFormatName) → \(item.outputFormatName)")
-                        .fontWeight(.medium)
-                    
-                    Text("•")
-                        .foregroundStyle(.tertiary)
-                    
-                    Text(item.date.formatted(date: .abbreviated, time: .shortened))
-                    
-                    if let preset = item.presetName {
+                ViewThatFits(in: .horizontal) {
+                    HStack(spacing: AppTheme.Spacing.xs + 2) {
+                        historyFormatAndSourceBadges
                         Text("•")
                             .foregroundStyle(.tertiary)
-                        Text(preset)
+                        historyDateAndSizeMetadata
                     }
-                    
-                    if let inBytes = item.inputSizeBytes, let outBytes = item.outputSizeBytes, inBytes > 0, outBytes > 0 {
-                        Text("•")
-                            .foregroundStyle(.tertiary)
-                        let inFormatted = ByteCountFormatter.string(fromByteCount: inBytes, countStyle: .file)
-                        let outFormatted = ByteCountFormatter.string(fromByteCount: outBytes, countStyle: .file)
-                        let diff = inBytes - outBytes
-                        if diff > 0 {
-                            let reduction = Int(round(Double(diff) / Double(inBytes) * 100.0))
-                            Text("\(inFormatted) → \(outFormatted) (-\(reduction)%)")
-                                .foregroundStyle(.secondary)
-                        } else {
-                            Text("\(inFormatted) → \(outFormatted)")
+
+                    VStack(alignment: .leading, spacing: AppTheme.Spacing.xxs + 1) {
+                        HStack(spacing: AppTheme.Spacing.xs + 2) {
+                            historyFormatAndSourceBadges
+                        }
+                        HStack(spacing: AppTheme.Spacing.xs + 2) {
+                            historyDateAndSizeMetadata
                         }
                     }
                 }
                 .font(.caption2)
                 .foregroundStyle(.secondary)
             }
+            .frame(minWidth: 0, maxWidth: .infinity, alignment: .leading)
+            .accessibilityIdentifier("history.row.\(item.inputFilename)")
             
-            Spacer()
+            Spacer(minLength: AppTheme.Spacing.sm)
             
             // Actions
-            HStack(spacing: 6) {
+            HStack(spacing: AppTheme.Spacing.xs + 2) {
                 if item.status == .completed, let outputURL = item.outputURL {
                     if hasOutputFile {
                         Button {
                             NSWorkspace.shared.open(outputURL)
                         } label: {
                             Image(systemName: "arrow.up.forward.app")
-                                .font(.system(size: 13))
+                                .font(AppTheme.Typography.subheadline)
                         }
                         .buttonStyle(.plain)
                         .help("Open output file")
@@ -310,7 +394,7 @@ struct HistoryRowView: View {
                             NSWorkspace.shared.activateFileViewerSelecting([outputURL])
                         } label: {
                             Image(systemName: "folder")
-                                .font(.system(size: 13))
+                                .font(AppTheme.Typography.subheadline)
                         }
                         .buttonStyle(.plain)
                         .help("Show in Finder")
@@ -321,18 +405,20 @@ struct HistoryRowView: View {
                             NSPasteboard.general.setString(outputURL.path, forType: .string)
                         } label: {
                             Image(systemName: "doc.on.doc")
-                                .font(.system(size: 12))
+                                .font(AppTheme.Typography.caption)
                         }
                         .buttonStyle(.plain)
                         .help("Copy output path")
                         .accessibilityLabel("Copy output path")
                     } else {
-                        HStack(spacing: 4) {
+                        HStack(spacing: AppTheme.Spacing.xs) {
                             Image(systemName: "exclamationmark.triangle")
                                 .font(.caption2)
                             Text("File Missing")
                                 .font(.caption2)
+                                .lineLimit(1)
                         }
+                        .fixedSize(horizontal: true, vertical: false)
                         .foregroundStyle(.secondary)
                         .help("Output file is no longer available.")
                     }
@@ -345,16 +431,19 @@ struct HistoryRowView: View {
                         appState.selectedTab = .convert
                     } label: {
                         Label("Repeat", systemImage: "arrow.clockwise")
-                            .font(.caption)
+                            .font(AppTheme.Typography.caption)
                     }
                     .controlSize(.small)
                     .buttonStyle(.bordered)
+                    .fixedSize(horizontal: true, vertical: false)
                     .help("Load source file into queue to convert again")
                     .accessibilityLabel("Repeat conversion for \(item.inputFilename)")
                 }
             }
+            .fixedSize(horizontal: true, vertical: false)
+            .layoutPriority(1)
         }
-        .padding(.vertical, 4)
+        .padding(.vertical, AppTheme.Spacing.xs)
         .contextMenu {
             if item.status == .completed, let url = item.outputURL {
                 if hasOutputFile {
@@ -400,6 +489,58 @@ struct HistoryRowView: View {
                     appState.handleDroppedURLs([inURL])
                     appState.selectedTab = .convert
                 }
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var historyFormatAndSourceBadges: some View {
+        AppStatusBadge(
+            text: "\(item.inputFormatName) → \(item.outputFormatName)",
+            tint: .secondary,
+            style: .rounded
+        )
+
+        AppStatusBadge(
+            text: item.sourceDisplayLabel,
+            tint: sourceTint,
+            style: .rounded
+        )
+        .help(item.source == .unknown ? "Legacy history record created before source provenance was tracked." : item.source.accessibilityDescription)
+        .accessibilityHint(item.source.accessibilityDescription)
+        .accessibilityIdentifier("history.sourceBadge.\(item.source.rawValue)")
+    }
+
+    @ViewBuilder
+    private var historyDateAndSizeMetadata: some View {
+        if let preset = item.presetName {
+            AppStatusBadge(text: preset, tint: AppTheme.Colors.accent, style: .rounded)
+            Text("•")
+                .foregroundStyle(.tertiary)
+        }
+
+        Text(item.date.formatted(date: .abbreviated, time: .shortened))
+            .lineLimit(1)
+            .fixedSize(horizontal: true, vertical: false)
+
+        if let inBytes = item.inputSizeBytes, let outBytes = item.outputSizeBytes, inBytes > 0, outBytes > 0 {
+            Text("•")
+                .foregroundStyle(.tertiary)
+            let inFormatted = ByteCountFormatter.string(fromByteCount: inBytes, countStyle: .file)
+            let outFormatted = ByteCountFormatter.string(fromByteCount: outBytes, countStyle: .file)
+            let diff = inBytes - outBytes
+            if diff > 0 {
+                let reduction = Int(round(Double(diff) / Double(inBytes) * 100.0))
+                Text("\(inFormatted) → \(outFormatted) (-\(reduction)%)")
+                    .monospacedDigit()
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+                    .fixedSize(horizontal: true, vertical: false)
+            } else {
+                Text("\(inFormatted) → \(outFormatted)")
+                    .monospacedDigit()
+                    .lineLimit(1)
+                    .fixedSize(horizontal: true, vertical: false)
             }
         }
     }

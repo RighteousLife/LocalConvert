@@ -115,6 +115,15 @@ final class PDFMetadataProvider: MetadataProvider, @unchecked Sendable {
                 throw MetadataError.corruptInput("Failed to load PDF for writing metadata")
             }
             
+            if metadata.isStrippedAll || metadata.isEditableMetadataEmpty {
+                doc.documentAttributes = [:]
+                guard doc.write(to: tempURL) else {
+                    throw MetadataError.writeFailure("Failed to write updated PDF document")
+                }
+                Self.stripEmbeddedXMPStreamsPreservingOffsets(at: tempURL)
+                return
+            }
+
             var attrs = doc.documentAttributes ?? [:]
             
             if let title = metadata.common.title {
@@ -166,5 +175,53 @@ final class PDFMetadataProvider: MetadataProvider, @unchecked Sendable {
         
         let duration = CFAbsoluteTimeGetCurrent() - startTime
         return MetadataWriteResult(outputURL: url, duration: duration)
+    }
+
+    /// Overwrites any catalog `/Metadata` reference with equal-length `/LC_NoMd` and blanks uncompressed XMP packets with spaces
+    /// so byte offsets in the PDF xref table remain intact.
+    static func stripEmbeddedXMPStreamsPreservingOffsets(at url: URL) {
+        guard var data = try? Data(contentsOf: url) else { return }
+        let metadataKey = Array("/Metadata".utf8)
+        let replacementKey = Array("/LC_NoMd_".utf8) // Exact 9-byte length match
+        var modified = false
+
+        var bytes = [UInt8](data)
+        if bytes.count >= metadataKey.count {
+            for i in 0...(bytes.count - metadataKey.count) {
+                if bytes[i..<(i + metadataKey.count)].elementsEqual(metadataKey) {
+                    let afterIdx = i + metadataKey.count
+                    if afterIdx < bytes.count, bytes[afterIdx] == 0x20 || bytes[afterIdx] == 0x0A || bytes[afterIdx] == 0x0D || bytes[afterIdx] == 0x3C {
+                        bytes.replaceSubrange(i..<(i + metadataKey.count), with: replacementKey)
+                        modified = true
+                    }
+                }
+            }
+        }
+
+        let startMarker = Array("<x:xmpmeta".utf8)
+        let endMarker = Array("</x:xmpmeta>".utf8)
+        var searchStart = 0
+        while searchStart + startMarker.count < bytes.count {
+            guard let openIdx = (searchStart...(bytes.count - startMarker.count)).first(where: {
+                bytes[$0..<($0 + startMarker.count)].elementsEqual(startMarker)
+            }) else { break }
+            if let closeIdx = (openIdx...(bytes.count - endMarker.count)).first(where: {
+                bytes[$0..<($0 + endMarker.count)].elementsEqual(endMarker)
+            }) {
+                let endSpan = closeIdx + endMarker.count
+                for idx in openIdx..<endSpan {
+                    bytes[idx] = 0x20
+                }
+                modified = true
+                searchStart = endSpan
+            } else {
+                break
+            }
+        }
+
+        if modified {
+            data = Data(bytes)
+            try? data.write(to: url, options: .atomic)
+        }
     }
 }

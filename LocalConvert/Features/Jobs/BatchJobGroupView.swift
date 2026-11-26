@@ -58,38 +58,38 @@ struct BatchJobGroupView: View {
     private var progress: Double { batch.progressFraction(manager: manager) }
     
     var body: some View {
-        VStack(alignment: .leading, spacing: 6) {
+        AppCard(padding: AppTheme.Spacing.sm) {
             DisclosureGroup(isExpanded: $isExpanded) {
-                VStack(spacing: 4) {
+                VStack(spacing: AppTheme.Spacing.xs) {
                     ForEach(batch.jobs) { job in
                         JobRowView(job: job)
                     }
                 }
-                .padding(.top, 4)
+                .padding(.top, AppTheme.Spacing.xs)
             } label: {
-                HStack(spacing: 10) {
+                HStack(spacing: AppTheme.Spacing.sm + 2) {
                     Image(systemName: "square.stack.3d.up.fill")
-                        .font(.system(size: 13))
-                        .foregroundStyle(Color.accentColor)
+                        .font(AppTheme.Typography.cardTitle)
+                        .foregroundStyle(AppTheme.Colors.accent)
                     
                     Text("Batch — \(batch.totalCount) files")
-                        .font(.system(size: 13, weight: .semibold))
+                        .font(AppTheme.Typography.cardTitle)
                     
-                    HStack(spacing: 6) {
+                    HStack(spacing: AppTheme.Spacing.xs + 2) {
                         if completed > 0 {
                             Label("\(completed)", systemImage: "checkmark.circle.fill")
-                                .font(.system(size: 11))
-                                .foregroundStyle(.green)
+                                .font(AppTheme.Typography.caption)
+                                .foregroundStyle(AppTheme.Colors.success)
                         }
                         if failed > 0 {
                             Label("\(failed)", systemImage: "exclamationmark.triangle.fill")
-                                .font(.system(size: 11))
-                                .foregroundStyle(.red)
+                                .font(AppTheme.Typography.caption)
+                                .foregroundStyle(AppTheme.Colors.error)
                         }
                         if running > 0 {
                             Label("\(running)", systemImage: "arrow.triangle.2.circlepath")
-                                .font(.system(size: 11))
-                                .foregroundStyle(Color.accentColor)
+                                .font(AppTheme.Typography.caption)
+                                .foregroundStyle(AppTheme.Colors.accent)
                         }
                     }
                     
@@ -97,24 +97,24 @@ struct BatchJobGroupView: View {
                     
                     if batch.isAllCompleted(manager: manager), let summary = manager.batchSummary(for: batch.id) {
                         Text(summary.displayString)
-                            .font(.system(size: 11, weight: .medium))
-                            .foregroundStyle(summary.savedBytes > 0 ? .green : .secondary)
+                            .font(AppTheme.Typography.caption)
+                            .fontWeight(.medium)
+                            .monospacedDigit()
+                            .foregroundStyle(summary.savedBytes > 0 ? AppTheme.Colors.success : .secondary)
                     } else {
                         ProgressView(value: progress, total: 1.0)
                             .progressViewStyle(.linear)
                             .frame(width: 80)
                         
                         Text("\(Int(progress * 100))%")
-                            .font(.system(size: 11, weight: .medium, design: .monospaced))
+                            .font(AppTheme.Typography.monoCaption)
+                            .fontWeight(.medium)
                             .foregroundStyle(.secondary)
                     }
                 }
-                .padding(.vertical, 4)
+                .padding(.vertical, AppTheme.Spacing.xs)
             }
         }
-        .padding(8)
-        .background(Color(nsColor: .controlBackgroundColor).opacity(0.3))
-        .clipShape(RoundedRectangle(cornerRadius: 10))
         .accessibilityElement(children: .contain)
         .accessibilityLabel("Batch of \(batch.totalCount) files, \(completed) completed, \(failed) failed")
     }

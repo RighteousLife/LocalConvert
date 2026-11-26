@@ -5,6 +5,7 @@
    <BuildAction
       parallelizeBuildables = "YES"
       buildImplicitDependencies = "YES"
+      buildArchitectures = "Automatic"
       runPostActionsOnFailure = "NO">
       <BuildActionEntries>
          <BuildActionEntry
@@ -47,6 +48,17 @@
                BlueprintIdentifier = "20CD2E56FF9237E7216462EE"
                BuildableName = "LocalConvertTests.xctest"
                BlueprintName = "LocalConvertTests"
+               ReferencedContainer = "container:LocalConvert.xcodeproj">
+            </BuildableReference>
+         </TestableReference>
+         <TestableReference
+            skipped = "NO"
+            parallelizable = "NO">
+            <BuildableReference
+               BuildableIdentifier = "primary"
+               BlueprintIdentifier = "4D9CDE09D4524EB30ACEA245"
+               BuildableName = "LocalConvertUITests.xctest"
+               BlueprintName = "LocalConvertUITests"
                ReferencedContainer = "container:LocalConvert.xcodeproj">
             </BuildableReference>
          </TestableReference>

@@ -13,6 +13,9 @@ struct ConversionJob: Identifiable, Sendable {
     let createdAt: Date
     let batchID: UUID?
     let presetName: String?
+    let source: ConversionSource
+    let watchFolderRuleID: UUID?
+    let watchFolderRuleName: String?
     
     init(
         id: UUID = UUID(),
@@ -23,7 +26,10 @@ struct ConversionJob: Identifiable, Sendable {
         options: ConversionOptions = .default,
         createdAt: Date = Date(),
         batchID: UUID? = nil,
-        presetName: String? = nil
+        presetName: String? = nil,
+        source: ConversionSource = .manual,
+        watchFolderRuleID: UUID? = nil,
+        watchFolderRuleName: String? = nil
     ) {
         self.id = id
         self.inputURLs = inputURLs
@@ -33,11 +39,14 @@ struct ConversionJob: Identifiable, Sendable {
         self.options = options
         self.createdAt = createdAt
         self.batchID = batchID
-        self.presetName = presetName ?? options.customOptions["preset_name"] ?? options.preset?.rawValue
+        self.presetName = presetName ?? options.customOptions["preset_name"] ?? options.effectivePreset?.rawValue
+        self.source = source
+        self.watchFolderRuleID = watchFolderRuleID
+        self.watchFolderRuleName = watchFolderRuleName
     }
     
-    var inputURL: URL {
-        inputURLs.first!
+    var inputURL: URL? {
+        inputURLs.first
     }
     
     var sourceFilename: String {
@@ -54,124 +63,6 @@ struct ConversionJob: Identifiable, Sendable {
     
     var targetFormat: FileFormat {
         outputFormat
-    }
-}
-
-// MARK: - Conversion Size Comparison
-
-struct ConversionSizeComparison: Sendable, Equatable {
-    let inputBytes: Int64
-    let outputBytes: Int64
-    
-    var formattedInput: String {
-        ByteCountFormatter.string(fromByteCount: inputBytes, countStyle: .file)
-    }
-    
-    var formattedOutput: String {
-        ByteCountFormatter.string(fromByteCount: outputBytes, countStyle: .file)
-    }
-    
-    var differenceBytes: Int64 {
-        outputBytes - inputBytes
-    }
-    
-    var percentChange: Double {
-        guard inputBytes > 0 else { return 0 }
-        return (Double(outputBytes) - Double(inputBytes)) / Double(inputBytes) * 100.0
-    }
-    
-    var isSmaller: Bool {
-        outputBytes < inputBytes
-    }
-    
-    var isLarger: Bool {
-        outputBytes > inputBytes
-    }
-    
-    var formattedSummary: String {
-        guard inputBytes > 0 && outputBytes > 0 else { return "" }
-        let pct = abs(Int(round(percentChange)))
-        if isSmaller {
-            return "\(pct)% smaller"
-        } else if isLarger {
-            return "\(pct)% larger"
-        } else {
-            return "Same size"
-        }
-    }
-    
-    var savedBytes: Int64 {
-        inputBytes - outputBytes
-    }
-    
-    var savedPercentage: Double {
-        guard inputBytes > 0 else { return 0.0 }
-        return (Double(inputBytes - outputBytes) / Double(inputBytes)) * 100.0
-    }
-    
-    var displayString: String {
-        formattedFullComparison
-    }
-    
-    var formattedFullComparison: String {
-        guard inputBytes > 0 && outputBytes > 0 else { return "" }
-        return "\(formattedInput) → \(formattedOutput) (\(formattedSummary))"
-    }
-}
-
-// MARK: - Batch Result Summary
-
-struct BatchResultSummary: Sendable, Equatable {
-    let totalFiles: Int
-    let completedCount: Int
-    let failedCount: Int
-    let cancelledCount: Int
-    let totalInputBytes: Int64
-    let totalOutputBytes: Int64
-    
-    var formattedTotalInput: String {
-        ByteCountFormatter.string(fromByteCount: totalInputBytes, countStyle: .file)
-    }
-    
-    var formattedTotalOutput: String {
-        ByteCountFormatter.string(fromByteCount: totalOutputBytes, countStyle: .file)
-    }
-    
-    var totalSavedBytes: Int64 {
-        max(0, totalInputBytes - totalOutputBytes)
-    }
-    
-    var savedBytes: Int64 {
-        totalInputBytes - totalOutputBytes
-    }
-    
-    var savedPercentage: Double {
-        guard totalInputBytes > 0 else { return 0.0 }
-        return (Double(totalInputBytes - totalOutputBytes) / Double(totalInputBytes)) * 100.0
-    }
-    
-    var formattedTotalSaved: String {
-        ByteCountFormatter.string(fromByteCount: totalSavedBytes, countStyle: .file)
-    }
-    
-    var savingsPercentage: Int {
-        guard totalInputBytes > 0, totalSavedBytes > 0 else { return 0 }
-        return Int(round(Double(totalSavedBytes) / Double(totalInputBytes) * 100.0))
-    }
-    
-    var formattedSavingsSummary: String {
-        if totalSavedBytes > 0 {
-            return "Saved: \(formattedTotalSaved) (\(savingsPercentage)%)"
-        } else if totalOutputBytes > totalInputBytes {
-            let diff = totalOutputBytes - totalInputBytes
-            return "\(ByteCountFormatter.string(fromByteCount: diff, countStyle: .file)) larger"
-        } else {
-            return "Same size"
-        }
-    }
-    
-    var displayString: String {
-        formattedSavingsSummary
     }
 }
 
@@ -237,6 +128,8 @@ final class ConversionManager: ObservableObject {
     
     private let logger = Logger(subsystem: "com.localconvert.app", category: "ConversionManager")
     private let registry: ConversionRegistry
+    private let historyManager: HistoryManager
+    private let diskSpaceGuard: DiskSpaceGuard
     
     @Published var jobStatuses: [UUID: ConversionJobStatus] = [:]
     @Published var activeJobs: [ConversionJob] = []
@@ -251,9 +144,18 @@ final class ConversionManager: ObservableObject {
     }
     
     private var tasks: [UUID: Task<Void, Never>] = [:]
+    var onPendingCancel: (@MainActor (UUID) -> Void)?
+    var onActiveRemove: (@MainActor (UUID) -> Void)?
     
-    init(registry: ConversionRegistry = .shared) {
+    init(
+        registry: ConversionRegistry = .shared,
+        historyManager: HistoryManager = .shared,
+        diskSpaceGuard: DiskSpaceGuard = DiskSpaceGuard()
+    ) {
         self.registry = registry
+        self.historyManager = historyManager
+        self.diskSpaceGuard = diskSpaceGuard
+        _ = Self.cleanStaleTemporaryFiles()
     }
     
     // MARK: - Status Queries
@@ -321,6 +223,15 @@ final class ConversionManager: ObservableObject {
     }
     
     // MARK: - Job Management
+
+    func registerPending(job: ConversionJob) {
+        if !activeJobs.contains(where: { $0.id == job.id }) {
+            activeJobs.append(job)
+        }
+        if jobStatuses[job.id] == nil {
+            jobStatuses[job.id] = .waiting
+        }
+    }
     
     func submit(job: ConversionJob, onComplete: (@MainActor @Sendable (ConversionJobStatus) -> Void)? = nil) {
         if !activeJobs.contains(where: { $0.id == job.id }) {
@@ -339,6 +250,7 @@ final class ConversionManager: ObservableObject {
         tasks[jobId] = nil
         jobStatuses[jobId] = .cancelled
         jobCompletedTimes[jobId] = Date()
+        onPendingCancel?(jobId)
         logger.info("Job \(jobId) cancelled")
     }
     
@@ -353,6 +265,7 @@ final class ConversionManager: ObservableObject {
     
     func removeJob(id: UUID) {
         cancel(jobId: id)
+        onActiveRemove?(id)
         activeJobs.removeAll { $0.id == id }
         jobStatuses.removeValue(forKey: id)
         jobStartedTimes.removeValue(forKey: id)
@@ -407,39 +320,37 @@ final class ConversionManager: ObservableObject {
         let completedCutoff = completedPolicy.timeInterval.map { now.addingTimeInterval(-$0) }
         let failedCutoff = failedPolicy.timeInterval.map { now.addingTimeInterval(-$0) }
         
-        activeJobs.removeAll { job in
-            guard let completedDate = jobCompletedTimes[job.id] else { return false }
+        guard !activeJobs.isEmpty else { return }
+
+        var idsToRemove = Set<UUID>()
+        for job in activeJobs {
+            guard let completedDate = jobCompletedTimes[job.id] else { continue }
             let status = jobStatuses[job.id]
-            
-            let shouldRemove: Bool
+
             switch status {
             case .completed:
                 if let cutoff = completedCutoff, completedDate < cutoff {
-                    shouldRemove = true
-                } else {
-                    shouldRemove = false
+                    idsToRemove.insert(job.id)
                 }
             case .failed, .cancelled:
                 if let cutoff = failedCutoff, completedDate < cutoff {
-                    shouldRemove = true
-                } else {
-                    shouldRemove = false
+                    idsToRemove.insert(job.id)
                 }
             default:
-                shouldRemove = false
+                break
             }
-            
-            if shouldRemove {
-                let id = job.id
-                jobStatuses.removeValue(forKey: id)
-                jobStartedTimes.removeValue(forKey: id)
-                jobCompletedTimes.removeValue(forKey: id)
-                jobResults.removeValue(forKey: id)
-                jobErrors.removeValue(forKey: id)
-                return true
-            }
-            return false
         }
+
+        guard !idsToRemove.isEmpty else { return }
+
+        for id in idsToRemove {
+            jobStatuses.removeValue(forKey: id)
+            jobStartedTimes.removeValue(forKey: id)
+            jobCompletedTimes.removeValue(forKey: id)
+            jobResults.removeValue(forKey: id)
+            jobErrors.removeValue(forKey: id)
+        }
+        activeJobs.removeAll { idsToRemove.contains($0.id) }
     }
     
     func applyRetentionPolicy(_ policy: JobsRetentionPolicy) {
@@ -447,10 +358,11 @@ final class ConversionManager: ObservableObject {
     }
     
     func sizeComparison(for jobId: UUID) -> ConversionSizeComparison? {
-        guard let job = activeJobs.first(where: { $0.id == jobId }) else { return nil }
-        guard let result = jobResults[jobId] else { return nil }
+        guard let job = activeJobs.first(where: { $0.id == jobId }),
+              let inputURL = job.inputURL,
+              let result = jobResults[jobId] else { return nil }
         
-        let inputBytes = (try? FileManager.default.attributesOfItem(atPath: job.inputURL.path)[.size] as? NSNumber)?.int64Value ?? 0
+        let inputBytes = (try? FileManager.default.attributesOfItem(atPath: inputURL.path)[.size] as? NSNumber)?.int64Value ?? 0
         let outputBytes = (try? FileManager.default.attributesOfItem(atPath: result.outputURL.path)[.size] as? NSNumber)?.int64Value ?? 0
         
         guard inputBytes > 0, outputBytes > 0 else { return nil }
@@ -472,7 +384,9 @@ final class ConversionManager: ObservableObject {
             switch st {
             case .completed(let res):
                 completed += 1
-                let inB = (try? FileManager.default.attributesOfItem(atPath: job.inputURL.path)[.size] as? NSNumber)?.int64Value ?? 0
+                let inB = job.inputURL.flatMap {
+                    (try? FileManager.default.attributesOfItem(atPath: $0.path)[.size] as? NSNumber)?.int64Value
+                } ?? 0
                 let outB = (try? FileManager.default.attributesOfItem(atPath: res.outputURL.path)[.size] as? NSNumber)?.int64Value ?? 0
                 totalIn += inB
                 totalOut += outB
@@ -508,7 +422,10 @@ final class ConversionManager: ObservableObject {
             outputDirectory: oldJob.outputDirectory,
             options: oldJob.options,
             batchID: oldJob.batchID,
-            presetName: oldJob.presetName
+            presetName: oldJob.presetName,
+            source: oldJob.source,
+            watchFolderRuleID: oldJob.watchFolderRuleID,
+            watchFolderRuleName: oldJob.watchFolderRuleName
         )
         
         // Clean up old job record
@@ -516,46 +433,6 @@ final class ConversionManager: ObservableObject {
         // Enqueue the new job through the existing queue
         queue.enqueue(job: newJob)
         return newJob
-    }
-    
-    // MARK: - Output File Naming
-    
-    nonisolated static func outputURL(for inputURL: URL, format: FileFormat, in directory: URL) -> URL {
-        let baseName = inputURL.deletingPathExtension().lastPathComponent
-        let ext = format.fileExtension
-        var outputURL = directory.appendingPathComponent("\(baseName).\(ext)")
-        
-        // Safe collision handling
-        var counter = 1
-        let fileManager = FileManager.default
-        while fileManager.fileExists(atPath: outputURL.path) {
-            outputURL = directory.appendingPathComponent("\(baseName) (\(counter)).\(ext)")
-            counter += 1
-        }
-        
-        return outputURL
-    }
-    
-    nonisolated static func multiPageOutputURL(
-        for inputURL: URL,
-        pageIndex: Int,
-        totalPages: Int,
-        format: FileFormat,
-        in directory: URL
-    ) -> URL {
-        let baseName = inputURL.deletingPathExtension().lastPathComponent
-        let ext = format.fileExtension
-        let pageSuffix = totalPages > 1 ? "-\(pageIndex + 1)" : ""
-        var outputURL = directory.appendingPathComponent("\(baseName)\(pageSuffix).\(ext)")
-        
-        var counter = 1
-        let fileManager = FileManager.default
-        while fileManager.fileExists(atPath: outputURL.path) {
-            outputURL = directory.appendingPathComponent("\(baseName)\(pageSuffix) (\(counter)).\(ext)")
-            counter += 1
-        }
-        
-        return outputURL
     }
     
     // MARK: - Private
@@ -571,6 +448,7 @@ final class ConversionManager: ObservableObject {
                     let historyStatus: HistoryStatus
                     var outputSizeBytes: Int64? = nil
                     var outputURLPath: String? = nil
+                    var additionalOutputURLPaths: [String]? = nil
                     var duration: TimeInterval? = nil
                     var errorMsg: String? = nil
                     
@@ -579,6 +457,8 @@ final class ConversionManager: ObservableObject {
                         historyStatus = .completed
                         outputSizeBytes = result.fileSize
                         outputURLPath = result.outputURL.path
+                        let extraPaths = result.additionalOutputURLs.map(\.path)
+                        additionalOutputURLPaths = extraPaths.isEmpty ? nil : extraPaths
                         duration = result.duration
                     case .failed(let err):
                         historyStatus = .failed
@@ -589,51 +469,140 @@ final class ConversionManager: ObservableObject {
                         historyStatus = .failed // Fallback if interrupted
                     }
                     
-                    let inputSize = (try? FileManager.default.attributesOfItem(atPath: job.inputURLs.first!.path)[.size] as? NSNumber)?.int64Value
+                    let primaryInput = job.inputURLs.first
+                    let inputSize = primaryInput.flatMap {
+                        (try? FileManager.default.attributesOfItem(atPath: $0.path)[.size] as? NSNumber)?.int64Value
+                    }
+                    let inputFilename = primaryInput?.lastPathComponent ?? "Unknown"
+                    let fallbackStem = primaryInput?.deletingPathExtension().lastPathComponent ?? "output"
+                    let resolvedOutputFilename = outputURLPath.map { URL(fileURLWithPath: $0).lastPathComponent }
+                        ?? "\(fallbackStem).\(job.outputFormat.fileExtension)"
                     
                     let historyItem = ConversionHistoryItem(
                         id: UUID(),
-                        inputFilename: job.inputURLs.first!.lastPathComponent,
+                        inputFilename: inputFilename,
                         inputFormatName: job.inputFormat.displayName,
-                        outputFilename: outputURLPath != nil ? URL(fileURLWithPath: outputURLPath!).lastPathComponent : "\(job.inputURLs.first!.deletingPathExtension().lastPathComponent).\(job.outputFormat.fileExtension)",
+                        outputFilename: resolvedOutputFilename,
                         outputFormatName: job.outputFormat.displayName,
                         date: Date(),
                         status: historyStatus,
                         inputSizeBytes: inputSize,
                         outputSizeBytes: outputSizeBytes,
-                        presetName: job.options.customOptions["preset_name"] ?? job.options.preset?.rawValue,
+                        presetName: job.presetName ?? job.options.customOptions["preset_name"] ?? job.options.effectivePreset?.rawValue,
                         outputURLPath: outputURLPath,
-                        inputURLPath: job.inputURLs.first?.path,
+                        inputURLPath: primaryInput?.path,
                         duration: duration,
-                        errorMessage: errorMsg
+                        errorMessage: errorMsg,
+                        source: job.source,
+                        watchFolderRuleID: job.watchFolderRuleID,
+                        watchFolderRuleName: job.watchFolderRuleName,
+                        additionalOutputURLPaths: additionalOutputURLPaths
                     )
                     
-                    HistoryManager.shared.addEntry(historyItem)
+                    historyManager.addEntry(historyItem)
                 }
                 onComplete?(status)
             }
         }
         
         guard !Task.isCancelled else {
+            jobCompletedTimes[job.id] = Date()
             jobStatuses[job.id] = .cancelled
+            return
+        }
+
+        guard let primaryInputURL = job.inputURLs.first else {
+            let err = ConversionError.invalidInput("No input files specified for conversion job.")
+            jobCompletedTimes[job.id] = Date()
+            jobErrors[job.id] = err
+            jobStatuses[job.id] = .failed(err)
+            StructuredDiagnostics.record(
+                category: .conversion,
+                severity: .validation,
+                stage: "inputCheck",
+                operationID: job.id.uuidString,
+                filename: nil,
+                message: "Conversion job submitted with empty inputURLs (\(job.inputFormat.rawValue) -> \(job.outputFormat.rawValue))"
+            )
             return
         }
         
         // Find engine
         guard let engine = registry.findEngine(from: job.inputFormat, to: job.outputFormat, options: job.options) else {
-            jobStatuses[job.id] = .failed(.unsupportedConversion(from: job.inputFormat, to: job.outputFormat))
+            let err = ConversionError.unsupportedConversion(from: job.inputFormat, to: job.outputFormat)
+            jobCompletedTimes[job.id] = Date()
+            jobErrors[job.id] = err
+            jobStatuses[job.id] = .failed(err)
+            StructuredDiagnostics.record(
+                category: .conversion,
+                severity: .validation,
+                stage: "findEngine",
+                operationID: job.id.uuidString,
+                filename: primaryInputURL.lastPathComponent,
+                message: "No conversion engine registered for \(job.inputFormat.rawValue) -> \(job.outputFormat.rawValue)"
+            )
             return
         }
         
         // Check engine availability
         guard await engine.isAvailable() else {
-            jobStatuses[job.id] = .failed(.engineNotAvailable(engine.name))
+            let err = ConversionError.engineNotAvailable(engine.name)
+            jobCompletedTimes[job.id] = Date()
+            jobErrors[job.id] = err
+            jobStatuses[job.id] = .failed(err)
+            StructuredDiagnostics.record(
+                category: .bundledTool,
+                severity: .internalError,
+                stage: "engineAvailable",
+                operationID: job.id.uuidString,
+                filename: primaryInputURL.lastPathComponent,
+                message: "Engine '\(engine.name)' unavailable (\(job.inputFormat.rawValue) -> \(job.outputFormat.rawValue))"
+            )
             return
         }
         
         // Check input file exists
-        guard FileManager.default.fileExists(atPath: job.inputURLs.first!.path) else {
-            jobStatuses[job.id] = .failed(.inputFileNotFound(job.inputURLs.first!))
+        guard FileManager.default.fileExists(atPath: primaryInputURL.path) else {
+            let err = ConversionError.inputFileNotFound(primaryInputURL)
+            jobCompletedTimes[job.id] = Date()
+            jobErrors[job.id] = err
+            jobStatuses[job.id] = .failed(err)
+            StructuredDiagnostics.record(
+                category: .fileAccess,
+                severity: .validation,
+                stage: "inputCheck",
+                operationID: job.id.uuidString,
+                filename: primaryInputURL.lastPathComponent,
+                message: "Input file missing (\(job.inputFormat.rawValue) -> \(job.outputFormat.rawValue))"
+            )
+            return
+        }
+        
+        // Pre-flight disk space guard on staging and destination volumes
+        do {
+            try diskSpaceGuard.validateSufficientSpace(
+                outputDirectory: job.outputDirectory,
+                inputURLs: job.inputURLs,
+                outputFormat: job.outputFormat
+            )
+        } catch let err as ConversionError {
+            jobCompletedTimes[job.id] = Date()
+            jobErrors[job.id] = err
+            jobStatuses[job.id] = .failed(err)
+            StructuredDiagnostics.record(
+                category: .fileAccess,
+                severity: StructuredDiagnostics.severity(for: err),
+                stage: "diskSpaceCheck",
+                operationID: job.id.uuidString,
+                filename: job.inputURLs.first?.lastPathComponent,
+                message: err.localizedDescription
+            )
+            return
+        } catch {
+            let err = ConversionError.unknown(error.localizedDescription)
+            jobCompletedTimes[job.id] = Date()
+            jobErrors[job.id] = err
+            jobStatuses[job.id] = .failed(err)
             return
         }
         
@@ -641,6 +610,14 @@ final class ConversionManager: ObservableObject {
         jobStartedTimes[job.id] = Date()
         jobStatuses[job.id] = .converting(.indeterminate)
         logger.info("Conversion started - Engine: \(engine.name, privacy: .public) Input: \(job.inputFormat.rawValue, privacy: .public) Output: \(job.outputFormat.rawValue, privacy: .public)")
+        StructuredDiagnostics.record(
+            category: .conversion,
+            severity: .info,
+            stage: "started",
+            operationID: job.id.uuidString,
+            filename: job.inputURLs.first?.lastPathComponent,
+            message: "\(job.inputFormat.rawValue) -> \(job.outputFormat.rawValue) via \(engine.name)"
+        )
         
         do {
             let result = try await engine.convert(
@@ -650,19 +627,29 @@ final class ConversionManager: ObservableObject {
                 options: job.options,
                 progress: { [weak self] progress in
                     Task { @MainActor in
-                        self?.jobStatuses[job.id] = .converting(progress)
+                        guard let self, case .converting = self.jobStatuses[job.id] else { return }
+                        self.jobStatuses[job.id] = .converting(progress)
                     }
                 }
             )
             
+            guard activeJobs.contains(where: { $0.id == job.id }) else {
+                cleanupLateCancelledOutputs(for: job, urls: result.allOutputURLs)
+                return
+            }
             jobCompletedTimes[job.id] = Date()
             
             guard !Task.isCancelled else {
                 jobStatuses[job.id] = .cancelled
-                // Clean up partial output files
-                for url in result.allOutputURLs {
-                    try? FileManager.default.removeItem(at: url)
-                }
+                cleanupLateCancelledOutputs(for: job, urls: result.allOutputURLs)
+                StructuredDiagnostics.record(
+                    category: .conversion,
+                    severity: .info,
+                    stage: "cancelled",
+                    operationID: job.id.uuidString,
+                    filename: job.inputURLs.first?.lastPathComponent,
+                    message: "Cancelled after execution (\(job.inputFormat.rawValue) -> \(job.outputFormat.rawValue))"
+                )
                 return
             }
             
@@ -672,99 +659,83 @@ final class ConversionManager: ObservableObject {
             jobResults[job.id] = result
             jobStatuses[job.id] = .completed(result)
             logger.info("Conversion completed - Duration: \(result.duration, privacy: .public)s")
+            StructuredDiagnostics.record(
+                category: .conversion,
+                severity: .info,
+                stage: "completed",
+                operationID: job.id.uuidString,
+                filename: job.inputURLs.first?.lastPathComponent,
+                message: "\(job.inputFormat.rawValue) -> \(job.outputFormat.rawValue) (\(result.allOutputURLs.count) output(s), \(result.fileSize) bytes, \(String(format: "%.3f", result.duration))s)"
+            )
         } catch is CancellationError {
+            guard activeJobs.contains(where: { $0.id == job.id }) else { return }
             jobCompletedTimes[job.id] = Date()
             jobStatuses[job.id] = .cancelled
+            StructuredDiagnostics.record(
+                category: .conversion,
+                severity: .info,
+                stage: "cancelled",
+                operationID: job.id.uuidString,
+                filename: job.inputURLs.first?.lastPathComponent,
+                message: "Cancelled (\(job.inputFormat.rawValue) -> \(job.outputFormat.rawValue))"
+            )
         } catch let error as ConversionError {
+            guard activeJobs.contains(where: { $0.id == job.id }) else { return }
             jobCompletedTimes[job.id] = Date()
-            jobErrors[job.id] = error
-            jobStatuses[job.id] = .failed(error)
-            logger.error("Conversion failed: \(error.localizedDescription, privacy: .public)")
+            if case .cancelled = error {
+                jobStatuses[job.id] = .cancelled
+                StructuredDiagnostics.record(
+                    category: .conversion,
+                    severity: .info,
+                    stage: "cancelled",
+                    operationID: job.id.uuidString,
+                    filename: job.inputURLs.first?.lastPathComponent,
+                    message: "Cancelled (\(job.inputFormat.rawValue) -> \(job.outputFormat.rawValue))"
+                )
+            } else {
+                jobErrors[job.id] = error
+                jobStatuses[job.id] = .failed(error)
+                logger.error("Conversion failed: \(error.localizedDescription, privacy: .public)")
+                let category: DiagnosticCategory = job.inputFormat.isRawImage
+                    ? .rawProcessing
+                    : (job.inputFormat.category == .video ? .videoProcessing : (job.inputFormat.category == .image ? .imageDecode : .conversion))
+                StructuredDiagnostics.record(
+                    category: category,
+                    severity: StructuredDiagnostics.severity(for: error),
+                    stage: "convert",
+                    operationID: job.id.uuidString,
+                    filename: job.inputURLs.first?.lastPathComponent,
+                    message: "(\(job.inputFormat.rawValue) -> \(job.outputFormat.rawValue)): \(error.localizedDescription)"
+                )
+            }
         } catch {
+            guard activeJobs.contains(where: { $0.id == job.id }) else { return }
             jobCompletedTimes[job.id] = Date()
             let convError = ConversionError.unknown(error.localizedDescription)
             jobErrors[job.id] = convError
             jobStatuses[job.id] = .failed(convError)
             logger.error("Conversion failed with unexpected error: \(error.localizedDescription, privacy: .public)")
+            StructuredDiagnostics.record(
+                category: .conversion,
+                severity: .internalError,
+                stage: "convertUnexpected",
+                operationID: job.id.uuidString,
+                filename: job.inputURLs.first?.lastPathComponent,
+                message: "(\(job.inputFormat.rawValue) -> \(job.outputFormat.rawValue)): \(error.localizedDescription)"
+            )
         }
     }
-}
 
-// MARK: - Error Details Formatter
-
-struct ErrorDetailsFormatter: Sendable {
-    static func format(
-        job: ConversionJob,
-        error: ConversionError
-    ) -> String {
-        format(
-            inputFilename: job.inputFilename,
-            inputFormat: job.inputFormat.displayName,
-            outputFormat: job.outputFormat.displayName,
-            error: error,
-            jobID: job.id
+    func cleanupLateCancelledOutputs(for job: ConversionJob, urls: [URL]) {
+        guard job.options.resolvedExistingFileHandling != .overwrite else { return }
+        let removable = ConversionQueue.safeUndoableOutputURLs(
+            outputURLs: urls,
+            protectedSourceURLs: job.inputURLs,
+            requireExistsOnDisk: false
         )
-    }
-    
-    static func format(
-        inputFilename: String,
-        inputFormat: String,
-        outputFormat: String,
-        error: ConversionError,
-        jobID: UUID? = nil
-    ) -> String {
-        let userMessage = sanitize(error.errorDescription ?? error.localizedDescription)
-        let technicalDetails: String
-        
-        switch error {
-        case .engineExecutionFailed(_, let underlyingError):
-            technicalDetails = sanitize(underlyingError ?? "None")
-        case .unsupportedConversion(let from, let to):
-            technicalDetails = "No conversion engine registered for route \(from.rawValue) → \(to.rawValue)"
-        case .engineNotAvailable(let engine):
-            technicalDetails = "Engine '\(engine)' is not installed or available on this system."
-        case .inputFileNotFound(let url):
-            technicalDetails = "Input file path: \(url.path)"
-        case .outputDirectoryNotWritable(let dir):
-            technicalDetails = "Output directory not writable: \(dir.path)"
-        default:
-            technicalDetails = "None"
+        for url in removable {
+            try? FileManager.default.removeItem(at: url)
         }
-        
-        let lines = [
-            "--- LocalConvert Error Report ---",
-            jobID != nil ? "Job ID: \(jobID!.uuidString)" : nil,
-            "Input: \(inputFilename)",
-            "Conversion: \(inputFormat) → \(outputFormat)",
-            "Status: Failed",
-            "Error: \(userMessage)",
-            "Technical Details: \(technicalDetails)",
-            "----------------------------------"
-        ].compactMap { $0 }
-        
-        return lines.joined(separator: "\n")
-    }
-    
-    /// Sanitizes secret strings like passwords or credentials from error logs
-    static func sanitize(_ text: String) -> String {
-        var result = text
-        let patterns = [
-            ("password=[^\\s&]+", "password=[REDACTED]"),
-            ("pwd=[^\\s&]+", "pwd=[REDACTED]"),
-            ("secret=[^\\s&]+", "secret=[REDACTED]"),
-            ("key=[^\\s&]+", "key=[REDACTED]")
-        ]
-        for (pattern, template) in patterns {
-            if let regex = try? NSRegularExpression(pattern: pattern, options: .caseInsensitive) {
-                result = regex.stringByReplacingMatches(
-                    in: result,
-                    options: [],
-                    range: NSRange(location: 0, length: result.utf16.count),
-                    withTemplate: template
-                )
-            }
-        }
-        return result
     }
 }
 

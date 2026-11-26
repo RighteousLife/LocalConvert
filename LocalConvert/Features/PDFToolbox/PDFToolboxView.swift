@@ -6,6 +6,8 @@ struct PDFToolboxView: View {
     @State private var selectedOperation: String = "merge"
     @State private var pageRanges: String = ""
     @State private var rotationDegrees: Int = 90
+    @State private var gridColumns: Int = 2
+    @State private var gridRows: Int = 2
     
     // Multi-File selection and custom ordering state
     @State private var selectedFileIDs: Set<UUID> = []
@@ -13,6 +15,38 @@ struct PDFToolboxView: View {
     
     // Password state for protected PDFs
     @State private var pdfPassword: String = ""
+
+    private var compressConfigKey: String {
+        PDFToolboxStore.configKey(for: selectedFiles.map(\.url))
+    }
+
+    private var compressOptionsBinding: Binding<PDFCompressionOptions> {
+        let key = compressConfigKey
+        let urls = selectedFiles.map(\.url)
+        return Binding(
+            get: { appState.pdfToolboxStore.compressionConfig(for: key) },
+            set: { nextVal in
+                let old = appState.pdfToolboxStore.compressionConfig(for: key)
+                let coalesce: String?
+                if old.targetDPI != nextVal.targetDPI {
+                    coalesce = "comp_dpi"
+                } else if old.imageQuality != nextVal.imageQuality {
+                    coalesce = "comp_quality"
+                } else {
+                    coalesce = nil
+                }
+                appState.pdfToolboxStore.updateCompressionConfig(
+                    for: key,
+                    affectedURLs: urls,
+                    title: "Change PDF Optimization Settings",
+                    coalesceKey: coalesce
+                ) { cfg in
+                    cfg = nextVal
+                    cfg.password = nil
+                }
+            }
+        )
+    }
     
     // MARK: - Derived File Sources
     
@@ -72,7 +106,7 @@ struct PDFToolboxView: View {
     }
     
     var isSingleOnlyOperation: Bool {
-        ["splitRanges", "extract", "delete", "reorder"].contains(selectedOperation)
+        ["splitRanges", "extract", "delete", "reorder", "normalizePageSizes"].contains(selectedOperation)
     }
     
     var canExecute: Bool {
@@ -89,38 +123,68 @@ struct PDFToolboxView: View {
     
     // MARK: - Body
     
+    private var isDedicatedProOperation: Bool {
+        ["pageStudio", "annotate", "ocr", "pdfa", "redact", "compare", "forms", "inspectSecurity", "normalizePageSizes"].contains(selectedOperation)
+    }
+
     var body: some View {
-        HStack(spacing: 0) {
-            // Sidebar with Operations
-            ScrollView {
-                VStack(alignment: .leading, spacing: 4) {
-                    Group {
-                        operationButton(title: "Merge PDFs", icon: "doc.on.doc", op: "merge")
-                        operationButton(title: "Split Pages", icon: "square.split.2x2", op: "separatePages")
-                        operationButton(title: "Split Every Page", icon: "arrow.up.doc", op: "splitEveryPage")
-                        operationButton(title: "Split by Ranges", icon: "scissors", op: "splitRanges")
-                        operationButton(title: "Extract Pages", icon: "doc.text.magnifyingglass", op: "extract")
-                        operationButton(title: "Delete Pages", icon: "trash", op: "delete")
-                    }
-                    
-                    Divider()
-                        .padding(.vertical, 4)
-                    
-                    Group {
-                        operationButton(title: "Reorder Pages", icon: "arrow.up.arrow.down.square", op: "reorder")
-                        operationButton(title: "Rotate Pages", icon: "rotate.right", op: "rotate")
-                        operationButton(title: "Compress PDF", icon: "arrow.down.right.and.arrow.up.left", op: "compress")
-                        operationButton(title: "PDF → Images", icon: "photo.on.rectangle", op: "pdfToImages")
-                        operationButton(title: "Images → PDF", icon: "doc.append", op: "imagesToPDF")
-                    }
+        HSplitView {
+            // Left Toolbox Sidebar
+            List(selection: $selectedOperation) {
+                Section {
+                    AppToolboxSidebarRow("Page Studio", systemImage: "square.grid.2x2", isSelected: selectedOperation == "pageStudio")
+                        .tag("pageStudio")
+                    AppToolboxSidebarRow("Merge PDFs", systemImage: "doc.on.doc", isSelected: selectedOperation == "merge")
+                        .tag("merge")
+                    AppToolboxSidebarRow("Split Pages", systemImage: "square.split.2x2", isSelected: selectedOperation == "separatePages")
+                        .tag("separatePages")
+                    AppToolboxSidebarRow("Split Every Page", systemImage: "arrow.up.doc", isSelected: selectedOperation == "splitEveryPage")
+                        .tag("splitEveryPage")
+                    AppToolboxSidebarRow("Split by Ranges", systemImage: "scissors", isSelected: selectedOperation == "splitRanges")
+                        .tag("splitRanges")
+                    AppToolboxSidebarRow("Extract Pages", systemImage: "doc.text.magnifyingglass", isSelected: selectedOperation == "extract")
+                        .tag("extract")
+                    AppToolboxSidebarRow("Delete Pages", systemImage: "trash", isSelected: selectedOperation == "delete")
+                        .tag("delete")
+                    AppToolboxSidebarRow("Reorder Pages", systemImage: "arrow.up.arrow.down.square", isSelected: selectedOperation == "reorder")
+                        .tag("reorder")
+                    AppToolboxSidebarRow("Rotate Pages", systemImage: "rotate.right", isSelected: selectedOperation == "rotate")
+                        .tag("rotate")
+                    AppToolboxSidebarRow("PDF → Images", systemImage: "photo.on.rectangle", isSelected: selectedOperation == "pdfToImages")
+                        .tag("pdfToImages")
+                    AppToolboxSidebarRow("Images → PDF", systemImage: "doc.append", isSelected: selectedOperation == "imagesToPDF")
+                        .tag("imagesToPDF")
+                } header: {
+                    AppSidebarSectionHeader(title: "Organize")
                 }
-                .padding(12)
+
+                Section {
+                    AppToolboxSidebarRow("Annotate & Edit", systemImage: "pencil.and.outline", isSelected: selectedOperation == "annotate")
+                        .tag("annotate")
+                    AppToolboxSidebarRow("OCR & Searchable PDF", systemImage: "text.viewfinder", isSelected: selectedOperation == "ocr")
+                        .tag("ocr")
+                    AppToolboxSidebarRow("PDF/A & Archiving", systemImage: "archivebox", isSelected: selectedOperation == "pdfa")
+                        .tag("pdfa")
+                    AppToolboxSidebarRow("Redact", systemImage: "eye.slash.fill", isSelected: selectedOperation == "redact")
+                        .tag("redact")
+                    AppToolboxSidebarRow("Compare", systemImage: "doc.on.doc.fill", isSelected: selectedOperation == "compare")
+                        .tag("compare")
+                    AppToolboxSidebarRow("Compress PDF", systemImage: "arrow.down.right.and.arrow.up.left", isSelected: selectedOperation == "compress")
+                        .tag("compress")
+                    AppToolboxSidebarRow("Forms", systemImage: "list.bullet.rectangle", isSelected: selectedOperation == "forms")
+                        .tag("forms")
+                    AppToolboxSidebarRow("Inspect & Security", systemImage: "lock.shield", isSelected: selectedOperation == "inspectSecurity")
+                        .tag("inspectSecurity")
+                    AppToolboxSidebarRow("Normalize Page Sizes", systemImage: "doc.text.magnifyingglass", isSelected: selectedOperation == "normalizePageSizes")
+                        .tag("normalizePageSizes")
+                } header: {
+                    AppSidebarSectionHeader(title: "PDF Pro Tools")
+                }
             }
-            .frame(width: 200)
-            .background(Color(nsColor: .controlBackgroundColor).opacity(0.4))
-            
-            Divider()
-            
+            .listStyle(.sidebar)
+            .frame(minWidth: AppTheme.Layout.toolboxSidebarMin, maxWidth: AppTheme.Layout.toolboxSidebarMax)
+            .appSecondarySidebarSurface()
+
             // Main Content Area
             VStack(spacing: 0) {
                 if candidateFiles.isEmpty {
@@ -130,15 +194,16 @@ struct PDFToolboxView: View {
                 }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .appWorkspaceSurface()
         }
         .navigationTitle("PDF Toolbox")
         .onAppear {
             syncSelectionState()
         }
-        .onChange(of: candidateFiles.map { $0.id }) { _ in
+        .onChange(of: candidateFiles.map { $0.id }) { _, _ in
             syncSelectionState()
         }
-        .onChange(of: selectedOperation) { _ in
+        .onChange(of: selectedOperation) { _, _ in
             syncSelectionState()
         }
     }
@@ -147,338 +212,301 @@ struct PDFToolboxView: View {
     
     @ViewBuilder
     private var emptyStateView: some View {
-        VStack(spacing: 12) {
-            Spacer()
-            
-            Image(systemName: selectedOperation == "imagesToPDF" ? "photo.on.rectangle.angled" : "doc.viewfinder")
-                .font(.system(size: 40))
-                .foregroundStyle(.tertiary)
-            
-            VStack(spacing: 4) {
-                Text(selectedOperation == "imagesToPDF" ? "No Image Files Loaded" : "No PDF Files Loaded")
-                    .font(.headline)
-                Text(selectedOperation == "imagesToPDF" ? "Add image files to combine into a PDF." : "Add PDF files to use PDF Toolbox.")
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
-            }
-            
-            Button("Add Files...") {
-                openFilePicker()
-            }
-            .buttonStyle(.bordered)
-            .controlSize(.regular)
-            
-            Spacer()
-        }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .padding(24)
+        AppEmptyStateView(
+            icon: selectedOperation == "imagesToPDF" ? "photo.on.rectangle.angled" : "doc.viewfinder",
+            title: selectedOperation == "imagesToPDF" ? "No Image Files Loaded" : "No PDF Files Loaded",
+            subtitle: selectedOperation == "imagesToPDF" ? "Add image files to combine into a PDF." : "Add PDF files to use PDF Toolbox.",
+            primaryButtonTitle: "Add Files...",
+            primaryButtonIcon: "plus",
+            onPrimaryAction: openFilePicker
+        )
     }
-    
+
     @ViewBuilder
     private var configurationView: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            // 1. Operation Title & Context Summary
-            VStack(alignment: .leading, spacing: 4) {
-                Text(operationDisplayName(for: selectedOperation))
-                    .font(.title3)
-                    .fontWeight(.semibold)
-                
-                Text(operationDescription(for: selectedOperation))
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            }
-            
-            Divider()
-            
-            // 2. Multi-File Selection Section
-            VStack(alignment: .leading, spacing: 8) {
-                HStack {
-                    Text("Selected Files (\(selectedCount) of \(candidateFiles.count)):")
-                        .font(.subheadline)
-                        .fontWeight(.medium)
-                    
-                    Spacer()
-                    
+        VStack(spacing: 0) {
+            // 1. Unified Toolbox Header
+            AppToolboxHeader(
+                title: operationDisplayName(for: selectedOperation),
+                subtitle: operationDescription(for: selectedOperation),
+                metadataText: "\(selectedCount) of \(candidateFiles.count) selected"
+            )
+
+            // 2. File Selection (Horizontal Strip for standard/Pro tools; Ordered List for Merge / Images → PDF)
+            if !isMultiInputOperation {
+                let items = orderedCandidateFiles.map { file in
+                    AppFileSelectionStripItem(
+                        id: file.id,
+                        title: file.fileName,
+                        formatLabel: file.detectedFormat?.shortExtensionLabel ?? "",
+                        isSelected: selectedFileIDs.contains(file.id)
+                    )
+                }
+
+                AppFileSelectionStrip(
+                    title: "Files (\(selectedCount) of \(candidateFiles.count) selected)",
+                    items: items,
+                    onToggleItem: { toggleSelection(for: $0) }
+                ) {
+                    Button("Add Files...") { openFilePicker() }
+                        .controlSize(.small)
                     Button(selectedCount == candidateFiles.count ? "Deselect All" : "Select All") {
                         if selectedCount == candidateFiles.count {
                             selectedFileIDs.removeAll()
                         } else {
-                            selectedFileIDs = Set(candidateFiles.map { $0.id })
+                            selectedFileIDs = Set(candidateFiles.map(\.id))
                         }
                     }
-                    .buttonStyle(.plain)
-                    .font(.caption)
-                    .foregroundStyle(Color.accentColor)
+                    .controlSize(.small)
                 }
-                
-                List {
-                    ForEach(orderedCandidateFiles) { file in
-                        let isSelected = selectedFileIDs.contains(file.id)
-                        let isImage = file.detectedFormat?.category == .image
-                        
-                        HStack(spacing: 8) {
-                            // Checkbox Button
-                            Button {
-                                toggleSelection(for: file.id)
-                            } label: {
-                                Image(systemName: isSelected ? "checkmark.square.fill" : "square")
-                                    .foregroundStyle(isSelected ? Color.accentColor : Color.secondary)
-                                    .font(.system(size: 14))
-                            }
-                            .buttonStyle(.plain)
-                            .accessibilityLabel(isSelected ? "Deselect \(file.fileName)" : "Select \(file.fileName)")
-                            
-                            // File Icon
-                            Image(systemName: isImage ? "photo" : "doc.fill")
-                                .foregroundStyle(isImage ? Color.accentColor : Color.red)
-                                .font(.system(size: 14))
-                            
-                            // File Name
-                            Text(file.fileName)
-                                .font(.body)
-                                .lineLimit(1)
-                                .truncationMode(.middle)
-                            
-                            Spacer()
-                            
-                            // File Size
-                            Text(file.formattedFileSize)
-                                .font(.caption2)
-                                .foregroundStyle(.secondary)
-                            
-                            // Reorder Controls for Multi-Input Operations (Merge, Images to PDF)
-                            if isMultiInputOperation {
-                                HStack(spacing: 2) {
-                                    Button {
-                                        moveUp(id: file.id)
-                                    } label: {
-                                        Image(systemName: "chevron.up")
-                                            .font(.system(size: 10))
-                                    }
-                                    .buttonStyle(.plain)
-                                    .disabled(orderedCandidateFiles.first?.id == file.id)
-                                    .help("Move file up in merge order")
-                                    
-                                    Button {
-                                        moveDown(id: file.id)
-                                    } label: {
-                                        Image(systemName: "chevron.down")
-                                            .font(.system(size: 10))
-                                    }
-                                    .buttonStyle(.plain)
-                                    .disabled(orderedCandidateFiles.last?.id == file.id)
-                                    .help("Move file down in merge order")
-                                }
-                                .padding(.leading, 4)
-                            }
-                        }
-                        .contentShape(Rectangle())
-                        .onTapGesture {
-                            toggleSelection(for: file.id)
-                        }
-                        .accessibilityElement(children: .combine)
-                        .accessibilityLabel("\(file.fileName), \(file.formattedFileSize), \(isSelected ? "selected" : "not selected")")
-                    }
-                }
-                .frame(maxHeight: 140)
-                .clipShape(RoundedRectangle(cornerRadius: 6))
             }
-            
-            Divider()
-            
+
             // 3. Detail & Options Section
-            if selectedCount == 0 {
-                VStack(alignment: .center, spacing: 6) {
-                    Spacer()
-                    Image(systemName: "hand.tap")
-                        .font(.system(size: 28))
-                        .foregroundStyle(.tertiary)
-                    Text("Select a file from the list above to configure.")
-                        .font(.subheadline)
-                        .foregroundStyle(.secondary)
-                    Spacer()
-                }
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-            } else if selectedCount == 1, let singleFile = selectedFiles.first {
-                ScrollView {
-                    VStack(alignment: .leading, spacing: 12) {
-                        if singleFile.detectedFormat == .pdf {
-                            PDFPreviewThumbnailsView(pdfURL: singleFile.url, password: pdfPassword.isEmpty ? nil : pdfPassword)
-                                .frame(height: 160)
-                                .clipShape(RoundedRectangle(cornerRadius: 6))
-                                .accessibilityLabel("PDF Document Preview and Thumbnails")
-                        }
-                        
-                        // Password Entry for Protected PDF
-                        if isSingleFileLocked {
-                            HStack(spacing: 8) {
-                                Image(systemName: "lock.fill")
-                                    .foregroundStyle(.orange)
-                                    .font(.system(size: 14))
-                                SecureField("PDF Password (if required)", text: $pdfPassword)
-                                    .textFieldStyle(.roundedBorder)
-                                    .frame(maxWidth: 240)
-                                    .accessibilityLabel("PDF Document Password Input")
-                                if !pdfPassword.isEmpty {
-                                    Button("Clear") { pdfPassword = "" }
-                                        .buttonStyle(.plain)
-                                        .font(.caption)
+            ScrollView {
+                VStack(alignment: .leading, spacing: AppTheme.Spacing.lg) {
+                    if isMultiInputOperation {
+                        AppCard(title: "Merge Order (\(selectedCount) of \(candidateFiles.count) selected)", icon: "list.number") {
+                            VStack(spacing: AppTheme.Spacing.xs) {
+                                HStack {
+                                    Text("Drag order controls set output sequence.")
+                                        .font(AppTheme.Typography.caption)
                                         .foregroundStyle(.secondary)
+                                    Spacer()
+                                    Button("Add Files...") { openFilePicker() }
+                                        .controlSize(.small)
+                                        .fixedSize(horizontal: true, vertical: false)
+                                    Button(selectedCount == candidateFiles.count ? "Deselect All" : "Select All") {
+                                        if selectedCount == candidateFiles.count {
+                                            selectedFileIDs.removeAll()
+                                        } else {
+                                            selectedFileIDs = Set(candidateFiles.map(\.id))
+                                        }
+                                    }
+                                    .controlSize(.small)
+                                    .fixedSize(horizontal: true, vertical: false)
                                 }
-                            }
-                            .padding(8)
-                            .background(Color.orange.opacity(0.08))
-                            .clipShape(RoundedRectangle(cornerRadius: 6))
-                        }
-                        
-                        // Operation Options
-                        if selectedOperation == "separatePages" {
-                            HStack(spacing: 8) {
-                                Image(systemName: "info.circle")
-                                    .foregroundStyle(Color.accentColor)
-                                Text("Automatically separates multi-up PDF pages into individual pages, skipping empty cells.")
-                                    .font(.caption)
-                                    .foregroundStyle(.secondary)
-                            }
-                            .padding(8)
-                            .background(Color.accentColor.opacity(0.06))
-                            .clipShape(RoundedRectangle(cornerRadius: 6))
-                        }
-                        
-                        if ["splitRanges", "extract", "delete", "reorder"].contains(selectedOperation) {
-                            VStack(alignment: .leading, spacing: 4) {
-                                Text("Page Ranges:")
-                                    .font(.subheadline)
-                                    .fontWeight(.medium)
-                                TextField("e.g. 1-3, 5, 8-10", text: $pageRanges)
-                                    .textFieldStyle(.roundedBorder)
-                                    .frame(maxWidth: 300)
-                                    .accessibilityLabel("Page Ranges Input")
-                            }
-                        }
-                        
-                        if selectedOperation == "rotate" {
-                            VStack(alignment: .leading, spacing: 4) {
-                                Text("Rotation Angle:")
-                                    .font(.subheadline)
-                                    .fontWeight(.medium)
-                                Picker("", selection: $rotationDegrees) {
-                                    Text("90° Clockwise").tag(90)
-                                    Text("180° Flip").tag(180)
-                                    Text("90° Counter-Clockwise").tag(270)
+
+                                ForEach(orderedCandidateFiles) { file in
+                                    let isSelected = selectedFileIDs.contains(file.id)
+                                    let isImage = file.detectedFormat?.category == .image
+
+                                    HStack(spacing: AppTheme.Spacing.sm) {
+                                        Button {
+                                            toggleSelection(for: file.id)
+                                        } label: {
+                                            Image(systemName: isSelected ? "checkmark.square.fill" : "square")
+                                                .foregroundStyle(isSelected ? AppTheme.Colors.accent : .secondary)
+                                        }
+                                        .buttonStyle(.plain)
+                                        .accessibilityLabel(isSelected ? "Deselect \(file.fileName)" : "Select \(file.fileName)")
+
+                                        Image(systemName: isImage ? "photo" : "doc.fill")
+                                            .foregroundStyle(isImage ? AppTheme.Colors.accent : AppTheme.Colors.error)
+
+                                        Text(file.fileName)
+                                            .font(AppTheme.Typography.body)
+                                            .lineLimit(1)
+                                            .truncationMode(.middle)
+
+                                        Spacer()
+
+                                        Text(file.formattedFileSize)
+                                            .font(AppTheme.Typography.monoCaption)
+                                            .foregroundStyle(.secondary)
+
+                                        HStack(spacing: AppTheme.Spacing.xxs) {
+                                            Button { moveUp(id: file.id) } label: {
+                                                Image(systemName: "chevron.up").font(.caption2)
+                                            }
+                                            .buttonStyle(.bordered)
+                                            .controlSize(.mini)
+                                            .disabled(orderedCandidateFiles.first?.id == file.id)
+                                            .help("Move file up in merge order")
+                                            .accessibilityLabel("Move \(file.fileName) up in merge order")
+
+                                            Button { moveDown(id: file.id) } label: {
+                                                Image(systemName: "chevron.down").font(.caption2)
+                                            }
+                                            .buttonStyle(.bordered)
+                                            .controlSize(.mini)
+                                            .disabled(orderedCandidateFiles.last?.id == file.id)
+                                            .help("Move file down in merge order")
+                                            .accessibilityLabel("Move \(file.fileName) down in merge order")
+                                        }
+                                    }
+                                    .padding(.vertical, AppTheme.Spacing.xs)
+                                    .contentShape(Rectangle())
+                                    .onTapGesture { toggleSelection(for: file.id) }
                                 }
-                                .frame(maxWidth: 220)
-                                .accessibilityLabel("PDF Rotation Selection")
                             }
                         }
                     }
+
+                    pdfOperationDetailContent
                 }
-            } else {
-                // Multiple files selected
-                VStack(alignment: .leading, spacing: 10) {
-                    if selectedOperation == "merge" {
-                        HStack(spacing: 8) {
-                            Image(systemName: "doc.on.doc.fill")
-                                .foregroundStyle(Color.accentColor)
-                                .font(.system(size: 20))
-                            VStack(alignment: .leading, spacing: 2) {
-                                Text("Ready to merge \(selectedCount) PDF documents")
-                                    .font(.headline)
-                                Text("The files will be merged sequentially into a single PDF in the order shown above.")
-                                    .font(.caption)
-                                    .foregroundStyle(.secondary)
-                            }
-                        }
-                        .padding(12)
-                        .background(Color.accentColor.opacity(0.06))
-                        .clipShape(RoundedRectangle(cornerRadius: 8))
-                    } else if selectedOperation == "imagesToPDF" {
-                        HStack(spacing: 8) {
-                            Image(systemName: "photo.stack")
-                                .foregroundStyle(Color.accentColor)
-                                .font(.system(size: 20))
-                            VStack(alignment: .leading, spacing: 2) {
-                                Text("Ready to combine \(selectedCount) images")
-                                    .font(.headline)
-                                Text("Images will be combined into a single multi-page PDF document.")
-                                    .font(.caption)
-                                    .foregroundStyle(.secondary)
-                            }
-                        }
-                        .padding(12)
-                        .background(Color.accentColor.opacity(0.06))
-                        .clipShape(RoundedRectangle(cornerRadius: 8))
-                    } else if isBatchCapableOperation {
-                        HStack(spacing: 8) {
-                            Image(systemName: "square.stack.3d.up.fill")
-                                .foregroundStyle(Color.accentColor)
-                                .font(.system(size: 20))
-                            VStack(alignment: .leading, spacing: 2) {
-                                Text("Batch Mode: \(selectedCount) files selected")
-                                    .font(.headline)
-                                Text("Each selected PDF will be processed individually in the queue.")
-                                    .font(.caption)
-                                    .foregroundStyle(.secondary)
-                            }
-                        }
-                        .padding(12)
-                        .background(Color.accentColor.opacity(0.06))
-                        .clipShape(RoundedRectangle(cornerRadius: 8))
-                    } else {
-                        HStack(spacing: 8) {
-                            Image(systemName: "exclamationmark.circle")
-                                .foregroundStyle(Color.orange)
-                            Text("Please select exactly one PDF document to configure custom page ranges.")
-                                .font(.subheadline)
-                                .foregroundStyle(.secondary)
-                        }
-                        .padding(12)
-                        .background(Color.orange.opacity(0.06))
-                        .clipShape(RoundedRectangle(cornerRadius: 8))
-                    }
-                    
-                    Spacer()
-                }
+                .padding(AppTheme.Spacing.xl)
             }
-            
-            Spacer()
-            
-            Divider()
-            
-            // 4. Bottom Action Bar
-            HStack {
-                if !canExecute {
-                    if selectedOperation == "merge" && selectedCount < 2 {
-                        Text("Select at least 2 PDFs to merge.")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                    } else if selectedCount == 0 {
-                        Text("Select a file to continue.")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                    } else if isSingleOnlyOperation && selectedCount > 1 {
-                        Text("Select exactly 1 file for this operation.")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            if !isDedicatedProOperation {
+                AppBottomActionBar {
+                    HStack {
+                        if !canExecute {
+                            if selectedOperation == "merge" && selectedCount < 2 {
+                                Text("Select at least 2 PDFs to merge.")
+                                    .font(AppTheme.Typography.caption)
+                                    .foregroundStyle(.secondary)
+                            } else if selectedCount == 0 {
+                                Text("Select a file to continue.")
+                                    .font(AppTheme.Typography.caption)
+                                    .foregroundStyle(.secondary)
+                            } else if isSingleOnlyOperation && selectedCount > 1 {
+                                Text("Select exactly 1 file for this operation.")
+                                    .font(AppTheme.Typography.caption)
+                                    .foregroundStyle(.secondary)
+                            }
+                        }
+
+                        Spacer()
+
+                        Button(action: executeOperation) {
+                            Label(executeButtonTitle, systemImage: "play.fill")
+                        }
+                        .buttonStyle(.borderedProminent)
+                        .disabled(!canExecute)
+                        .accessibilityLabel("\(executeButtonTitle)")
                     }
                 }
-                
-                Spacer()
-                
-                Button(action: executeOperation) {
-                    Label(executeButtonTitle, systemImage: "play.fill")
-                        .frame(minWidth: 140)
-                }
-                .buttonStyle(.borderedProminent)
-                .controlSize(.large)
-                .disabled(!canExecute)
-                .accessibilityLabel("\(executeButtonTitle)")
             }
         }
-        .padding(20)
+    }
+
+    @ViewBuilder
+    private var pdfOperationDetailContent: some View {
+        if isDedicatedProOperation {
+            VStack(alignment: .leading, spacing: AppTheme.Spacing.md) {
+                if isSingleFileLocked {
+                    passwordPromptBanner
+                }
+                proSectionBody
+            }
+        } else if selectedCount == 0 {
+            AppEmptyStateView(
+                icon: "hand.tap",
+                title: "No File Selected",
+                subtitle: "Select a file from the bar above to configure this PDF operation."
+            )
+            .frame(minHeight: 220)
+        } else if selectedCount == 1, let singleFile = selectedFiles.first {
+            VStack(alignment: .leading, spacing: AppTheme.Spacing.md) {
+                if singleFile.detectedFormat == .pdf {
+                    PDFPreviewThumbnailsView(pdfURL: singleFile.url, password: pdfPassword.isEmpty ? nil : pdfPassword)
+                        .frame(height: 160)
+                        .clipShape(RoundedRectangle(cornerRadius: AppTheme.Radius.sm))
+                        .accessibilityLabel("PDF Document Preview and Thumbnails")
+                }
+
+                if isSingleFileLocked {
+                    passwordPromptBanner
+                }
+
+                if selectedOperation == "compress" {
+                    PDFCompressOptionsView(selectedFiles: selectedFiles, options: compressOptionsBinding)
+                }
+
+                if selectedOperation == "separatePages" {
+                    VStack(alignment: .leading, spacing: AppTheme.Spacing.sm) {
+                        AppInfoBanner(
+                            style: .info,
+                            message: "Automatically separates multi-up PDF pages into individual pages, skipping empty cells."
+                        )
+                        separatePagesLayoutOptions
+                    }
+                }
+
+                if ["splitRanges", "extract", "delete", "reorder", "rotate"].contains(selectedOperation) {
+                    AppCard(title: "Page Ranges", icon: "text.line.first.and.arrowtriangle.forward") {
+                        VStack(alignment: .leading, spacing: AppTheme.Spacing.xs) {
+                            TextField(selectedOperation == "rotate" ? "All pages (or e.g. 1-3, 5)" : "e.g. 1-3, 5, 8-10", text: $pageRanges)
+                                .textFieldStyle(.roundedBorder)
+                                .frame(maxWidth: 320)
+                                .accessibilityLabel("Page Ranges Input")
+                            Text("Separate page numbers or inclusive ranges with commas.")
+                                .font(AppTheme.Typography.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                }
+
+                if selectedOperation == "rotate" {
+                    AppCard(title: "Rotation Options", icon: "rotate.right") {
+                        Picker("Rotation Angle", selection: $rotationDegrees) {
+                            Text("90° Clockwise").tag(90)
+                            Text("180° Flip").tag(180)
+                            Text("90° Counter-Clockwise").tag(270)
+                        }
+                        .frame(maxWidth: 260)
+                        .accessibilityLabel("PDF Rotation Selection")
+                    }
+                }
+            }
+        } else {
+            VStack(alignment: .leading, spacing: AppTheme.Spacing.md) {
+                if selectedOperation == "merge" {
+                    AppInfoBanner(
+                        style: .info,
+                        message: "Ready to merge \(selectedCount) PDF documents sequentially into a single PDF in the order shown above.",
+                        icon: "doc.on.doc.fill"
+                    )
+                } else if selectedOperation == "imagesToPDF" {
+                    AppInfoBanner(
+                        style: .info,
+                        message: "Ready to combine \(selectedCount) images into a single multi-page PDF document.",
+                        icon: "photo.stack"
+                    )
+                } else if isBatchCapableOperation {
+                    AppInfoBanner(
+                        style: .info,
+                        message: "Batch mode: \(selectedCount) files selected. Each PDF will be processed individually in the queue.",
+                        icon: "square.stack.3d.up.fill"
+                    )
+                    if selectedOperation == "compress" {
+                        PDFCompressOptionsView(selectedFiles: selectedFiles, options: compressOptionsBinding)
+                    } else if selectedOperation == "separatePages" {
+                        separatePagesLayoutOptions
+                    }
+                } else {
+                    AppInfoBanner(
+                        style: .warning,
+                        message: "Please select exactly one PDF document to configure custom page ranges."
+                    )
+                }
+            }
+        }
     }
     
     // MARK: - Helpers & State Management
+
+    private var separatePagesLayoutOptions: some View {
+        AppCard(title: "Split Grid Layout", icon: "square.grid.2x2") {
+            VStack(alignment: .leading, spacing: AppTheme.Spacing.sm) {
+                Stepper(value: $gridColumns, in: PDFGridLayout.minimumDivisionCount...PDFGridLayout.maximumDivisionCount) {
+                    Text("Columns across: \(gridColumns)")
+                }
+                .accessibilityLabel("Columns across")
+                .accessibilityValue("\(gridColumns)")
+
+                Stepper(value: $gridRows, in: PDFGridLayout.minimumDivisionCount...PDFGridLayout.maximumDivisionCount) {
+                    Text("Rows down: \(gridRows)")
+                }
+                .accessibilityLabel("Rows down")
+                .accessibilityValue("\(gridRows)")
+
+                Text("\(gridColumns * gridRows) possible sections per page. Blank sections may be skipped.")
+                    .font(AppTheme.Typography.caption)
+                    .foregroundStyle(.secondary)
+            }
+        }
+    }
     
     private var executeButtonTitle: String {
         if selectedOperation == "merge" {
@@ -527,40 +555,192 @@ struct PDFToolboxView: View {
         }
     }
     
+    @ViewBuilder
+    private var passwordPromptBanner: some View {
+        HStack(spacing: AppTheme.Spacing.sm) {
+            Image(systemName: "lock.fill")
+                .foregroundStyle(AppTheme.Colors.warning)
+                .font(AppTheme.Typography.body)
+            SecureField("PDF Password (if required)", text: $pdfPassword)
+                .textFieldStyle(.roundedBorder)
+                .frame(maxWidth: 240)
+                .accessibilityLabel("PDF Document Password Input")
+            if !pdfPassword.isEmpty {
+                Button("Clear") { pdfPassword = "" }
+                    .buttonStyle(.plain)
+                    .font(AppTheme.Typography.caption)
+                    .foregroundStyle(.secondary)
+            }
+        }
+        .padding(AppTheme.Spacing.sm)
+        .background(AppTheme.Colors.warningTint)
+        .clipShape(RoundedRectangle(cornerRadius: AppTheme.Radius.md))
+        .overlay(
+            RoundedRectangle(cornerRadius: AppTheme.Radius.md)
+                .strokeBorder(AppTheme.Colors.warning.opacity(0.25), lineWidth: 0.75)
+        )
+    }
+
+    @ViewBuilder
+    private var proSectionBody: some View {
+        switch selectedOperation {
+        case "normalizePageSizes":
+            PDFPageNormalizationView(selectedFiles: selectedFiles, password: $pdfPassword) { request, suppliedPassword in
+                guard selectedFiles.count == 1,
+                      let encoded = try? request.encodedOption() else { return }
+                pdfPassword = ""
+                appState.executePDFOperation(
+                    operation: "normalizePageSizes",
+                    files: selectedFiles,
+                    password: suppliedPassword,
+                    extraOptions: [PDFPageNormalizationRequest.optionKey: encoded]
+                )
+            }
+        case "pageStudio":
+            PDFPageStudioView(
+                selectedFiles: selectedFiles,
+                password: $pdfPassword,
+                onCommitWorkspace: { draft in
+                    var extra: [String: String] = [:]
+                    if let data = try? JSONEncoder().encode(draft),
+                       let json = String(data: data, encoding: .utf8) {
+                        extra["pdf_page_workspace"] = json
+                    }
+                    let pwd = pdfPassword.isEmpty ? nil : pdfPassword
+                    pdfPassword = ""
+                    appState.executePDFOperation(operation: "pageWorkspace", files: selectedFiles, password: pwd, extraOptions: extra)
+                },
+                onExtractSelected: { rangeStr in
+                    let pwd = pdfPassword.isEmpty ? nil : pdfPassword
+                    pdfPassword = ""
+                    appState.executePDFOperation(operation: "extract", files: selectedFiles, ranges: rangeStr, password: pwd)
+                },
+                onSplitStrategy: { strategy in
+                    let pwd = pdfPassword.isEmpty ? nil : pdfPassword
+                    pdfPassword = ""
+                    switch strategy {
+                    case .everyPage:
+                        appState.executePDFOperation(operation: "splitEveryPage", files: selectedFiles, password: pwd)
+                    case .everyNPages(let n):
+                        appState.executePDFOperation(operation: "splitEveryN", files: selectedFiles, password: pwd, extraOptions: ["pdf_split_every_n": "\(n)"])
+                    case .pageRanges(let raw):
+                        appState.executePDFOperation(operation: "splitRanges", files: selectedFiles, ranges: raw, password: pwd)
+                    case .topLevelBookmarks:
+                        appState.executePDFOperation(operation: "splitBookmarks", files: selectedFiles, password: pwd)
+                    }
+                }
+            )
+        case "annotate":
+            PDFAnnotationStudioView(selectedFiles: selectedFiles, password: $pdfPassword) { saveOpts in
+                var sanitized = saveOpts
+                sanitized.password = nil
+                var extra: [String: String] = [:]
+                if let data = try? JSONEncoder().encode(sanitized),
+                   let json = String(data: data, encoding: .utf8) {
+                    extra["pdf_annotate_config"] = json
+                }
+                let pwd = pdfPassword.isEmpty ? nil : pdfPassword
+                pdfPassword = ""
+                appState.executePDFOperation(operation: "annotate", files: selectedFiles, password: pwd, extraOptions: extra)
+            }
+        case "ocr":
+            PDFOCRView(selectedFiles: selectedFiles, password: $pdfPassword) { ocrOpts in
+                var extra: [String: String] = [:]
+                var sanitizedOpts = ocrOpts
+                sanitizedOpts.password = nil
+                if let data = try? JSONEncoder().encode(sanitizedOpts),
+                   let json = String(data: data, encoding: .utf8) {
+                    extra["pdf_ocr_config"] = json
+                }
+                let pwd = pdfPassword.isEmpty ? nil : pdfPassword
+                pdfPassword = ""
+                appState.executePDFOperation(operation: "ocr", files: selectedFiles, password: pwd, extraOptions: extra)
+            }
+        case "pdfa":
+            PDFArchivalView(selectedFiles: selectedFiles, password: $pdfPassword) { profile in
+                let pwd = pdfPassword.isEmpty ? nil : pdfPassword
+                pdfPassword = ""
+                appState.executePDFOperation(
+                    operation: "pdfa",
+                    files: selectedFiles,
+                    password: pwd,
+                    extraOptions: ["pdf_pdfa_profile": profile.rawValue]
+                )
+            }
+        case "redact":
+            PDFRedactionView(selectedFiles: selectedFiles, password: $pdfPassword) { redactOpts in
+                var sanitized = redactOpts
+                sanitized.password = nil
+                var extra: [String: String] = [:]
+                if let data = try? JSONEncoder().encode(sanitized),
+                   let json = String(data: data, encoding: .utf8) {
+                    extra["pdf_redact_config"] = json
+                }
+                let pwd = pdfPassword.isEmpty ? nil : pdfPassword
+                pdfPassword = ""
+                appState.executePDFOperation(operation: "redact", files: selectedFiles, password: pwd, extraOptions: extra)
+            }
+        case "compare":
+            PDFCompareView(availablePDFs: orderedCandidateFiles, password: $pdfPassword)
+        case "forms":
+            PDFFormsView(selectedFiles: selectedFiles, password: $pdfPassword) { editedFields, flatten in
+                var extra: [String: String] = ["pdf_form_flatten": flatten ? "true" : "false"]
+                if let data = try? JSONEncoder().encode(editedFields),
+                   let json = String(data: data, encoding: .utf8) {
+                    extra["pdf_form_fields"] = json
+                }
+                let pwd = pdfPassword.isEmpty ? nil : pdfPassword
+                pdfPassword = ""
+                appState.executePDFOperation(operation: "forms", files: selectedFiles, password: pwd, extraOptions: extra)
+            }
+        case "inspectSecurity":
+            PDFInspectorSecurityView(selectedFiles: selectedFiles, password: $pdfPassword) { secOpts in
+                var extra: [String: String] = [:]
+                if let data = try? JSONEncoder().encode(secOpts),
+                   let json = String(data: data, encoding: .utf8) {
+                    extra["pdf_security_config"] = json
+                }
+                let pwd = pdfPassword.isEmpty ? nil : pdfPassword
+                pdfPassword = ""
+                appState.executePDFOperation(operation: "security", files: selectedFiles, password: pwd, extraOptions: extra)
+            }
+        default:
+            EmptyView()
+        }
+    }
+
     private func executeOperation() {
         guard canExecute else { return }
-        
+
+        var extra: [String: String] = [:]
+        if selectedOperation == "separatePages" {
+            extra[PDFGridLayout.columnsOptionKey] = String(gridColumns)
+            extra[PDFGridLayout.rowsOptionKey] = String(gridRows)
+        } else if selectedOperation == "compress" {
+            var cfg = appState.pdfToolboxStore.compressionConfig(for: compressConfigKey)
+            cfg.password = nil
+            if let data = try? JSONEncoder().encode(cfg),
+               let json = String(data: data, encoding: .utf8) {
+                extra["pdf_compress_config"] = json
+            }
+        }
+        let pwd = pdfPassword.isEmpty ? nil : pdfPassword
+        pdfPassword = ""
         appState.executePDFOperation(
             operation: selectedOperation,
             files: selectedFiles,
             ranges: pageRanges.isEmpty ? nil : pageRanges,
             rotation: selectedOperation == "rotate" ? rotationDegrees : nil,
-            password: pdfPassword.isEmpty ? nil : pdfPassword
+            password: pwd,
+            extraOptions: extra
         )
-    }
-    
-    private func operationButton(title: String, icon: String, op: String) -> some View {
-        Button(action: { selectedOperation = op }) {
-            HStack(spacing: 8) {
-                Image(systemName: icon)
-                    .font(.system(size: 13))
-                    .frame(width: 18)
-                Text(title)
-                    .font(.subheadline)
-                Spacer()
-            }
-            .padding(.horizontal, 8)
-            .padding(.vertical, 6)
-            .background(selectedOperation == op ? Color.accentColor.opacity(0.12) : Color.clear)
-            .foregroundStyle(selectedOperation == op ? Color.accentColor : Color.primary)
-            .clipShape(RoundedRectangle(cornerRadius: 6))
-        }
-        .buttonStyle(.plain)
-        .accessibilityLabel("\(title) operation")
     }
     
     private func operationDisplayName(for op: String) -> String {
         switch op {
+        case "pageStudio": return "PDF Page Studio"
+        case "normalizePageSizes": return "Normalize PDF Page Sizes"
+        case "annotate": return "Annotate & Edit PDF"
         case "merge": return "Merge PDFs"
         case "separatePages": return "Split Pages"
         case "splitEveryPage": return "Split Every Page"
@@ -572,12 +752,21 @@ struct PDFToolboxView: View {
         case "compress": return "Compress PDF"
         case "pdfToImages": return "PDF to Images"
         case "imagesToPDF": return "Images to PDF"
+        case "ocr": return "OCR & Searchable PDF"
+        case "pdfa": return "PDF/A & Archiving"
+        case "redact": return "Permanent Redaction"
+        case "compare": return "Compare PDF Documents"
+        case "forms": return "PDF Forms (AcroForm)"
+        case "inspectSecurity": return "PDF Inspector & Security"
         default: return op.capitalized
         }
     }
     
     private func operationDescription(for op: String) -> String {
         switch op {
+        case "pageStudio": return "Visually organize, reorder, move, duplicate, delete, rotate, crop, resize, insert, and split pages."
+        case "normalizePageSizes": return "Fit every source page to a consistent target size while preserving source order."
+        case "annotate": return "Add and edit highlights, underlines, strikeouts, sticky notes, callout text, freehand ink, shapes, and arrows."
         case "merge": return "Combine multiple PDF documents into a single sequential file."
         case "separatePages": return "Automatically separates multi-up PDF pages into individual pages, skipping empty cells."
         case "splitEveryPage": return "Split each page of the PDF into a separate document."
@@ -586,9 +775,15 @@ struct PDFToolboxView: View {
         case "delete": return "Remove specified pages from the PDF document."
         case "reorder": return "Reorder pages in the specified sequence."
         case "rotate": return "Rotate all pages in the PDF document."
-        case "compress": return "Optimize and reduce the file size of the PDF."
+        case "compress": return "Optimize and reduce the file size of the PDF with preset or custom quality profiles."
         case "pdfToImages": return "Render PDF pages into high-resolution image files."
         case "imagesToPDF": return "Combine image files into a single PDF document."
+        case "ocr": return "Recognize scanned text via Apple Vision and embed an invisible searchable text layer."
+        case "pdfa": return "Convert to archival ISO 19005 PDF/A profiles and verify compliance."
+        case "redact": return "Permanently purge selected text, rectangular areas, pages, and overlapping annotations."
+        case "compare": return "Inspect text differences, page size/rotation changes, and visual pixel diffs side-by-side."
+        case "forms": return "Inspect, edit, export/import, and flatten AcroForm widgets (detects read-only XFA)."
+        case "inspectSecurity": return "Inspect fonts, images, color spaces, XMP, encryption cipher, permissions, and signatures."
         default: return ""
         }
     }

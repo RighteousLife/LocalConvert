@@ -2,13 +2,22 @@ import SwiftUI
 import AppKit
 
 struct PresetManagerView: View {
+    enum PresetSection: String, CaseIterable, Identifiable {
+        case presets = "Presets"
+        case watchFolders = "Watch Folders"
+
+        var id: String { rawValue }
+    }
+
     @ObservedObject var presetManager = PresetManager.shared
     @EnvironmentObject var appState: AppState
     
+    @State private var selectedSection: PresetSection = .presets
     @State private var selectedPresetId: UUID?
     @State private var isShowingCreateSheet = false
     @State private var presetToEdit: SavedPreset?
     @State private var showDeleteConfirmation = false
+    @State private var showResetConfirmation = false
     @State private var presetToDelete: SavedPreset?
     @State private var applyFeedbackMessage: String?
     
@@ -28,24 +37,16 @@ struct PresetManagerView: View {
     }
     
     var body: some View {
-        HStack(spacing: 0) {
-            // Left Column: Preset List (~230-250 pt)
-            presetListColumn
-                .frame(width: 240)
-                .background(Color(nsColor: .controlBackgroundColor).opacity(0.35))
-            
-            Divider()
-            
-            // Right Column: Preset Detail (Expands to fill all remaining width)
+        VStack(spacing: 0) {
+            sectionHeaderBar
+            AppDivider()
+
             Group {
-                if let preset = selectedPreset {
-                    presetDetailView(preset)
-                } else {
-                    ContentUnavailableView(
-                        "No Preset Selected",
-                        systemImage: "slider.horizontal.3",
-                        description: Text("Select a preset from the list or create a new one.")
-                    )
+                switch selectedSection {
+                case .presets:
+                    presetsSplitView
+                case .watchFolders:
+                    WatchFoldersSectionView(manager: appState.watchFolderManager, presetManager: presetManager)
                 }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -73,6 +74,69 @@ struct PresetManagerView: View {
             Text("Are you sure you want to delete this preset? This action cannot be undone.")
         }
     }
+
+    private var sectionHeaderBar: some View {
+        HStack(spacing: AppTheme.Spacing.md) {
+            Picker("Presets Section", selection: $selectedSection) {
+                ForEach(PresetSection.allCases) { section in
+                    Text(section.rawValue).tag(section)
+                }
+            }
+            .pickerStyle(.segmented)
+            .labelsHidden()
+            .frame(maxWidth: 260)
+            .accessibilityLabel("Presets and Watch Folders")
+            .accessibilityIdentifier("presets.sectionPicker")
+
+            Spacer()
+
+            if !appState.watchFolderManager.rules.isEmpty {
+                let activeCount = appState.watchFolderManager.rules.filter {
+                    $0.isEnabled && !$0.isPaused && !$0.lastStatus.isError && !appState.watchFolderManager.isGloballyPaused
+                }.count
+                AppStatusBadge(
+                    text: appState.watchFolderManager.isGloballyPaused
+                        ? "Watch Folders Paused"
+                        : "\(activeCount) Watch Folder\(activeCount == 1 ? "" : "s") Active",
+                    tint: appState.watchFolderManager.isGloballyPaused ? AppTheme.Colors.warning : AppTheme.Colors.success
+                )
+            }
+        }
+        .padding(.horizontal, AppTheme.Spacing.lg)
+        .padding(.vertical, AppTheme.Spacing.sm)
+        .background(AppTheme.Colors.subtleSurface)
+    }
+
+    private var presetsSplitView: some View {
+        HSplitView {
+            // Left Column: Preset List
+            presetListColumn
+                .frame(
+                    minWidth: AppTheme.Layout.toolboxSidebarMin,
+                    idealWidth: AppTheme.Layout.toolboxSidebarIdeal,
+                    maxWidth: AppTheme.Layout.toolboxSidebarMax
+                )
+                .appSecondarySidebarSurface()
+            
+            // Right Column: Preset Detail (Expands to fill all remaining width)
+            Group {
+                if let preset = selectedPreset {
+                    presetDetailView(preset)
+                } else {
+                    AppEmptyStateView(
+                        icon: "slider.horizontal.3",
+                        title: "No Preset Selected",
+                        subtitle: "Select a preset from the list or create a new one.",
+                        primaryButtonTitle: "Create New Preset...",
+                        primaryButtonIcon: "plus",
+                        onPrimaryAction: { isShowingCreateSheet = true }
+                    )
+                }
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .appWorkspaceSurface()
+        }
+    }
     
     // MARK: - Preset List Column
     
@@ -82,7 +146,7 @@ struct PresetManagerView: View {
                 if !builtInPresets.isEmpty {
                     Section("Built-in Presets") {
                         ForEach(builtInPresets) { preset in
-                            PresetRow(preset: preset)
+                            PresetRow(preset: preset, isSelected: selectedPresetId == preset.id)
                                 .tag(preset.id)
                         }
                     }
@@ -96,7 +160,7 @@ struct PresetManagerView: View {
                             .padding(.vertical, 2)
                     } else {
                         ForEach(customPresets) { preset in
-                            PresetRow(preset: preset)
+                            PresetRow(preset: preset, isSelected: selectedPresetId == preset.id)
                                 .tag(preset.id)
                                 .contextMenu {
                                     Button("Edit...") {
@@ -116,8 +180,9 @@ struct PresetManagerView: View {
                 }
             }
             .listStyle(.sidebar)
+            .appSecondarySidebarSurface()
             
-            Divider()
+            AppDivider()
             
             // Bottom Action Bar
             HStack {
@@ -129,12 +194,21 @@ struct PresetManagerView: View {
                 
                 Spacer()
                 
-                Button(action: { presetManager.resetToDefaults() }) {
+                Button(action: { showResetConfirmation = true }) {
                     Image(systemName: "arrow.counterclockwise")
                         .font(.caption)
                         .help("Reset default presets")
                 }
                 .buttonStyle(.borderless)
+                .accessibilityLabel("Reset default presets")
+                .alert("Reset Default Presets?", isPresented: $showResetConfirmation) {
+                    Button("Cancel", role: .cancel) {}
+                    Button("Reset Defaults", role: .destructive) {
+                        presetManager.resetToDefaults()
+                    }
+                } message: {
+                    Text("This restores built-in presets to factory settings while keeping custom presets unchanged.")
+                }
             }
             .padding(.horizontal, 10)
             .padding(.vertical, 8)
@@ -146,119 +220,72 @@ struct PresetManagerView: View {
     private func presetDetailView(_ preset: SavedPreset) -> some View {
         VStack(spacing: 0) {
             // Compact Header Bar
-            HStack(alignment: .center, spacing: 10) {
-                VStack(alignment: .leading, spacing: 3) {
-                    HStack(alignment: .center, spacing: 8) {
-                        Text(preset.name)
-                            .font(.title3)
-                            .fontWeight(.semibold)
-                        
-                        Text(preset.targetFormat.displayName)
-                            .font(.caption2)
-                            .fontWeight(.medium)
-                            .padding(.horizontal, 6)
-                            .padding(.vertical, 2)
-                            .background(Color.accentColor.opacity(0.12))
-                            .foregroundStyle(Color.accentColor)
-                            .clipShape(Capsule())
-                        
-                        if preset.isBuiltIn {
-                            Text("Built-in")
-                                .font(.caption2)
-                                .padding(.horizontal, 5)
-                                .padding(.vertical, 1.5)
-                                .background(Color.secondary.opacity(0.12))
-                                .foregroundStyle(.secondary)
-                                .clipShape(Capsule())
-                        }
-                    }
-                    
-                    if let desc = preset.description, !desc.isEmpty {
-                        Text(desc)
-                            .font(.subheadline)
-                            .foregroundStyle(.secondary)
-                    }
+            ViewThatFits(in: .horizontal) {
+                HStack(alignment: .center, spacing: 10) {
+                    presetHeaderTitleBlock(preset)
+                    Spacer(minLength: AppTheme.Spacing.sm)
+                    presetHeaderActions(preset)
                 }
-                
-                Spacer()
-                
-                // Actions
-                HStack(spacing: 6) {
-                    if !preset.isBuiltIn {
-                        Button("Edit...") {
-                            presetToEdit = preset
+
+                VStack(alignment: .leading, spacing: AppTheme.Spacing.xs + 2) {
+                    HStack(alignment: .center, spacing: AppTheme.Spacing.sm) {
+                        Text(preset.name)
+                            .font(AppTheme.Typography.pageTitle)
+                            .lineLimit(1)
+                            .truncationMode(.tail)
+
+                        AppStatusBadge(text: preset.targetFormat.displayName, tint: AppTheme.Colors.accent)
+
+                        if preset.isBuiltIn {
+                            AppStatusBadge(text: "Built-in", tint: .secondary)
                         }
-                        .controlSize(.small)
-                        
-                        Button(role: .destructive) {
-                            presetToDelete = preset
-                            showDeleteConfirmation = true
-                        } label: {
-                            Image(systemName: "trash")
-                        }
-                        .controlSize(.small)
+
+                        Spacer(minLength: 0)
                     }
-                    
-                    Button("Duplicate") {
-                        if let dup = presetManager.duplicate(id: preset.id) {
-                            selectedPresetId = dup.id
+
+                    HStack(alignment: .center, spacing: AppTheme.Spacing.sm) {
+                        if let desc = preset.description, !desc.isEmpty {
+                            Text(desc)
+                                .font(.subheadline)
+                                .foregroundStyle(.secondary)
+                                .lineLimit(2)
+                                .fixedSize(horizontal: false, vertical: true)
                         }
+                        Spacer(minLength: AppTheme.Spacing.sm)
+                        presetHeaderActions(preset)
                     }
-                    .controlSize(.small)
                 }
             }
-            .padding(.horizontal, 20)
-            .padding(.vertical, 10)
-            .background(Color(nsColor: .controlBackgroundColor).opacity(0.4))
+            .padding(.horizontal, AppTheme.Spacing.xl)
+            .padding(.vertical, AppTheme.Spacing.sm + 2)
+            .background(AppTheme.Colors.subtleSurface)
             
-            Divider()
+            AppDivider()
             
             // Queue Compatibility Banner (if files exist in queue)
             if !appState.droppedFiles.isEmpty {
                 let urls = appState.droppedFiles.map { $0.url }
                 let validation = presetManager.validator.validateBatch(preset: preset, urls: urls)
+                let feedbackSuffix = applyFeedbackMessage.map { " — \($0)" } ?? ""
                 
-                HStack(spacing: 10) {
-                    Image(systemName: validation.hasCompatibleFiles ? "checkmark.circle.fill" : "info.circle")
-                        .foregroundStyle(validation.hasCompatibleFiles ? .green : .secondary)
-                    
-                    Text(validation.summary)
-                        .font(.caption)
-                    
-                    if let feedback = applyFeedbackMessage {
-                        Text("— \(feedback)")
-                            .font(.caption)
-                            .foregroundStyle(.green)
-                    }
-                    
-                    Spacer()
-                    
-                    if validation.hasCompatibleFiles {
-                        Button("Apply to Queue") {
-                            presetManager.apply(preset: preset, to: appState)
-                            applyFeedbackMessage = "Applied!"
-                        }
-                        .buttonStyle(.borderedProminent)
-                        .controlSize(.small)
-                    }
-                }
-                .padding(.horizontal, 20)
-                .padding(.vertical, 8)
-                .background(validation.hasCompatibleFiles ? Color.green.opacity(0.08) : Color.secondary.opacity(0.08))
-                
-                Divider()
+                AppInfoBanner(
+                    style: validation.hasCompatibleFiles ? .success : .info,
+                    message: validation.summary + feedbackSuffix,
+                    icon: validation.hasCompatibleFiles ? "checkmark.circle.fill" : "info.circle",
+                    actionTitle: validation.hasCompatibleFiles ? "Apply to Queue" : nil,
+                    onAction: validation.hasCompatibleFiles ? {
+                        presetManager.apply(preset: preset, to: appState)
+                        applyFeedbackMessage = "Applied!"
+                    } : nil
+                )
+                .padding(.horizontal, AppTheme.Spacing.xl)
+                .padding(.top, AppTheme.Spacing.md)
             }
             
-            // Native macOS Inspector Layout (Clean grouped sections without heavy cards)
             ScrollView {
-                VStack(alignment: .leading, spacing: 24) {
-                    // Conversion Section
-                    VStack(alignment: .leading, spacing: 10) {
-                        Text("Conversion")
-                            .font(.headline)
-                            .foregroundStyle(.primary)
-                        
-                        VStack(spacing: 6) {
+                VStack(alignment: .leading, spacing: AppTheme.Spacing.md) {
+                    AppCard(title: "Conversion", icon: "arrow.triangle.2.circlepath") {
+                        VStack(spacing: AppTheme.Spacing.xs + 2) {
                             inspectorRow(
                                 title: "Output Target",
                                 value: "\(preset.targetFormat.displayName) (.\(preset.targetFormat.fileExtension))"
@@ -281,13 +308,8 @@ struct PresetManagerView: View {
                         }
                     }
                     
-                    // Options Section
-                    VStack(alignment: .leading, spacing: 10) {
-                        Text("Options")
-                            .font(.headline)
-                            .foregroundStyle(.primary)
-                        
-                        VStack(spacing: 6) {
+                    AppCard(title: "Options", icon: "slider.horizontal.3") {
+                        VStack(spacing: AppTheme.Spacing.xs + 2) {
                             inspectorRow(
                                 title: "Preserve Metadata",
                                 value: preset.options.preserveMetadata ? "Yes" : "No"
@@ -327,17 +349,77 @@ struct PresetManagerView: View {
                         }
                     }
                 }
-                .padding(24)
+                .padding(AppTheme.Spacing.xl)
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
     
+    @ViewBuilder
+    private func presetHeaderTitleBlock(_ preset: SavedPreset) -> some View {
+        VStack(alignment: .leading, spacing: 3) {
+            HStack(alignment: .center, spacing: AppTheme.Spacing.sm) {
+                Text(preset.name)
+                    .font(AppTheme.Typography.pageTitle)
+                    .lineLimit(1)
+                    .truncationMode(.tail)
+
+                AppStatusBadge(text: preset.targetFormat.displayName, tint: AppTheme.Colors.accent)
+
+                if preset.isBuiltIn {
+                    AppStatusBadge(text: "Built-in", tint: .secondary)
+                }
+            }
+
+            if let desc = preset.description, !desc.isEmpty {
+                Text(desc)
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(2)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func presetHeaderActions(_ preset: SavedPreset) -> some View {
+        HStack(spacing: 6) {
+            if !preset.isBuiltIn {
+                Button("Edit...") {
+                    presetToEdit = preset
+                }
+                .controlSize(.small)
+                .fixedSize(horizontal: true, vertical: false)
+
+                Button(role: .destructive) {
+                    presetToDelete = preset
+                    showDeleteConfirmation = true
+                } label: {
+                    Image(systemName: "trash")
+                }
+                .controlSize(.small)
+                .fixedSize(horizontal: true, vertical: false)
+                .accessibilityLabel("Delete preset")
+            }
+
+            Button("Duplicate") {
+                if let dup = presetManager.duplicate(id: preset.id) {
+                    selectedPresetId = dup.id
+                }
+            }
+            .controlSize(.small)
+            .fixedSize(horizontal: true, vertical: false)
+        }
+        .fixedSize(horizontal: true, vertical: false)
+    }
+
     private func inspectorRow(title: String, value: String) -> some View {
         HStack(alignment: .firstTextBaseline) {
             Text(title)
                 .font(.body)
                 .foregroundStyle(.secondary)
+                .lineLimit(1)
+                .fixedSize(horizontal: true, vertical: false)
             
             Spacer(minLength: 20)
             
@@ -346,6 +428,7 @@ struct PresetManagerView: View {
                 .fontWeight(.regular)
                 .foregroundStyle(.primary)
                 .multilineTextAlignment(.trailing)
+                .fixedSize(horizontal: false, vertical: true)
         }
         .padding(.vertical, 4)
     }
@@ -367,12 +450,16 @@ struct PresetManagerView: View {
 
 struct PresetRow: View {
     let preset: SavedPreset
+    var isSelected: Bool = false
+
+    @Environment(\.backgroundProminence) private var backgroundProminence
     
     var body: some View {
-        HStack(spacing: 8) {
+        HStack(spacing: AppTheme.Spacing.sm) {
             Image(systemName: iconName(for: preset.targetFormat.category))
-                .foregroundStyle(Color.accentColor)
-                .frame(width: 16)
+                .font(.system(size: 13.5, weight: .medium))
+                .frame(width: 22, alignment: .center)
+                .foregroundStyle(backgroundProminence == .increased ? Color.white : AppTheme.Colors.accent)
             
             VStack(alignment: .leading, spacing: 1) {
                 Text(preset.name)
@@ -381,7 +468,7 @@ struct PresetRow: View {
                 
                 Text(preset.targetFormat.displayName)
                     .font(.caption2)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(backgroundProminence == .increased ? Color.white.opacity(0.85) : .secondary)
             }
         }
         .padding(.vertical, 2)
@@ -393,7 +480,8 @@ struct PresetRow: View {
         case .video: return "video"
         case .audio: return "music.note"
         case .document: return "doc.text"
-        default: return "doc"
+        case .subtitle: return "captions.bubble"
+        case .archive: return "archivebox"
         }
     }
 }

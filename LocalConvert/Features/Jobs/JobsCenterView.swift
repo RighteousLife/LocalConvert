@@ -23,13 +23,17 @@ struct JobsCenterView: View {
         }
     }
     
-    /// Groups filtered jobs by batchID when multiple jobs share the same batch
+    /// Groups filtered jobs by batchID in deterministic appearance order when multiple jobs share the same batch
     private var batchGroupedSections: (batches: [BatchGroup], standaloneJobs: [ConversionJob]) {
         var batchDict: [UUID: [ConversionJob]] = [:]
+        var orderedBatchIDs: [UUID] = []
         var standalone: [ConversionJob] = []
         
         for job in filteredJobs {
             if let batchID = job.batchID {
+                if batchDict[batchID] == nil {
+                    orderedBatchIDs.append(batchID)
+                }
                 batchDict[batchID, default: []].append(job)
             } else {
                 standalone.append(job)
@@ -37,7 +41,8 @@ struct JobsCenterView: View {
         }
         
         var batches: [BatchGroup] = []
-        for (id, jobs) in batchDict {
+        for id in orderedBatchIDs {
+            guard let jobs = batchDict[id] else { continue }
             if jobs.count > 1 {
                 batches.append(BatchGroup(id: id, jobs: jobs))
             } else {
@@ -53,7 +58,7 @@ struct JobsCenterView: View {
             // Header Summary & Filters
             JobsSummaryHeaderView(filter: $filter)
             
-            Divider()
+            AppDivider()
             
             // Content Area
             if manager.activeJobs.isEmpty {
@@ -65,7 +70,6 @@ struct JobsCenterView: View {
             }
         }
         .navigationTitle("Jobs Center")
-        .frame(minWidth: 500, minHeight: 400)
         .onAppear {
             manager.applyRetentionPolicy(AppSettings.shared.jobsRetentionPolicy)
         }
@@ -75,7 +79,7 @@ struct JobsCenterView: View {
     
     private var jobsListView: some View {
         ScrollView {
-            LazyVStack(spacing: 8) {
+            LazyVStack(spacing: AppTheme.Spacing.sm) {
                 let sections = batchGroupedSections
                 
                 // Batches
@@ -88,59 +92,29 @@ struct JobsCenterView: View {
                     JobRowView(job: job)
                 }
             }
-            .padding(16)
+            .padding(AppTheme.Spacing.lg)
         }
     }
     
     private var emptyStateView: some View {
-        VStack(spacing: 12) {
-            Spacer()
-            
-            Image(systemName: "tray")
-                .font(.system(size: 40))
-                .foregroundStyle(.tertiary)
-            
-            VStack(spacing: 4) {
-                Text("No Active or Recent Jobs")
-                    .font(.headline)
-                Text("Conversions you initiate will appear here in real-time.")
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
-            }
-            
-            Button("Add Files to Convert") {
-                openFilePicker()
-            }
-            .buttonStyle(.bordered)
-            .controlSize(.regular)
-            
-            Spacer()
-        }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .padding(24)
+        AppEmptyStateView(
+            icon: "tray",
+            title: "No Active or Recent Jobs",
+            subtitle: "Live execution state and recent session conversions appear here. Persistent past outcomes are archived in Conversion History.",
+            primaryButtonTitle: "Add Files to Convert",
+            primaryButtonIcon: "plus",
+            onPrimaryAction: openFilePicker
+        )
     }
-    
+
     private var filteredEmptyStateView: some View {
-        VStack(spacing: 12) {
-            Spacer()
-            Image(systemName: "line.3.horizontal.decrease.circle")
-                .font(.system(size: 36))
-                .foregroundStyle(.tertiary)
-            
-            Text("No \(filter.rawValue) Jobs")
-                .font(.headline)
-            Text("Try selecting 'All' to see all conversion jobs.")
-                .font(.subheadline)
-                .foregroundStyle(.secondary)
-            
-            Button("Show All Jobs") {
-                filter = .all
-            }
-            .buttonStyle(.bordered)
-            Spacer()
-        }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .padding(24)
+        AppEmptyStateView(
+            icon: "line.3.horizontal.decrease.circle",
+            title: "No \(filter.rawValue) Jobs",
+            subtitle: "Try selecting 'All' to see all conversion jobs.",
+            primaryButtonTitle: "Show All Jobs",
+            onPrimaryAction: { filter = .all }
+        )
     }
     
     private func openFilePicker() {

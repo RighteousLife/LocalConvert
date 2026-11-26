@@ -4,68 +4,57 @@ import UniformTypeIdentifiers
 struct DropZoneView: View {
     @EnvironmentObject var appState: AppState
     @State private var isTargeted = false
+    @State private var showingFormatsSheet = false
     
     var body: some View {
         VStack(spacing: 0) {
             // Folder rejection banner if user dropped a folder
             if let notice = appState.folderRejectedNotice {
-                HStack(spacing: 8) {
-                    Image(systemName: "folder.badge.questionmark")
-                        .foregroundStyle(.orange)
-                    Text(notice)
-                        .font(.caption)
-                    
-                    if !appState.pendingFolderURLs.isEmpty {
-                        Button(action: {
-                            appState.importFilesFromPendingFolders()
-                        }) {
-                            Label("Import Files", systemImage: "arrow.down.doc")
-                                .font(.caption)
-                        }
-                        .controlSize(.small)
-                        .buttonStyle(.borderedProminent)
-                        .accessibilityLabel("Import Files")
-                        .accessibilityHint("Adds supported files from the dropped folder.")
-                    }
-                    
-                    Spacer()
-                    
-                    Button(action: {
+                AppInfoBanner(
+                    style: .warning,
+                    message: notice,
+                    icon: "folder.badge.questionmark",
+                    actionTitle: appState.pendingFolderURLs.isEmpty ? nil : "Import Files",
+                    onAction: appState.pendingFolderURLs.isEmpty ? nil : { appState.importFilesFromPendingFolders() },
+                    onDismiss: {
                         appState.folderRejectedNotice = nil
                         appState.pendingFolderURLs = []
-                    }) {
-                        Image(systemName: "xmark")
-                            .font(.caption2)
-                            .foregroundStyle(.secondary)
                     }
-                    .buttonStyle(.plain)
-                    .accessibilityLabel("Dismiss folder notice")
-                }
-                .padding(.horizontal, 16)
-                .padding(.vertical, 8)
-                .background(Color.orange.opacity(0.12))
+                )
+                .padding(.horizontal, AppTheme.Spacing.lg)
+                .padding(.top, AppTheme.Spacing.sm)
             }
             
-            VStack(spacing: 24) {
+            VStack(spacing: AppTheme.Spacing.xxl) {
                 // MARK: - Dashed Drop Zone Box (Focused only on drop action)
-                VStack(spacing: 16) {
+                VStack(spacing: AppTheme.Spacing.lg) {
                     Image(systemName: isTargeted ? "arrow.down.doc.fill" : "arrow.down.doc")
-                        .font(.system(size: 44, weight: .light))
-                        .foregroundStyle(isTargeted ? Color.accentColor : Color.secondary)
+                        .font(.system(size: AppTheme.Layout.emptyIconSize, weight: .light))
+                        .foregroundStyle(isTargeted ? AppTheme.Colors.accent : Color.secondary)
                         .symbolEffect(.bounce, value: isTargeted)
                     
-                    VStack(spacing: 6) {
+                    VStack(spacing: AppTheme.Spacing.xs + 2) {
                         Text(isTargeted ? "Release to add files" : "Drop files here")
                             .font(.title2)
                             .fontWeight(.medium)
-                            .foregroundStyle(isTargeted ? Color.accentColor : .primary)
+                            .foregroundStyle(isTargeted ? AppTheme.Colors.accent : .primary)
                         
-                        Text("Images · PDF · Office · Audio · Video")
-                            .font(.subheadline)
+                        Text("Images · PDF · Office · Audio · Video · Subtitles · Archives")
+                            .font(AppTheme.Typography.subheadline)
                             .foregroundStyle(.secondary)
                         
+                        Button {
+                            showingFormatsSheet = true
+                        } label: {
+                            Label("Supported Formats & Matrix", systemImage: "list.bullet.rectangle")
+                                .font(AppTheme.Typography.caption)
+                        }
+                        .buttonStyle(.link)
+                        .accessibilityLabel("View Supported Formats and Conversion Matrix")
+                        .accessibilityIdentifier("dropzone.supportedFormats")
+                        
                         Text("or")
-                            .font(.caption)
+                            .font(AppTheme.Typography.caption)
                             .foregroundStyle(.tertiary)
                     }
                     
@@ -77,49 +66,50 @@ struct DropZoneView: View {
                     .buttonStyle(.borderedProminent)
                     .keyboardShortcut("o", modifiers: .command)
                     .accessibilityLabel("Add files to convert")
+                    .accessibilityIdentifier("dropzone.addFiles")
                     
                     // Drop Feedback Indicator (e.g. "3 files added")
                     if let feedback = appState.dropFeedbackText {
-                        HStack(spacing: 6) {
+                        HStack(spacing: AppTheme.Spacing.xs + 2) {
                             Image(systemName: "checkmark.circle.fill")
-                                .foregroundStyle(.green)
+                                .foregroundStyle(AppTheme.Colors.success)
                             Text(feedback)
-                                .font(.caption)
+                                .font(AppTheme.Typography.caption)
                                 .fontWeight(.medium)
                         }
-                        .padding(.horizontal, 12)
-                        .padding(.vertical, 4)
-                        .background(Color.green.opacity(0.12))
+                        .padding(.horizontal, AppTheme.Spacing.md)
+                        .padding(.vertical, AppTheme.Spacing.xs)
+                        .background(AppTheme.Colors.successTint)
                         .clipShape(Capsule())
                         .transition(.opacity.combined(with: .scale))
                     }
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
                 .background {
-                    RoundedRectangle(cornerRadius: 12)
+                    RoundedRectangle(cornerRadius: AppTheme.Radius.xl)
                         .strokeBorder(
-                            isTargeted ? Color.accentColor : Color.secondary.opacity(0.25),
+                            isTargeted ? AppTheme.Colors.accent : AppTheme.Colors.cardBorder,
                             style: StrokeStyle(lineWidth: 2, dash: [8, 4])
                         )
                 }
                 
                 // MARK: - Privacy & Offline Guarantee (Outside the drop zone)
-                VStack(spacing: 4) {
+                VStack(spacing: AppTheme.Spacing.xs) {
                     Text("Your files, Your Mac.")
-                        .font(.subheadline)
+                        .font(AppTheme.Typography.subheadline)
                         .fontWeight(.medium)
                         .foregroundStyle(.secondary)
                     
                     Text("All conversions happen locally on your Mac. No data is sent to the cloud.")
-                        .font(.caption)
+                        .font(AppTheme.Typography.caption)
                         .foregroundStyle(.tertiary)
                 }
-                .padding(.top, 4)
-                .padding(.bottom, 12)
+                .padding(.top, AppTheme.Spacing.xs)
+                .padding(.bottom, AppTheme.Spacing.md)
             }
-            .padding(.horizontal, 28)
-            .padding(.top, 24)
-            .padding(.bottom, 8)
+            .padding(.horizontal, AppTheme.Spacing.xxl + 4)
+            .padding(.top, AppTheme.Spacing.xxl)
+            .padding(.bottom, AppTheme.Spacing.sm)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .onDrop(of: [.fileURL], isTargeted: $isTargeted) { providers in
@@ -128,6 +118,9 @@ struct DropZoneView: View {
         }
         .accessibilityLabel("File drop zone")
         .accessibilityHint("Drop files here to convert them, or press Command-O to select files")
+        .sheet(isPresented: $showingFormatsSheet) {
+            SupportedFormatsView(isPresented: $showingFormatsSheet)
+        }
     }
     
     // MARK: - Actions

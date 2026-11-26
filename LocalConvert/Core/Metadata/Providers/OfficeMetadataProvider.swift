@@ -60,19 +60,11 @@ final class OfficeMetadataProvider: MetadataProvider, @unchecked Sendable {
         process.executableURL = URL(fileURLWithPath: "/usr/bin/unzip")
         process.arguments = ["-p", url.path, "docProps/core.xml"]
         
-        let pipe = Pipe()
-        process.standardOutput = pipe
-        process.standardError = FileHandle.nullDevice
-        
         do {
-            try process.run()
-            process.waitUntilExit()
-            
-            if process.terminationStatus == 0 {
-                let data = pipe.fileHandleForReading.readDataToEndOfFile()
-                if let xmlStr = String(data: data, encoding: .utf8) {
-                    parseCorePropertiesXML(xmlStr, into: &doc)
-                }
+            let output = try await AsyncProcessRunner.run(process)
+            if output.terminationStatus == 0,
+               let xmlStr = String(data: output.stdout, encoding: .utf8) {
+                parseCorePropertiesXML(xmlStr, into: &doc)
             }
         } catch {
             logger.warning("Failed to extract OpenXML core properties: \(error.localizedDescription, privacy: .public)")
@@ -100,43 +92,65 @@ final class OfficeMetadataProvider: MetadataProvider, @unchecked Sendable {
         let startTime = CFAbsoluteTimeGetCurrent()
         
         try await SafeMetadataWriter.performSafeWrite(on: url) { tempURL in
-            try self.executeUpdate(metadata: metadata, tempURL: tempURL)
+            try await self.executeUpdate(metadata: metadata, tempURL: tempURL)
         }
         
         let duration = CFAbsoluteTimeGetCurrent() - startTime
         return MetadataWriteResult(outputURL: url, duration: duration)
     }
     
-    private func executeUpdate(metadata: MetadataDocument, tempURL: URL) throws {
-        let parent = tempURL.deletingLastPathComponent()
-        let workDir = parent.appendingPathComponent("office-meta-\(UUID().uuidString)")
+    private func executeUpdate(metadata: MetadataDocument, tempURL: URL) async throws {
+        let workDir = FileManager.default.temporaryDirectory
+            .appendingPathComponent("LocalConvert-OfficeMeta-\(UUID().uuidString)")
         try FileManager.default.createDirectory(at: workDir, withIntermediateDirectories: true)
         defer { try? FileManager.default.removeItem(at: workDir) }
         
         let docPropsDir = workDir.appendingPathComponent("docProps")
         try FileManager.default.createDirectory(at: docPropsDir, withIntermediateDirectories: true)
         
+        let stripAll = metadata.isStrippedAll || metadata.isEditableMetadataEmpty
+        var zipEntries: [String] = ["docProps/core.xml"]
+
         // Build new docProps/core.xml
-        let coreXML = generateCorePropertiesXML(metadata: metadata)
+        let coreXML = generateCorePropertiesXML(metadata: metadata, stripAll: stripAll)
         let coreURL = docPropsDir.appendingPathComponent("core.xml")
         try coreXML.write(to: coreURL, atomically: true, encoding: .utf8)
+
+        if stripAll {
+            let listProc = Process()
+            listProc.executableURL = URL(fileURLWithPath: "/usr/bin/unzip")
+            listProc.arguments = ["-Z1", tempURL.path]
+            let listOut = try? await AsyncProcessRunner.run(listProc)
+            let existingEntries = Set((listOut.flatMap { String(data: $0.stdout, encoding: .utf8) } ?? "")
+                .components(separatedBy: .newlines))
+
+            if existingEntries.contains("docProps/app.xml") {
+                let cleanAppXML = """
+                <?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+                <Properties xmlns="http://schemas.openxmlformats.org/officeDocument/2006/extended-properties"/>
+                """
+                try cleanAppXML.write(to: docPropsDir.appendingPathComponent("app.xml"), atomically: true, encoding: .utf8)
+                zipEntries.append("docProps/app.xml")
+            }
+            if existingEntries.contains("docProps/custom.xml") {
+                let cleanCustomXML = """
+                <?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+                <Properties xmlns="http://schemas.openxmlformats.org/officeDocument/2006/custom-properties"/>
+                """
+                try cleanCustomXML.write(to: docPropsDir.appendingPathComponent("custom.xml"), atomically: true, encoding: .utf8)
+                zipEntries.append("docProps/custom.xml")
+            }
+        }
         
-        // Update zip archive using /usr/bin/zip -u
+        // Update zip archive
         let process = Process()
         process.currentDirectoryURL = workDir
         process.executableURL = URL(fileURLWithPath: "/usr/bin/zip")
-        process.arguments = [tempURL.path, "docProps/core.xml"]
+        process.arguments = [tempURL.path] + zipEntries
         
-        let errPipe = Pipe()
-        process.standardError = errPipe
-        process.standardOutput = FileHandle.nullDevice
-        
-        try process.run()
-        process.waitUntilExit()
-        
-        guard process.terminationStatus == 0 else {
-            let errData = errPipe.fileHandleForReading.readDataToEndOfFile()
-            let errStr = String(data: errData, encoding: .utf8)
+        let result = try await AsyncProcessRunner.run(process)
+        guard result.terminationStatus == 0 else {
+            let errStr = String(data: result.stderr, encoding: .utf8)
             throw MetadataError.writeFailure("Failed to update OpenXML zip archive", underlying: errStr)
         }
     }
@@ -164,23 +178,32 @@ final class OfficeMetadataProvider: MetadataProvider, @unchecked Sendable {
     }
     
     private func extractTagContent(from xml: String, tag: String) -> String? {
-        let open = "<\(tag)>"
-        let close = "</\(tag)>"
-        guard let startRange = xml.range(of: open),
-              let endRange = xml.range(of: close, range: startRange.upperBound..<xml.endIndex) else {
+        let escapedTag = NSRegularExpression.escapedPattern(for: tag)
+        let pattern = "<\(escapedTag)(?:\\s[^>]*)?>([\\s\\S]*?)</\(escapedTag)>"
+        guard let regex = try? NSRegularExpression(pattern: pattern, options: []),
+              let match = regex.firstMatch(in: xml, range: NSRange(xml.startIndex..., in: xml)),
+              let range = Range(match.range(at: 1), in: xml) else {
             return nil
         }
-        let content = xml[startRange.upperBound..<endRange.lowerBound]
-        return String(content).trimmingCharacters(in: .whitespacesAndNewlines)
+        let raw = String(xml[range]).trimmingCharacters(in: .whitespacesAndNewlines)
+        return raw.isEmpty ? nil : unescapeXML(raw)
     }
     
-    private func generateCorePropertiesXML(metadata: MetadataDocument) -> String {
+    private func generateCorePropertiesXML(metadata: MetadataDocument, stripAll: Bool) -> String {
+        if stripAll {
+            return """
+            <?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+            <cp:coreProperties xmlns:cp="http://schemas.openxmlformats.org/package/2006/metadata/core-properties" xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:dcterms="http://purl.org/dc/terms/" xmlns:dcmitype="http://purl.org/dc/dcmitype/" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+            </cp:coreProperties>
+            """
+        }
+
         let title = metadata.common.title ?? ""
         let creator = metadata.common.creator ?? metadata.common.artist ?? ""
         let subject = metadata.common.subject ?? metadata.customFields["subject"]?.stringValue ?? ""
         let desc = metadata.common.description ?? metadata.customFields["description"]?.stringValue ?? ""
         let keywords = metadata.common.keywords?.joined(separator: ", ") ?? metadata.customFields["keywords"]?.stringValue ?? ""
-        let lastModBy = metadata.customFields["lastModifiedBy"]?.stringValue ?? "LocalConvert"
+        let lastModBy = metadata.customFields["lastModifiedBy"]?.stringValue ?? ""
         let category = metadata.customFields["category"]?.stringValue ?? ""
         
         let now = ISO8601DateFormatter().string(from: Date())
@@ -206,5 +229,13 @@ final class OfficeMetadataProvider: MetadataProvider, @unchecked Sendable {
            .replacingOccurrences(of: ">", with: "&gt;")
            .replacingOccurrences(of: "\"", with: "&quot;")
            .replacingOccurrences(of: "'", with: "&apos;")
+    }
+
+    private func unescapeXML(_ str: String) -> String {
+        str.replacingOccurrences(of: "&lt;", with: "<")
+           .replacingOccurrences(of: "&gt;", with: ">")
+           .replacingOccurrences(of: "&quot;", with: "\"")
+           .replacingOccurrences(of: "&apos;", with: "'")
+           .replacingOccurrences(of: "&amp;", with: "&")
     }
 }

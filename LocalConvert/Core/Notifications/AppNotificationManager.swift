@@ -1,11 +1,54 @@
 import Foundation
+import AppKit
 import UserNotifications
 import os.log
+
+// MARK: - VoiceOver Accessibility Announcer
+
+@MainActor
+enum AccessibilityAnnouncer {
+    private(set) static var recentAnnouncements: [String] = []
+    private static var lastAnnouncedMessage: String?
+    private static var lastAnnouncedTime: TimeInterval = 0
+
+    static func announce(_ message: String, priority: NSAccessibilityPriorityLevel = .medium) {
+        let trimmed = message.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return }
+
+        // Prevent duplicate consecutive VoiceOver announcement spam within 1.2s
+        let now = CFAbsoluteTimeGetCurrent()
+        if lastAnnouncedMessage == trimmed && (now - lastAnnouncedTime) < 1.2 {
+            return
+        }
+        lastAnnouncedMessage = trimmed
+        lastAnnouncedTime = now
+
+        recentAnnouncements.append(trimmed)
+        if recentAnnouncements.count > 32 {
+            recentAnnouncements.removeFirst(recentAnnouncements.count - 32)
+        }
+        guard let app = NSApp else { return }
+        NSAccessibility.post(
+            element: app,
+            notification: .announcementRequested,
+            userInfo: [
+                .announcement: trimmed,
+                .priority: priority.rawValue
+            ]
+        )
+    }
+
+    static func resetRecentAnnouncements() {
+        recentAnnouncements.removeAll()
+        lastAnnouncedMessage = nil
+        lastAnnouncedTime = 0
+    }
+}
 
 // MARK: - App Notification Manager
 
 @MainActor
-final class AppNotificationManager: NSObject, Sendable {
+final class AppNotificationManager: NSObject, Sendable, UNUserNotificationCenterDelegate {
     
     static let shared = AppNotificationManager()
     
@@ -16,6 +59,18 @@ final class AppNotificationManager: NSObject, Sendable {
     
     override init() {
         super.init()
+        let isTesting = NSClassFromString("XCTestCase") != nil || ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] != nil
+        if !isTesting {
+            center.delegate = self
+        }
+    }
+
+    nonisolated func userNotificationCenter(
+        _ center: UNUserNotificationCenter,
+        willPresent notification: UNNotification,
+        withCompletionHandler completionHandler: @escaping (UNNotificationPresentationOptions) -> Void
+    ) {
+        completionHandler([.banner, .sound])
     }
     
     /// Requests user notification permissions on-demand only when needed
@@ -25,7 +80,9 @@ final class AppNotificationManager: NSObject, Sendable {
         
         center.getNotificationSettings { [weak self] settings in
             if settings.authorizationStatus == .notDetermined {
-                self?.requestAuthorization()
+                Task { @MainActor [weak self] in
+                    self?.requestAuthorization()
+                }
             }
         }
     }
@@ -49,6 +106,9 @@ final class AppNotificationManager: NSObject, Sendable {
     
     /// Delivers completion notification for a single job
     func notifyJobCompleted(job: ConversionJob, result: ConversionResult) {
+        if AppSettings.shared.notifyOnConversionCompleted {
+            AccessibilityAnnouncer.announce("Conversion complete for \(job.sourceFilename).", priority: .medium)
+        }
         guard AppSettings.shared.showCompletionNotification,
               AppSettings.shared.notifyOnConversionCompleted else { return }
         
@@ -79,6 +139,10 @@ final class AppNotificationManager: NSObject, Sendable {
     
     /// Delivers failure notification for a single job
     func notifyJobFailed(job: ConversionJob, error: ConversionError) {
+        AccessibilityAnnouncer.announce(
+            "Conversion failed for \(job.sourceFilename): \(error.userFacingMessage)",
+            priority: .high
+        )
         guard AppSettings.shared.showCompletionNotification,
               AppSettings.shared.notifyOnConversionFailed else { return }
         
@@ -109,10 +173,17 @@ final class AppNotificationManager: NSObject, Sendable {
     
     /// Delivers aggregated batch notification avoiding notification spam
     func notifyBatchCompleted(total: Int, completed: Int, failed: Int, cancelled: Int = 0) {
+        guard total > 1 else { return }
+        if failed == 0 && cancelled == 0 {
+            AccessibilityAnnouncer.announce("Batch conversion complete: \(completed) files succeeded.", priority: .high)
+        } else if completed == 0 && failed == 0 && cancelled > 0 {
+            AccessibilityAnnouncer.announce("Batch conversion cancelled: \(cancelled) conversions stopped.", priority: .high)
+        } else {
+            AccessibilityAnnouncer.announce("Batch conversion finished: \(completed) succeeded, \(failed) failed.", priority: .high)
+        }
+
         guard AppSettings.shared.showCompletionNotification,
               AppSettings.shared.notifyOnBatchCompleted else { return }
-        
-        guard total > 1 else { return }
         
         requestAuthorizationIfNeeded()
         
@@ -121,6 +192,9 @@ final class AppNotificationManager: NSObject, Sendable {
         if failed == 0 && cancelled == 0 {
             content.title = "Conversions Complete"
             content.body = "\(completed) files were converted successfully."
+        } else if completed == 0 && failed == 0 && cancelled > 0 {
+            content.title = "Conversions Cancelled"
+            content.body = "\(cancelled) conversion(s) cancelled."
         } else if completed == 0 {
             content.title = "Conversions Failed"
             content.body = "\(failed) files failed to convert."

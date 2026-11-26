@@ -52,6 +52,49 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 ---
 
+## 1b. libjxl (JPEG XL Reference Codec)
+
+- **Component Name**: `libjxl` (with bundled `highway`, `brotli`, `skcms`)
+- **Version**: 0.13.0 (`libjxl`), `brotli` 1.2.1, `highway` 1.2.0
+- **License**: BSD 3-Clause License (`libjxl`, `skcms`), MIT (`brotli`), Apache-2.0 / BSD-3-Clause (`highway`)
+- **Role in LocalConvert**: Full JPEG XL decoding and encoding backend (`* ↔ JXL`), including lossy/lossless encoding, 8/16-bit depth, alpha transparency, animated JXL, ICC/EXIF/XMP container boxes, and lossless JPEG bitstream transcoding/reconstruction.
+- **Distribution Status**: Statically linked arm64 libraries built from official upstream `libjxl` v0.13.0 (`LocalConvert/Frameworks/libjxl*.a`, `libhwy.a`, `libbrotli*.a`) with zero Homebrew runtime dependencies.
+- **Relevant Notice / License Location**: [`LocalConvert/Frameworks/LICENSE.jxl`](LocalConvert/Frameworks/LICENSE.jxl)
+- **Upstream Project**: JPEG XL Project Authors (https://github.com/libjxl/libjxl)
+
+### License Text:
+```text
+Copyright (c) the JPEG XL Project Authors.
+All rights reserved.
+
+Redistribution and use in source and binary forms, with or without
+modification, are permitted provided that the following conditions are met:
+
+1. Redistributions of source code must retain the above copyright notice, this
+   list of conditions and the following disclaimer.
+
+2. Redistributions in binary form must reproduce the above copyright notice,
+   this list of conditions and the following disclaimer in the documentation
+   and/or other materials provided with the distribution.
+
+3. Neither the name of the copyright holder nor the names of its
+   contributors may be used to endorse or promote products derived from
+   this software without specific prior written permission.
+
+THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE
+FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
+SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
+CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
+OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+```
+
+---
+
 ## 2. FFmpeg & ffprobe
 
 - **Component Name**: `FFmpeg` / `ffprobe`

@@ -5,44 +5,70 @@ struct FileRowView: View {
     let file: DroppedFile
     
     @State private var showOptionsSheet = false
+    @State private var showTrimSheet = false
     @State private var showTechnicalDetails = false
     
+    private var liveFile: DroppedFile {
+        appState.file(for: file.id) ?? file
+    }
+
     var body: some View {
+        let currentFile = liveFile
         HStack(spacing: 12) {
             // File Icon / Bounded Thumbnail
-            FileThumbnailView(file: file)
+            FileThumbnailView(file: currentFile)
             
             // File Name, Source Format, and File Size
             VStack(alignment: .leading, spacing: 2) {
-                Text(file.fileName)
+                Text(currentFile.fileName)
                     .font(.body)
                     .fontWeight(.medium)
                     .lineLimit(1)
                     .truncationMode(.middle)
-                    .help(file.url.path)
+                    .help(currentFile.url.path)
                 
-                HStack(spacing: 6) {
-                    if let format = file.detectedFormat {
-                        Text(format.displayName)
-                            .font(.caption2)
-                            .fontWeight(.medium)
-                            .padding(.horizontal, 5)
-                            .padding(.vertical, 1.5)
-                            .background(Color.secondary.opacity(0.12))
-                            .clipShape(RoundedRectangle(cornerRadius: 3))
+                HStack(spacing: AppTheme.Spacing.xs + 2) {
+                    if let format = currentFile.detectedFormat {
+                        AppStatusBadge(text: format.displayName, tint: .secondary, style: .rounded)
+                        
+                        if format.isReadOnly {
+                            AppStatusBadge(text: "Read-Only", tint: AppTheme.Colors.warning, style: .rounded)
+                                .help(format.capability.limitationNote ?? "Input format is read-only and cannot be selected as an output format.")
+                        }
                     } else {
-                        Text("Unknown Format")
-                            .font(.caption2)
-                            .foregroundStyle(.red)
+                        AppStatusBadge(text: "Unknown Format", tint: AppTheme.Colors.error, style: .rounded)
                     }
                     
                     Text("•")
                         .font(.caption2)
                         .foregroundStyle(.tertiary)
                     
-                    Text(file.formattedFileSize)
+                    Text(currentFile.formattedFileSize)
                         .font(.caption2)
+                        .monospacedDigit()
                         .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                        .fixedSize(horizontal: true, vertical: false)
+                    
+                    if let inFmt = currentFile.detectedFormat,
+                       let outFmt = currentFile.selectedOutputFormat,
+                       let warning = ConversionRegistry.shared.routeWarning(from: inFmt, to: outFmt) {
+                        Image(systemName: "info.circle")
+                            .font(.caption2)
+                            .foregroundStyle(AppTheme.Colors.warning)
+                            .help(warning)
+                            .accessibilityLabel(warning)
+                    }
+
+                    if let trim = currentFile.options.videoTrim {
+                        AppStatusBadge(
+                            text: "✂ \(trim.displaySummary)",
+                            tint: AppTheme.Colors.accent,
+                            style: .rounded
+                        )
+                        .help("Video Trim (\(trim.mode.rawValue))")
+                        .accessibilityLabel("Video trim active: \(trim.displaySummary)")
+                    }
                 }
             }
             .frame(minWidth: 140, alignment: .leading)
@@ -53,7 +79,7 @@ struct FileRowView: View {
             HStack(spacing: 10) {
                 // If currently in a running/completed job status, show Output Format Badge and Job Status
                 if let jobStatus = findJobStatus(), isJobInProgressOrDone(jobStatus) {
-                    if let format = file.selectedOutputFormat {
+                    if let format = currentFile.selectedOutputFormat {
                         HStack(spacing: 4) {
                             Image(systemName: "arrow.right")
                                 .font(.caption2)
@@ -67,7 +93,7 @@ struct FileRowView: View {
                     statusView(for: jobStatus)
                 } else {
                     // Ready / Idle State
-                    if !file.availableOutputFormats.isEmpty {
+                    if !currentFile.availableOutputFormats.isEmpty {
                         HStack(spacing: 6) {
                             Image(systemName: "arrow.right")
                                 .font(.caption)
@@ -77,23 +103,36 @@ struct FileRowView: View {
                                 if !recentFormatsForFile.isEmpty {
                                     Section(header: Text("Recent")) {
                                         ForEach(recentFormatsForFile) { format in
-                                            Text(format.fileExtension.uppercased()).tag(Optional(format))
+                                            Text(format.shortExtensionLabel).tag(Optional(format))
                                         }
                                     }
                                 }
                                 ForEach(groupedOutputFormats, id: \.group) { section in
                                     Section(header: Text(section.group.rawValue)) {
                                         ForEach(section.formats) { format in
-                                            Text(format.fileExtension.uppercased()).tag(Optional(format))
+                                            Text(format.shortExtensionLabel).tag(Optional(format))
                                         }
                                     }
                                 }
                             }
                             .frame(width: 110)
-                            .accessibilityLabel("Target format for \(file.fileName)")
+                            .accessibilityLabel("Target format for \(currentFile.fileName)")
                             
+                            // Trim button (for video inputs)
+                            if currentFile.detectedFormat?.category == .video {
+                                Button(action: { showTrimSheet = true }) {
+                                    Image(systemName: currentFile.options.hasVideoTrim ? "scissors.circle.fill" : "scissors")
+                                        .font(.caption)
+                                        .foregroundStyle(currentFile.options.hasVideoTrim ? AppTheme.Colors.accent : .secondary)
+                                }
+                                .buttonStyle(.borderless)
+                                .help(currentFile.options.hasVideoTrim ? "Edit Video Trim..." : "Trim Video...")
+                                .accessibilityLabel("Trim video \(currentFile.fileName)")
+                                .accessibilityIdentifier("filerow.trimButton")
+                            }
+
                             // Options button (only visible if configurable descriptors exist)
-                            if !file.optionDescriptors.isEmpty {
+                            if !currentFile.optionDescriptors.isEmpty {
                                 Button(action: { showOptionsSheet = true }) {
                                     Image(systemName: "slider.horizontal.3")
                                         .font(.caption)
@@ -101,13 +140,17 @@ struct FileRowView: View {
                                 }
                                 .buttonStyle(.borderless)
                                 .help("Conversion options")
-                                .accessibilityLabel("Options for \(file.fileName)")
+                                .accessibilityLabel("Options for \(currentFile.fileName)")
                                 .popover(isPresented: $showOptionsSheet) {
-                                    FileOptionsView(
-                                        options: optionsBinding,
-                                        descriptors: file.optionDescriptors,
-                                        fileName: file.fileName
+                                    LiveFileOptionsPopoverView(
+                                        fileID: currentFile.id,
+                                        fallbackFile: currentFile,
+                                        onOpenVideoTrim: {
+                                            showOptionsSheet = false
+                                            showTrimSheet = true
+                                        }
                                     )
+                                    .environmentObject(appState)
                                 }
                             }
                         }
@@ -115,63 +158,58 @@ struct FileRowView: View {
                         Text("No conversions available")
                             .font(.caption)
                             .foregroundStyle(.secondary)
+                            .lineLimit(1)
+                            .fixedSize(horizontal: true, vertical: false)
                     }
                     
                     // Ready badge
-                    Text("Ready")
-                        .font(.caption2)
-                        .fontWeight(.medium)
-                        .foregroundStyle(.secondary)
-                        .padding(.horizontal, 6)
-                        .padding(.vertical, 2)
-                        .background(Color.secondary.opacity(0.12))
-                        .clipShape(Capsule())
+                    AppStatusBadge(text: "Ready", tint: .secondary)
                 }
                 
                 // Remove File Button (disabled while converting)
-                Button(action: { appState.removeFile(file) }) {
+                Button(action: { appState.removeFile(currentFile) }) {
                     Image(systemName: "xmark.circle.fill")
-                        .font(.subheadline)
+                        .font(AppTheme.Typography.subheadline)
                         .foregroundStyle(.tertiary)
                 }
                 .buttonStyle(.plain)
                 .disabled(appState.isConverting)
-                .accessibilityLabel("Remove \(file.fileName)")
+                .accessibilityLabel("Remove \(currentFile.fileName)")
             }
         }
-        .padding(.horizontal, 12)
-        .padding(.vertical, 8)
-        .background(Color(nsColor: .controlBackgroundColor).opacity(0.5))
-        .clipShape(RoundedRectangle(cornerRadius: 6))
+        .padding(.horizontal, AppTheme.Spacing.md)
+        .padding(.vertical, AppTheme.Spacing.sm)
+        .background(AppTheme.Colors.cardBackground)
+        .clipShape(RoundedRectangle(cornerRadius: AppTheme.Radius.md))
+        .overlay(
+            RoundedRectangle(cornerRadius: AppTheme.Radius.md)
+                .strokeBorder(AppTheme.Colors.cardBorder, lineWidth: 1)
+        )
+        .sheet(isPresented: $showTrimSheet) {
+            let sheetFile = appState.file(for: file.id) ?? currentFile
+            VideoTrimSheetView(file: sheetFile) { trimRange, preferredFormat in
+                appState.updateVideoTrim(
+                    for: sheetFile.id,
+                    trim: trimRange,
+                    preferredOutputFormat: preferredFormat
+                )
+            }
+        }
     }
     
     // MARK: - Bindings & Helpers
     
     private var recentFormatsForFile: [FileFormat] {
-        let recents = AppSettings.shared.recentOutputFormats.filter { file.availableOutputFormats.contains($0) }
+        let current = liveFile
+        let allowed = current.options.hasVideoTrim ? current.trimEligibleOutputFormats : current.availableOutputFormats
+        let recents = AppSettings.shared.recentOutputFormats.filter { allowed.contains($0) }
         return Array(recents.prefix(4))
     }
     
-    private var optionsBinding: Binding<ConversionOptions> {
-        Binding(
-            get: { file.options },
-            set: { newOptions in
-                if newOptions.preset != file.options.preset,
-                   let newPreset = newOptions.preset,
-                   let inputCategory = file.detectedFormat?.category,
-                   let targetFormat = newPreset.targetOutputFormat(for: inputCategory) {
-                    
-                    if file.availableOutputFormats.contains(targetFormat) {
-                        appState.updateOutputFormat(for: file.id, format: targetFormat)
-                    }
-                }
-                appState.updateOptions(for: file.id, options: newOptions)
-            }
-        )
-    }
-    
     private var groupedOutputFormats: [(group: FormatGroup, formats: [FileFormat])] {
-        let grouped = Dictionary(grouping: file.availableOutputFormats, by: { $0.group })
+        let current = liveFile
+        let sourceFormats = current.options.hasVideoTrim ? current.trimEligibleOutputFormats : current.availableOutputFormats
+        let grouped = Dictionary(grouping: sourceFormats, by: { $0.group })
         return grouped
             .map { (group: $0.key, formats: $0.value.sorted { $0.displayName < $1.displayName }) }
             .sorted { $0.group.sortOrder < $1.group.sortOrder }
@@ -179,7 +217,7 @@ struct FileRowView: View {
     
     private var outputFormatBinding: Binding<FileFormat?> {
         Binding(
-            get: { file.selectedOutputFormat },
+            get: { liveFile.selectedOutputFormat },
             set: { newFormat in
                 if let format = newFormat {
                     appState.updateOutputFormat(for: file.id, format: format)
@@ -218,7 +256,9 @@ struct FileRowView: View {
                 Text("Waiting")
                     .font(.caption2)
                     .foregroundStyle(.secondary)
+                    .lineLimit(1)
             }
+            .fixedSize(horizontal: true, vertical: false)
             .accessibilityLabel("Waiting in queue")
         
         case .converting(let progress):
@@ -236,24 +276,28 @@ struct FileRowView: View {
                 Text("Converting")
                     .font(.caption2)
                     .fontWeight(.medium)
-                    .foregroundStyle(.blue)
+                    .foregroundStyle(AppTheme.Colors.info)
+                    .lineLimit(1)
+                    .fixedSize(horizontal: true, vertical: false)
             }
             .help(progress.statusMessage)
         
         case .completed(let result):
-            HStack(spacing: 6) {
+            HStack(spacing: AppTheme.Spacing.xs + 2) {
                 Label("Completed", systemImage: "checkmark.circle.fill")
                     .font(.caption2)
                     .fontWeight(.medium)
-                    .foregroundStyle(.green)
+                    .foregroundStyle(AppTheme.Colors.success)
+                    .lineLimit(1)
+                    .fixedSize(horizontal: true, vertical: false)
                     .accessibilityLabel("Conversion completed: \(result.outputURL.lastPathComponent)")
                 
                 Button(action: {
                     NSWorkspace.shared.activateFileViewerSelecting([result.outputURL])
                 }) {
                     Image(systemName: "arrow.right.circle")
-                        .font(.caption)
-                        .foregroundStyle(Color.accentColor)
+                        .font(AppTheme.Typography.caption)
+                        .foregroundStyle(AppTheme.Colors.accent)
                 }
                 .buttonStyle(.borderless)
                 .help("Show \(result.outputURL.lastPathComponent) in Finder")
@@ -261,37 +305,53 @@ struct FileRowView: View {
             }
         
         case .failed(let error):
-            HStack(spacing: 4) {
+            HStack(spacing: AppTheme.Spacing.xs) {
                 Label("Failed", systemImage: "exclamationmark.triangle.fill")
                     .font(.caption2)
                     .fontWeight(.medium)
-                    .foregroundStyle(.red)
+                    .foregroundStyle(AppTheme.Colors.error)
+                    .lineLimit(1)
+                    .fixedSize(horizontal: true, vertical: false)
                 
                 Text(error.userFacingMessage)
                     .font(.caption2)
                     .foregroundStyle(.secondary)
-                    .lineLimit(1)
+                    .lineLimit(2)
+                    .truncationMode(.tail)
+                    .frame(maxWidth: 210, alignment: .trailing)
                 
-                if let details = error.technicalDetails, !details.isEmpty {
+                let hasExtraDetails = (error.technicalDetails?.isEmpty == false) || error.userFacingMessage.count > 48
+                if hasExtraDetails {
                     Button(action: { showTechnicalDetails = true }) {
                         Image(systemName: "info.circle")
                             .font(.caption2)
                             .foregroundStyle(.secondary)
                     }
                     .buttonStyle(.borderless)
-                    .help("Technical Details")
+                    .help("Error & Diagnostic Details")
+                    .accessibilityLabel("Show error details")
                     .popover(isPresented: $showTechnicalDetails) {
                         VStack(alignment: .leading, spacing: 8) {
-                            Text("Technical Diagnostic Details")
+                            Text("Error Details")
                                 .font(.headline)
-                            ScrollView {
-                                Text(details)
-                                    .font(.system(.caption, design: .monospaced))
-                                    .textSelection(.enabled)
-                                    .frame(maxWidth: .infinity, alignment: .leading)
+                            Text(error.userFacingMessage)
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                                .textSelection(.enabled)
+                            if let details = error.technicalDetails, !details.isEmpty {
+                                Divider()
+                                Text("Technical Diagnostic Details")
+                                    .font(.subheadline.weight(.semibold))
+                                ScrollView {
+                                    Text(details)
+                                        .font(.system(.caption, design: .monospaced))
+                                        .textSelection(.enabled)
+                                        .frame(maxWidth: .infinity, alignment: .leading)
+                                }
+                                .frame(height: 130)
                             }
-                            .frame(width: 320, height: 160)
                         }
+                        .frame(width: 340)
                         .padding()
                     }
                 }
@@ -300,16 +360,30 @@ struct FileRowView: View {
             .accessibilityLabel("Conversion failed: \(error.userFacingMessage)")
         
         case .cancelled:
-            Text("Cancelled")
-                .font(.caption2)
-                .fontWeight(.medium)
-                .foregroundStyle(.secondary)
-                .padding(.horizontal, 6)
-                .padding(.vertical, 2)
-                .background(Color.secondary.opacity(0.12))
-                .clipShape(Capsule())
+            AppStatusBadge(text: "Cancelled", tint: .secondary)
                 .accessibilityLabel("Conversion cancelled")
         }
+    }
+}
+
+// MARK: - Live Popover Host
+
+private struct LiveFileOptionsPopoverView: View {
+    @EnvironmentObject var appState: AppState
+    let fileID: UUID
+    let fallbackFile: DroppedFile
+    var onOpenVideoTrim: (() -> Void)? = nil
+
+    var body: some View {
+        let current = appState.file(for: fileID) ?? fallbackFile
+        FileOptionsView(
+            options: appState.optionsBinding(for: fileID),
+            descriptors: current.optionDescriptors,
+            fileName: current.fileName,
+            inputFormat: current.detectedFormat,
+            outputFormat: current.selectedOutputFormat,
+            onOpenVideoTrim: onOpenVideoTrim
+        )
     }
 }
 
@@ -328,7 +402,7 @@ struct FileThumbnailView: View {
                     .frame(width: 28, height: 28)
                     .clipShape(RoundedRectangle(cornerRadius: 4))
             } else {
-                Image(systemName: file.detectedFormat?.systemImage ?? "doc.questionmark")
+                Image(systemName: file.detectedFormat?.category.systemImage ?? "doc.questionmark")
                     .font(.title3)
                     .foregroundStyle(file.detectedFormat != nil ? Color.accentColor : Color.secondary)
                     .frame(width: 28, height: 28)

@@ -6,7 +6,11 @@ import AppKit
 import os.log
 
 final class PDFConversionEngine: ConversionEngine, @unchecked Sendable {
-    
+
+    /// Maximum rendered pixel budget per PDF page (100 MP, ~400 MB RGBA8) to prevent OOM on
+    /// oversized architectural/poster sheets or malformed PDFs at high DPI.
+    static let maxPagePixels: Int64 = 100_000_000
+
     let name = "PDFEngine"
     
     private let logger = Logger(subsystem: "com.localconvert.app", category: "PDFEngine")
@@ -101,57 +105,108 @@ final class PDFConversionEngine: ConversionEngine, @unchecked Sendable {
         }
         
         let dpi = options.effectivePDFDPI
+        guard dpi.isFinite, dpi > 0 else {
+            throw ConversionError.invalidInput("Invalid PDF rendering DPI (\(dpi)).")
+        }
         let scale: CGFloat = CGFloat(dpi / 72.0)
-        
-        var generatedURLs: [URL] = []
-        var totalBytes: Int64 = 0
-        
-        do {
-            for pageIndex in 0..<pageCount {
-                try Task.checkCancellation()
-                
-                let progressFraction = Double(pageIndex) / Double(pageCount)
-                progress(.determinate(
-                    progressFraction,
-                    message: "Rendering page \(pageIndex + 1) of \(pageCount)..."
-                ))
-                
-                guard let page = pdfDocument.page(at: pageIndex) else {
-                    throw ConversionError.engineExecutionFailed(
-                        "Could not read page \(pageIndex + 1) of the PDF.",
-                        underlyingError: nil
-                    )
-                }
-                
-                // Determine output URL with collision handling
-                let pageURL = ConversionManager.multiPageOutputURL(
-                    for: input,
-                    pageIndex: pageIndex,
-                    totalPages: pageCount,
-                    format: outputFormat,
-                    in: outputDirectory
+
+        // Validate all page pixel budgets before creating staging directories or reserving outputs
+        for pageIndex in 0..<pageCount {
+            try Task.checkCancellation()
+            guard let page = pdfDocument.page(at: pageIndex) else {
+                throw ConversionError.engineExecutionFailed(
+                    "Could not read page \(pageIndex + 1) of the PDF.",
+                    underlyingError: nil
                 )
-                
-                // Render page to image
+            }
+            _ = try Self.validatedRenderPixelSize(
+                for: page,
+                dpi: dpi,
+                pageNumber: pageIndex + 1
+            )
+        }
+        
+        let stagingDir = FileManager.default.temporaryDirectory
+            .appendingPathComponent("LocalConvert-PDFRender-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: stagingDir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: stagingDir) }
+
+        var reservedURLs: [URL] = []
+        defer {
+            for url in reservedURLs {
+                ConversionManager.releaseReservedOutputURL(url)
+            }
+        }
+
+        var stagedPages: [(tempURL: URL, finalURL: URL)] = []
+        var totalBytes: Int64 = 0
+
+        for pageIndex in 0..<pageCount {
+            try Task.checkCancellation()
+
+            let progressFraction = Double(pageIndex) / Double(pageCount)
+            progress(.determinate(
+                progressFraction,
+                message: "Rendering page \(pageIndex + 1) of \(pageCount)..."
+            ))
+
+            guard let page = pdfDocument.page(at: pageIndex) else {
+                throw ConversionError.engineExecutionFailed(
+                    "Could not read page \(pageIndex + 1) of the PDF.",
+                    underlyingError: nil
+                )
+            }
+
+            // Determine output URL with atomic reservation and collision handling
+            let pageURL = try ConversionManager.reserveMultiPageOutputURL(
+                for: input,
+                pageIndex: pageIndex,
+                totalPages: pageCount,
+                format: outputFormat,
+                in: outputDirectory,
+                options: options
+            )
+            reservedURLs.append(pageURL)
+
+            let tempPageURL = stagingDir.appendingPathComponent("page-\(pageIndex).\(outputFormat.fileExtension)")
+
+            // Render page to staged temporary image inside an autoreleasepool to bound per-page memory
+            try autoreleasepool {
                 try renderPage(
                     page,
-                    to: pageURL,
+                    pageNumber: pageIndex + 1,
+                    to: tempPageURL,
                     format: outputFormat,
+                    dpi: dpi,
                     scale: scale,
                     options: options
                 )
-                
-                generatedURLs.append(pageURL)
-                
-                let fileSize = (try? FileManager.default.attributesOfItem(atPath: pageURL.path)[.size] as? Int64) ?? 0
-                totalBytes += fileSize
             }
-            
-            try Task.checkCancellation()
+
+            let fileSize = (try? FileManager.default.attributesOfItem(atPath: tempPageURL.path)[.size] as? Int64) ?? 0
+            totalBytes += fileSize
+            stagedPages.append((tempURL: tempPageURL, finalURL: pageURL))
+        }
+
+        try Task.checkCancellation()
+
+        let policy = options.resolvedExistingFileHandling
+        var generatedURLs: [URL] = []
+        do {
+            for staged in stagedPages {
+                try Task.checkCancellation()
+                let committedURL = try OutputReservationCoordinator.moveOrReplaceTempFile(
+                    staged.tempURL,
+                    to: staged.finalURL,
+                    policy: policy
+                )
+                generatedURLs.append(committedURL)
+            }
         } catch {
-            // Clean up any files that were already written if cancellation or error occurred
-            for url in generatedURLs {
-                try? FileManager.default.removeItem(at: url)
+            if policy != .overwrite {
+                for createdURL in generatedURLs {
+                    try? FileManager.default.removeItem(at: createdURL)
+                }
             }
             throw error
         }
@@ -178,17 +233,70 @@ final class PDFConversionEngine: ConversionEngine, @unchecked Sendable {
     }
     
     // MARK: - Page Rendering
-    
+
+    /// Validates and computes safe pixel dimensions for a PDF page at the requested DPI,
+    /// guarding against floating-point non-finiteness, integer overflow, and per-page OOM.
+    static func validatedRenderPixelSize(
+        for page: PDFPage,
+        dpi: Double,
+        pageNumber: Int = 1,
+        maxPagePixels: Int64 = maxPagePixels
+    ) throws -> (width: Int, height: Int) {
+        guard maxPagePixels > 0 else {
+            throw ConversionError.invalidInput("Invalid maximum PDF page pixel budget.")
+        }
+        guard dpi.isFinite, dpi > 0 else {
+            throw ConversionError.invalidInput("Invalid PDF rendering DPI (\(dpi)).")
+        }
+        let scale = dpi / 72.0
+        guard scale.isFinite, scale > 0 else {
+            throw ConversionError.invalidInput("Invalid PDF rendering scale for DPI \(dpi).")
+        }
+
+        let uprightSize = PDFRedactionService.uprightSize(for: page)
+        let rawWidth = Double(uprightSize.width) * scale
+        let rawHeight = Double(uprightSize.height) * scale
+        guard rawWidth.isFinite, rawHeight.isFinite, rawWidth > 0, rawHeight > 0 else {
+            throw ConversionError.invalidInput("PDF page \(pageNumber) has invalid non-finite dimensions.")
+        }
+
+        let limitDescription = maxPagePixels >= 1_000_000
+            ? "\(maxPagePixels / 1_000_000) MP"
+            : "\(maxPagePixels) pixels"
+        let maxDouble = Double(maxPagePixels)
+        guard rawWidth <= maxDouble, rawHeight <= maxDouble else {
+            throw ConversionError.invalidInput(
+                "PDF page \(pageNumber) dimensions exceed the \(limitDescription) per-page rendering limit at \(String(format: "%.0f", dpi)) DPI. Reduce rendering DPI."
+            )
+        }
+
+        let pixelWidth = max(Int(rawWidth), 1)
+        let pixelHeight = max(Int(rawHeight), 1)
+        let (totalPixels, overflow) = Int64(pixelWidth).multipliedReportingOverflow(by: Int64(pixelHeight))
+        guard !overflow, totalPixels <= maxPagePixels else {
+            throw ConversionError.invalidInput(
+                "PDF page \(pageNumber) requires \(pixelWidth)×\(pixelHeight) pixels, exceeding the \(limitDescription) per-page memory limit. Reduce rendering DPI."
+            )
+        }
+
+        return (pixelWidth, pixelHeight)
+    }
+
     private func renderPage(
         _ page: PDFPage,
+        pageNumber: Int,
         to outputURL: URL,
         format: FileFormat,
+        dpi: Double,
         scale: CGFloat,
         options: ConversionOptions
     ) throws {
         let pageRect = page.bounds(for: .mediaBox)
-        let pixelWidth = max(Int(pageRect.width * scale), 1)
-        let pixelHeight = max(Int(pageRect.height * scale), 1)
+        let (pixelWidth, pixelHeight) = try Self.validatedRenderPixelSize(
+            for: page,
+            dpi: dpi,
+            pageNumber: pageNumber
+        )
         
         let colorSpace = CGColorSpaceCreateDeviceRGB()
         let bitmapInfo: UInt32 = CGImageAlphaInfo.premultipliedFirst.rawValue | CGBitmapInfo.byteOrder32Little.rawValue
@@ -205,19 +313,25 @@ final class PDFConversionEngine: ConversionEngine, @unchecked Sendable {
             throw ConversionError.engineExecutionFailed("Could not create graphics rendering context.", underlyingError: nil)
         }
         
+        let targetRect = CGRect(x: 0, y: 0, width: pixelWidth, height: pixelHeight)
         // Fill white background for all formats (standard document background, required for JPEG)
         context.setFillColor(CGColor.white)
-        context.fill(CGRect(x: 0, y: 0, width: pixelWidth, height: pixelHeight))
+        context.fill(targetRect)
         
-        // Scale context according to target DPI
-        context.scaleBy(x: scale, y: scale)
-        
-        // Draw PDF page into context using AppKit graphics context
-        let nsGraphicsContext = NSGraphicsContext(cgContext: context, flipped: false)
-        let previousContext = NSGraphicsContext.current
-        NSGraphicsContext.current = nsGraphicsContext
-        page.draw(with: .mediaBox, to: context)
-        NSGraphicsContext.current = previousContext
+        if let cgPage = page.pageRef {
+            let transform = cgPage.getDrawingTransform(.mediaBox, rect: targetRect, rotate: 0, preserveAspectRatio: true)
+            context.concatenate(transform)
+            context.drawPDFPage(cgPage)
+        } else {
+            // Scale and translate for non-zero mediaBox origin
+            context.scaleBy(x: scale, y: scale)
+            context.translateBy(x: -pageRect.origin.x, y: -pageRect.origin.y)
+            let nsGraphicsContext = NSGraphicsContext(cgContext: context, flipped: false)
+            let previousContext = NSGraphicsContext.current
+            NSGraphicsContext.current = nsGraphicsContext
+            page.draw(with: .mediaBox, to: context)
+            NSGraphicsContext.current = previousContext
+        }
         
         guard let cgImage = context.makeImage() else {
             throw ConversionError.engineExecutionFailed("Could not create image from rendered PDF page.", underlyingError: nil)

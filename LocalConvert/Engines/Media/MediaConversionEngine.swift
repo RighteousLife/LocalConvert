@@ -10,72 +10,48 @@ final class MediaConversionEngine: ConversionEngine, @unchecked Sendable {
     private let logger = Logger(subsystem: "com.localconvert.app", category: "MediaEngine")
     let provider: any FFmpegProvider
     
-    init(provider: any FFmpegProvider = BundledFFmpegProvider(fallbackToSystem: true)) {
+    init(provider: any FFmpegProvider = BundledFFmpegProvider(fallbackToSystem: BundledBinarySecurityPolicy.allowsSystemFallback)) {
         self.provider = provider
     }
     
     // MARK: - Supported Formats
     
+    private static let audioInputs: Set<FileFormat> = [
+        .mp3, .wav, .flac, .aac, .m4a, .m4b, .ogg, .opus, .aiff, .caf, .alac,
+        .ac3, .eac3, .dts, .wma, .au, .wv, .mka, .amr, .ape
+    ]
+    
+    private static let audioOutputs: Set<FileFormat> = [
+        .mp3, .wav, .flac, .aac, .m4a, .m4b, .ogg, .opus, .aiff, .caf, .alac,
+        .ac3, .eac3, .dts, .wma, .au, .wv, .mka
+    ]
+    
+    private static let videoInputs: Set<FileFormat> = [
+        .mp4, .mov, .mkv, .webm, .avi, .wmv, .asf, .m4v, .threeGP, .threeG2,
+        .mts, .m2ts, .mpg, .ts, .flv, .f4v, .vob, .m2v, .ogv
+    ]
+    
+    private static let videoOutputs: Set<FileFormat> = [
+        .mp4, .mov, .mkv, .webm, .avi, .wmv, .asf, .m4v, .threeGP, .threeG2,
+        .mpg, .ts, .flv, .f4v, .vob, .m2v
+    ]
+    
     var supportedInputFormats: Set<FileFormat> {
-        [
-            // Audio
-            .mp3, .wav, .flac, .aac, .m4a, .ogg, .opus, .aiff, .caf, .alac, .ac3,
-            // Video
-            .mp4, .mov, .mkv, .webm, .avi, .wmv, .m4v, .threeGP, .mts, .m2ts,
-            // Animated Image
-            .gif
-        ]
+        Self.audioInputs
+            .union(Self.videoInputs)
+            .union([.gif, .apng])
     }
     
     var supportedOutputFormats: Set<FileFormat> {
-        [
-            // Audio
-            .mp3, .wav, .flac, .m4a, .aac, .ogg, .opus, .aiff, .caf, .alac, .ac3,
-            // Video
-            .mp4, .mov, .mkv, .webm, .avi,
-            // Animated Image
-            .gif
-        ]
+        Self.audioOutputs
+            .union(Self.videoOutputs)
+            .union([.gif, .apng])
     }
     
     // MARK: - Capabilities
     
     func canConvert(from input: FileFormat, to output: FileFormat) -> Bool {
-        guard supportedInputFormats.contains(input),
-              supportedOutputFormats.contains(output),
-              input != output else {
-            return false
-        }
-        
-        let inCat = input.category
-        let outCat = output.category
-        
-        // 1. Audio → Audio
-        if inCat == .audio && outCat == .audio {
-            return true
-        }
-        
-        // 2. Video → Video
-        if inCat == .video && outCat == .video {
-            return true
-        }
-        
-        // 3. Video → Audio (Audio extraction)
-        if inCat == .video && outCat == .audio {
-            return true
-        }
-        
-        // 4. GIF → Video
-        if input == .gif && outCat == .video {
-            return true
-        }
-        
-        // 5. Video → GIF
-        if inCat == .video && output == .gif {
-            return true
-        }
-        
-        return false
+        availableOutputFormats(for: input).contains(output)
     }
     
     func availableOutputFormats(for input: FileFormat) -> Set<FileFormat> {
@@ -85,22 +61,14 @@ final class MediaConversionEngine: ConversionEngine, @unchecked Sendable {
         let inCat = input.category
         
         if inCat == .audio {
-            // Audio outputs
-            let audioOutputs: Set<FileFormat> = [.mp3, .wav, .flac, .m4a, .aac, .ogg, .opus, .aiff, .caf, .alac, .ac3]
-            formats.formUnion(audioOutputs)
+            formats.formUnion(Self.audioOutputs)
         } else if inCat == .video {
-            // Video outputs
-            let videoOutputs: Set<FileFormat> = [.mp4, .mov, .mkv, .webm, .avi]
-            formats.formUnion(videoOutputs)
-            // Audio extraction outputs
-            let audioOutputs: Set<FileFormat> = [.mp3, .wav, .flac, .m4a, .aac, .ogg, .opus, .aiff, .caf, .alac, .ac3]
-            formats.formUnion(audioOutputs)
-            // GIF output
+            formats.formUnion(Self.videoOutputs)
+            formats.formUnion(Self.audioOutputs)
             formats.insert(.gif)
-        } else if input == .gif {
-            // GIF to Video outputs
-            let videoOutputs: Set<FileFormat> = [.mp4, .mov, .mkv, .webm, .avi]
-            formats.formUnion(videoOutputs)
+            formats.insert(.apng)
+        } else if input == .gif || input == .apng {
+            formats.formUnion(Self.videoOutputs)
         }
         
         formats.remove(input)
@@ -110,18 +78,23 @@ final class MediaConversionEngine: ConversionEngine, @unchecked Sendable {
     // MARK: - Option Descriptors
     
     func optionDescriptors(from input: FileFormat, to output: FileFormat) -> [ConversionOptionDescriptor] {
-        guard canConvert(from: input, to: output) else { return [] }
+        optionDescriptors(from: input, to: output, allowSameFormat: false)
+    }
+
+    func optionDescriptors(from input: FileFormat, to output: FileFormat, allowSameFormat: Bool) -> [ConversionOptionDescriptor] {
+        let routeAllowed = canConvert(from: input, to: output)
+            || (allowSameFormat && input == output && supportedInputFormats.contains(input) && supportedOutputFormats.contains(output))
+        guard routeAllowed else { return [] }
         var descriptors: [ConversionOptionDescriptor] = []
         
         let isVideoOutput = output.category == .video
+        let isAudioOutput = output.category == .audio
         let isVideoInput = input.category == .video
         
-        // Filter presets based on media type
-        var validPresets: [ConversionPreset] = [.custom, .smallFile]
-        if isVideoOutput {
-            validPresets.append(contentsOf: [.web, .maximumQuality, .videoMaximumCompatibility])
-        } else {
-            validPresets.append(contentsOf: [.web, .maximumQuality])
+        // Filter presets based on media type and container compatibility
+        var validPresets: [ConversionPreset] = [.custom, .smallFile, .web, .maximumQuality]
+        if isVideoOutput && ConversionOptions.h264AACVideoContainers.contains(output) {
+            validPresets.append(.videoMaximumCompatibility)
         }
         
         if isVideoInput {
@@ -141,16 +114,18 @@ final class MediaConversionEngine: ConversionEngine, @unchecked Sendable {
             )
         )
         
-        descriptors.append(
-            ConversionOptionDescriptor(
-                id: "mediaQuality",
-                title: isVideoOutput ? "Video Quality" : "Audio Quality",
-                description: isVideoOutput
-                    ? "Encoding quality preset (CRF)"
-                    : "Audio encoding bitrate and quality preset",
-                kind: .qualityPreset([.low, .medium, .high, .maximum])
+        if isVideoOutput || isAudioOutput {
+            descriptors.append(
+                ConversionOptionDescriptor(
+                    id: "mediaQuality",
+                    title: isVideoOutput ? "Video Quality" : "Audio Quality",
+                    description: isVideoOutput
+                        ? "Encoding quality preset (CRF)"
+                        : "Audio encoding bitrate and quality preset",
+                    kind: .qualityPreset([.low, .medium, .high, .maximum])
+                )
             )
-        )
+        }
         
         descriptors.append(
             ConversionOptionDescriptor(
@@ -170,6 +145,63 @@ final class MediaConversionEngine: ConversionEngine, @unchecked Sendable {
                     kind: .targetSize([nil, 8.0, 25.0, 50.0, 100.0, 500.0])
                 )
             )
+        } else if output.category == .audio {
+            let codecs = AudioCodecRegistry.supportedCodecs(for: output)
+            if !codecs.isEmpty {
+                let codecChoices = [OptionChoice(value: "", label: "Auto (\(AudioCodecRegistry.defaultCodec(for: output).shortLabel))")]
+                    + codecs.map { OptionChoice(value: $0.rawValue, label: $0.displayName) }
+                descriptors.append(
+                    ConversionOptionDescriptor(
+                        id: "audio_codec",
+                        title: "Audio Codec",
+                        description: "Encoder or stream copy mode for .\(output.fileExtension)",
+                        kind: .picker(choices: codecChoices, defaultValue: "")
+                    )
+                )
+            }
+
+            let defaultCodec = AudioCodecRegistry.defaultCodec(for: output)
+            let spec = AudioCodecRegistry.spec(for: defaultCodec)
+            if !spec.supportedSampleRates.isEmpty {
+                let rateChoices = [OptionChoice(value: "", label: "Source Rate")]
+                    + spec.supportedSampleRates.map { rate in
+                        let khz = (rate % 1000 == 0) ? "\(rate / 1000) kHz" : String(format: "%.1f kHz", Double(rate) / 1000.0)
+                        return OptionChoice(value: "\(rate)", label: khz)
+                    }
+                descriptors.append(
+                    ConversionOptionDescriptor(
+                        id: "audio_sample_rate",
+                        title: "Sample Rate",
+                        description: "Target audio sampling frequency",
+                        kind: .picker(choices: rateChoices, defaultValue: "")
+                    )
+                )
+            }
+
+            let channelChoices: [OptionChoice] = [
+                OptionChoice(value: "", label: "Original"),
+                OptionChoice(value: "1", label: "Mono (1 ch)"),
+                OptionChoice(value: "2", label: "Stereo (2 ch)")
+            ] + (spec.supportedChannelCounts.contains(6) ? [OptionChoice(value: "6", label: "Surround 5.1 (6 ch)")] : [])
+            descriptors.append(
+                ConversionOptionDescriptor(
+                    id: "audio_channels",
+                    title: "Channels",
+                    description: "Target audio channel configuration",
+                    kind: .picker(choices: channelChoices, defaultValue: "")
+                )
+            )
+
+            if output == .m4a {
+                descriptors.append(
+                    ConversionOptionDescriptor(
+                        id: "m4a_lossless",
+                        title: "Apple Lossless (ALAC)",
+                        description: "Encode lossless ALAC audio inside M4A container instead of AAC",
+                        kind: .toggle(title: "Encode as Apple Lossless (ALAC)", defaultValue: false)
+                    )
+                )
+            }
         }
         
         return descriptors
@@ -190,26 +222,13 @@ final class MediaConversionEngine: ConversionEngine, @unchecked Sendable {
         options: ConversionOptions,
         progress: @Sendable (ConversionProgress) -> Void
     ) async throws -> ConversionResult {
-        guard let input = inputs.first else { throw ConversionError.invalidInput("No inputs") }
-        let startTime = CFAbsoluteTimeGetCurrent()
-        
-        let finalURL = try await provider.convert(
-            input: input,
+        guard !inputs.isEmpty else { throw ConversionError.invalidInput("No inputs") }
+        return try await provider.convertBatch(
+            inputs: inputs,
             to: outputFormat,
             outputDirectory: outputDirectory,
             options: options,
             progress: progress
-        )
-        
-        let duration = CFAbsoluteTimeGetCurrent() - startTime
-        let fileSize = (try? FileManager.default.attributesOfItem(atPath: finalURL.path)[.size] as? Int64) ?? 0
-        
-        return ConversionResult(
-            outputURL: finalURL,
-            outputFormat: outputFormat,
-            fileSize: fileSize,
-            duration: duration,
-            engineName: name
         )
     }
 }

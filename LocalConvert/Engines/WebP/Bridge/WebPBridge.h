@@ -56,6 +56,38 @@ int WebPBridgeEncodeLossless(
     size_t* outSize
 );
 
+/// Encodes lossless or lossy WebP format from packed pixels (0=RGB, 1=RGBA, 2=RGBX, 3=BGRX, 4=BGRA).
+int WebPBridgeEncodePixels(
+    const uint8_t* pixels,
+    int width,
+    int height,
+    int stride,
+    int pixelFormat,
+    int lossless,
+    float quality,
+    uint8_t** outData,
+    size_t* outSize
+);
+
+/// Encodes pixels to WebP with optional immediate release of a malloc/calloc pixel buffer
+/// right after libwebp imports the frame (before WebPEncode allocates internal encoder state),
+/// plus optional cooperative cancellation via a polling flag pointer.
+/// When freePixelsAfterImport != 0, this function assumes ownership of `pixels` and always frees it via free().
+int WebPBridgeEncodePixelsEx(
+    const uint8_t* pixels,
+    int width,
+    int height,
+    int stride,
+    int pixelFormat,
+    int lossless,
+    float quality,
+    int freePixelsAfterImport,
+    const int* cancelFlag,
+    uint8_t** outData,
+    size_t* outSize,
+    int* outWasCancelled
+);
+
 // MARK: - Validation
 
 /// Validates a WebP bitstream by checking RIFF/WEBP header signature.
@@ -78,6 +110,9 @@ int WebPBridgeGetInfo(const uint8_t* data, size_t size, int* width, int* height)
 int WebPBridgeHasAlpha(const uint8_t* data, size_t size);
 
 // MARK: - Memory
+
+/// Atomically updates a 32-bit cancellation flag used by WebPBridgeEncodePixelsEx.
+void WebPBridgeSetCancelFlag(int* cancelFlag, int cancelled);
 
 /// Frees a buffer previously returned by WebPBridgeEncode* functions.
 void WebPBridgeFreeBuffer(uint8_t* data);

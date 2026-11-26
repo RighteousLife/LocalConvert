@@ -25,6 +25,7 @@ targets:
     info:
       path: LocalConvert/Info.plist
       properties:
+        CFBundleShortVersionString: "1.0.0"
         CFBundleIconFile: AppIcon
         CFBundleIconName: AppIcon
         CFBundleURLTypes:
@@ -111,8 +112,43 @@ targets:
           - "Resources/**"
     postBuildScripts:
       - name: Copy Bundled Binaries and Runtime
+        basedOnDependencyAnalysis: true
+        inputFiles:
+          - $(SRCROOT)/LocalConvert/Resources/ffmpeg/ffmpeg
+          - $(SRCROOT)/LocalConvert/Resources/ffmpeg/ffprobe
+          - $(SRCROOT)/LocalConvert/Resources/ffmpeg/FFmpeg-LICENSE.txt
+          - $(SRCROOT)/LocalConvert/Resources/ffmpeg/FFmpeg-BUILDCONF.txt
+          - $(SRCROOT)/LocalConvert/Resources/AppIcon.icns
+          - $(SRCROOT)/LocalConvert/Resources/THIRD_PARTY_NOTICES.md
+          - $(SRCROOT)/LICENSE
+          - $(SRCROOT)/LocalConvert/Frameworks/LICENSE.webp
+          - $(SRCROOT)/LocalConvert/Frameworks/LICENSE.jxl
+        outputFiles:
+          - $(TARGET_BUILD_DIR)/$(UNLOCALIZED_RESOURCES_FOLDER_PATH)/ffmpeg/ffmpeg
+          - $(TARGET_BUILD_DIR)/$(UNLOCALIZED_RESOURCES_FOLDER_PATH)/ffmpeg/ffprobe
+          - $(TARGET_BUILD_DIR)/$(UNLOCALIZED_RESOURCES_FOLDER_PATH)/ffmpeg/FFmpeg-LICENSE.txt
+          - $(TARGET_BUILD_DIR)/$(UNLOCALIZED_RESOURCES_FOLDER_PATH)/ffmpeg/FFmpeg-BUILDCONF.txt
+          - $(TARGET_BUILD_DIR)/$(UNLOCALIZED_RESOURCES_FOLDER_PATH)/AppIcon.icns
+          - $(TARGET_BUILD_DIR)/$(UNLOCALIZED_RESOURCES_FOLDER_PATH)/THIRD_PARTY_NOTICES.md
+          - $(TARGET_BUILD_DIR)/$(UNLOCALIZED_RESOURCES_FOLDER_PATH)/LICENSE
+          - $(TARGET_BUILD_DIR)/$(UNLOCALIZED_RESOURCES_FOLDER_PATH)/LICENSE.webp
+          - $(TARGET_BUILD_DIR)/$(UNLOCALIZED_RESOURCES_FOLDER_PATH)/LICENSE.jxl
+          - $(DERIVED_FILE_DIR)/bundled-runtime-copied.stamp
         script: |
           set -e
+          SIGN_ID="${EXPANDED_CODE_SIGN_IDENTITY:--}"
+          if [ -z "${SIGN_ID}" ]; then
+            SIGN_ID="-"
+          fi
+          sign_macho() {
+            local target="$1"
+            if [ "${SIGN_ID}" = "-" ]; then
+              /usr/bin/codesign --force --sign - --timestamp=none "${target}"
+            else
+              /usr/bin/codesign --force --options runtime --timestamp --sign "${SIGN_ID}" "${target}"
+            fi
+          }
+
           FFMPEG_DST="${TARGET_BUILD_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}/ffmpeg"
           mkdir -p "${FFMPEG_DST}"
           cp -p "${SRCROOT}/LocalConvert/Resources/ffmpeg/ffmpeg" "${FFMPEG_DST}/ffmpeg"
@@ -120,8 +156,8 @@ targets:
           cp -p "${SRCROOT}/LocalConvert/Resources/ffmpeg/FFmpeg-LICENSE.txt" "${FFMPEG_DST}/FFmpeg-LICENSE.txt"
           cp -p "${SRCROOT}/LocalConvert/Resources/ffmpeg/FFmpeg-BUILDCONF.txt" "${FFMPEG_DST}/FFmpeg-BUILDCONF.txt"
           chmod +x "${FFMPEG_DST}/ffmpeg" "${FFMPEG_DST}/ffprobe"
-          /usr/bin/codesign --force --sign - --timestamp=none "${FFMPEG_DST}/ffmpeg"
-          /usr/bin/codesign --force --sign - --timestamp=none "${FFMPEG_DST}/ffprobe"
+          sign_macho "${FFMPEG_DST}/ffmpeg"
+          sign_macho "${FFMPEG_DST}/ffprobe"
 
           if [ -f "${SRCROOT}/LocalConvert/Resources/AppIcon.icns" ]; then
             cp -p "${SRCROOT}/LocalConvert/Resources/AppIcon.icns" "${TARGET_BUILD_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}/AppIcon.icns"
@@ -130,17 +166,48 @@ targets:
           if [ -f "${SRCROOT}/LocalConvert/Resources/THIRD_PARTY_NOTICES.md" ]; then
             cp -p "${SRCROOT}/LocalConvert/Resources/THIRD_PARTY_NOTICES.md" "${TARGET_BUILD_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}/THIRD_PARTY_NOTICES.md"
           fi
+          if [ -f "${SRCROOT}/LICENSE" ]; then
+            cp -p "${SRCROOT}/LICENSE" "${TARGET_BUILD_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}/LICENSE"
+          fi
+          if [ -f "${SRCROOT}/LocalConvert/Frameworks/LICENSE.webp" ]; then
+            cp -p "${SRCROOT}/LocalConvert/Frameworks/LICENSE.webp" "${TARGET_BUILD_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}/LICENSE.webp"
+          fi
+          if [ -f "${SRCROOT}/LocalConvert/Frameworks/LICENSE.jxl" ]; then
+            cp -p "${SRCROOT}/LocalConvert/Frameworks/LICENSE.jxl" "${TARGET_BUILD_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}/LICENSE.jxl"
+          fi
 
           LIBREOFFICE_SRC="${SRCROOT}/LocalConvert/Resources/LibreOffice"
           LIBREOFFICE_DST="${TARGET_BUILD_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}/LibreOffice"
           if [ -d "${LIBREOFFICE_SRC}" ]; then
             mkdir -p "${LIBREOFFICE_DST}"
-            rsync -a --delete --exclude='__pycache__' --exclude='*.pyc' "${LIBREOFFICE_SRC}/" "${LIBREOFFICE_DST}/"
+            rsync -a --delete --exclude='__pycache__' --exclude='*.pyc' --exclude='.DS_Store' "${LIBREOFFICE_SRC}/" "${LIBREOFFICE_DST}/"
             find "${LIBREOFFICE_DST}" -name "__pycache__" -exec rm -rf {} + 2>/dev/null || true
-            find "${LIBREOFFICE_DST}" -name "*.pyc" -delete 2>/dev/null || true
+            find "${LIBREOFFICE_DST}" \( -name "*.pyc" -o -name ".DS_Store" \) -delete 2>/dev/null || true
             chmod +x "${LIBREOFFICE_DST}/Contents/MacOS/soffice"
-            /usr/bin/codesign --force --sign - --timestamp=none "${LIBREOFFICE_DST}/Contents/MacOS/soffice"
+            if [ "${SIGN_ID}" != "-" ] || ! /usr/bin/codesign --verify --deep --strict "${LIBREOFFICE_DST}" >/dev/null 2>&1; then
+              find "${LIBREOFFICE_DST}/Contents" -type f ! -name '*.o' | while IFS= read -r macho_file; do
+                if /usr/bin/file -b "${macho_file}" | /usr/bin/grep -q "Mach-O"; then
+                  sign_macho "${macho_file}" >/dev/null
+                fi
+              done
+              PY_VERSIONS_DIR="${LIBREOFFICE_DST}/Contents/Frameworks/LibreOfficePython.framework/Versions"
+              if [ -d "${PY_VERSIONS_DIR}" ]; then
+                for ver_dir in "${PY_VERSIONS_DIR}"/*; do
+                  [ -d "${ver_dir}" ] && [ ! -L "${ver_dir}" ] || continue
+                  if [ -d "${ver_dir}/Resources/Python.app" ]; then
+                    sign_macho "${ver_dir}/Resources/Python.app" >/dev/null
+                  fi
+                  sign_macho "${ver_dir}" >/dev/null
+                done
+              fi
+              if [ -d "${LIBREOFFICE_DST}/Contents/Frameworks/LibreOfficePython.framework" ]; then
+                sign_macho "${LIBREOFFICE_DST}/Contents/Frameworks/LibreOfficePython.framework" >/dev/null
+              fi
+              sign_macho "${LIBREOFFICE_DST}" >/dev/null
+            fi
           fi
+          mkdir -p "${DERIVED_FILE_DIR}"
+          touch "${DERIVED_FILE_DIR}/bundled-runtime-copied.stamp"
     dependencies:
       - framework: LocalConvert/Frameworks/libwebp.dylib
         embed: true
@@ -163,11 +230,21 @@ targets:
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
         ENABLE_HARDENED_RUNTIME: true
         ENABLE_TESTING_SEARCH_PATHS: true
-        # WebP C bridge (bundled libwebp.dylib in Contents/Frameworks/)
+        # WebP & JPEG XL (libjxl v0.13.0) C/C++ bridges
         SWIFT_OBJC_BRIDGING_HEADER: "LocalConvert/LocalConvert-Bridging-Header.h"
         HEADER_SEARCH_PATHS: "$(inherited) $(SRCROOT)/LocalConvert/Frameworks/include"
         LIBRARY_SEARCH_PATHS: "$(inherited) $(SRCROOT)/LocalConvert/Frameworks"
         LD_RUNPATH_SEARCH_PATHS: "$(inherited) @executable_path/../Frameworks"
+        OTHER_LDFLAGS:
+          - "$(inherited)"
+          - "$(SRCROOT)/LocalConvert/Frameworks/libjxl.a"
+          - "$(SRCROOT)/LocalConvert/Frameworks/libjxl_threads.a"
+          - "$(SRCROOT)/LocalConvert/Frameworks/libjxl_cms.a"
+          - "$(SRCROOT)/LocalConvert/Frameworks/libhwy.a"
+          - "$(SRCROOT)/LocalConvert/Frameworks/libbrotlienc.a"
+          - "$(SRCROOT)/LocalConvert/Frameworks/libbrotlidec.a"
+          - "$(SRCROOT)/LocalConvert/Frameworks/libbrotlicommon.a"
+          - "-lc++"
       configs:
         Debug:
           CODE_SIGN_INJECT_BASE_ENTITLEMENTS: true
@@ -179,6 +256,9 @@ targets:
     platform: macOS
     sources:
       - path: LocalConvertTests
+        excludes:
+          - "**/.DS_Store"
+      - path: LocalConvertTestSupport
         excludes:
           - "**/.DS_Store"
     dependencies:
@@ -194,6 +274,26 @@ targets:
         LIBRARY_SEARCH_PATHS: "$(inherited) $(SRCROOT)/LocalConvert/Frameworks"
         LD_RUNPATH_SEARCH_PATHS: "$(inherited) @executable_path/../Frameworks @loader_path/../Frameworks"
 
+  LocalConvertUITests:
+    type: bundle.ui-testing
+    platform: macOS
+    sources:
+      - path: LocalConvertUITests
+        excludes:
+          - "**/.DS_Store"
+      - path: LocalConvertTestSupport
+        excludes:
+          - "**/.DS_Store"
+    dependencies:
+      - target: LocalConvert
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.localconvert.uitests
+        PRODUCT_NAME: LocalConvertUITests
+        GENERATE_INFOPLIST_FILE: true
+        TEST_TARGET_NAME: LocalConvert
+        CODE_SIGN_STYLE: Automatic
+
 schemes:
   LocalConvert:
     build:
@@ -202,6 +302,7 @@ schemes:
     test:
       targets:
         - name: LocalConvertTests
+        - name: LocalConvertUITests
     run:
       targets:
         - LocalConvert

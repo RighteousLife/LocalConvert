@@ -6,5 +6,6 @@
 #define LOCALCONVERT_BRIDGING_HEADER_H
 
 #include "Engines/WebP/Bridge/WebPBridge.h"
+#include "Engines/JXL/Bridge/JXLBridge.h"
 
 #endif /* LOCALCONVERT_BRIDGING_HEADER_H */

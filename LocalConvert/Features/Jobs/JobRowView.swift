@@ -25,77 +25,97 @@ struct JobRowView: View {
     }
     
     var body: some View {
-        HStack(alignment: .center, spacing: 12) {
+        HStack(alignment: .center, spacing: AppTheme.Spacing.md) {
             // Status Icon
             statusIcon
                 .frame(width: 24, height: 24)
             
             // File & Conversion Details
-            VStack(alignment: .leading, spacing: 3) {
-                HStack(spacing: 8) {
+            VStack(alignment: .leading, spacing: AppTheme.Spacing.xxs + 1) {
+                HStack(spacing: AppTheme.Spacing.sm) {
                     Text(job.sourceFilename)
-                        .font(.body)
+                        .font(AppTheme.Typography.body)
                         .fontWeight(.medium)
                         .lineLimit(1)
                         .truncationMode(.middle)
                     
                     // Format Badge: SOURCE -> TARGET
-                    HStack(spacing: 3) {
-                        Text(job.sourceFormat.rawValue.uppercased())
-                            .font(.system(size: 10, weight: .bold))
-                        Image(systemName: "arrow.right")
-                            .font(.system(size: 8, weight: .bold))
-                        Text(job.targetFormat.rawValue.uppercased())
-                            .font(.system(size: 10, weight: .bold))
-                    }
-                    .padding(.horizontal, 5)
-                    .padding(.vertical, 1.5)
-                    .background(Color.secondary.opacity(0.12))
-                    .clipShape(RoundedRectangle(cornerRadius: 3))
+                    AppStatusBadge(
+                        text: "\(job.sourceFormat.rawValue.uppercased()) → \(job.targetFormat.rawValue.uppercased())",
+                        tint: .secondary,
+                        style: .rounded
+                    )
+                    .fixedSize(horizontal: true, vertical: false)
                     
                     // Preset Badge
                     if let presetName = job.presetName, !presetName.isEmpty {
-                        HStack(spacing: 2) {
+                        HStack(spacing: AppTheme.Spacing.xxs) {
                             Image(systemName: "bolt.fill")
-                                .font(.system(size: 8))
+                                .font(.caption2)
                             Text(presetName)
-                                .font(.system(size: 10, weight: .medium))
+                                .font(AppTheme.Typography.badge)
                         }
-                        .padding(.horizontal, 5)
-                        .padding(.vertical, 1.5)
-                        .background(Color.accentColor.opacity(0.12))
-                        .foregroundStyle(Color.accentColor)
-                        .clipShape(RoundedRectangle(cornerRadius: 3))
+                        .padding(.horizontal, 7)
+                        .padding(.vertical, 2)
+                        .background(AppTheme.Colors.accentTint)
+                        .foregroundStyle(AppTheme.Colors.accent)
+                        .clipShape(RoundedRectangle(cornerRadius: AppTheme.Radius.xs))
+                        .fixedSize(horizontal: true, vertical: false)
+                    }
+
+                    if job.source == .watchFolder {
+                        let wfLabel = job.watchFolderRuleName.map { "Watch Folder · \($0)" } ?? "Watch Folder"
+                        AppStatusBadge(
+                            text: wfLabel,
+                            tint: AppTheme.Colors.info,
+                            style: .rounded
+                        )
+                        .fixedSize(horizontal: true, vertical: false)
+                        .accessibilityIdentifier("job.sourceBadge.watchFolder")
                     }
                     
-                    Spacer()
+                    Spacer(minLength: AppTheme.Spacing.sm)
                     
                     // Duration or Timestamp
                     if let duration = duration {
                         Text(String(format: "%.1fs", duration))
                             .font(.caption2)
+                            .monospacedDigit()
                             .foregroundStyle(.secondary)
+                            .fixedSize(horizontal: true, vertical: false)
                     }
                 }
                 
                 // Progress or Status Message & Size Comparison
-                HStack(spacing: 8) {
+                HStack(spacing: AppTheme.Spacing.sm) {
                     if case .converting(let progress) = status {
-                        ProgressView(value: status.progressFraction, total: 1.0)
-                            .progressViewStyle(.linear)
-                            .frame(maxWidth: 160)
-                        
-                        Text("\(Int(status.progressFraction * 100))%")
-                            .font(.caption2)
-                            .fontWeight(.medium)
-                            .foregroundStyle(.secondary)
+                        if let fraction = progress.fractionCompleted {
+                            ProgressView(value: fraction, total: 1.0)
+                                .progressViewStyle(.linear)
+                                .frame(maxWidth: 160)
+                                .accessibilityLabel("Conversion progress")
+                                .accessibilityValue("\(Int(fraction * 100)) percent")
+
+                            Text("\(Int(fraction * 100))%")
+                                .font(.caption2)
+                                .fontWeight(.medium)
+                                .monospacedDigit()
+                                .foregroundStyle(.secondary)
+                        } else {
+                            ProgressView()
+                                .progressViewStyle(.linear)
+                                .frame(maxWidth: 160)
+                                .accessibilityLabel("Conversion in progress")
+                                .accessibilityValue("Indeterminate")
+                        }
                     }
                     
                     if case .completed = status {
                         Text("Completed")
-                            .font(.caption)
+                            .font(AppTheme.Typography.caption)
                             .fontWeight(.medium)
-                            .foregroundStyle(.green)
+                            .foregroundStyle(AppTheme.Colors.success)
+                            .fixedSize(horizontal: true, vertical: false)
                         
                         if let sizeComp = appState.conversionManager.sizeComparison(for: job.id),
                            let outURL = result?.outputURL,
@@ -106,26 +126,37 @@ struct JobRowView: View {
                             
                             Text("\(outURL.lastPathComponent) · \(sizeComp.formattedOutput) · \(sizeComp.formattedSummary)")
                                 .font(.caption2)
-                                .foregroundStyle(sizeComp.savedBytes > 0 ? .green : .secondary)
+                                .monospacedDigit()
+                                .foregroundStyle(sizeComp.savedBytes > 0 ? AppTheme.Colors.success : .secondary)
+                                .lineLimit(1)
+                                .truncationMode(.middle)
                         }
                     } else {
                         Text(status.progressMessage ?? status.displayTitle)
-                            .font(.caption)
+                            .font(AppTheme.Typography.caption)
                             .foregroundStyle(statusColor)
                             .lineLimit(1)
                     }
                     
-                    Spacer()
+                    Spacer(minLength: 0)
                 }
             }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .accessibilityElement(children: .combine)
+            .accessibilityLabel("\(job.sourceFilename), \(job.sourceFormat.displayName) to \(job.targetFormat.displayName), \(job.source.accessibilityDescription), Status: \(status.displayTitle)")
             
             // Action Buttons
             actionControls
+                .fixedSize(horizontal: true, vertical: false)
         }
-        .padding(.vertical, 8)
-        .padding(.horizontal, 12)
-        .background(Color(nsColor: .controlBackgroundColor).opacity(0.5))
-        .clipShape(RoundedRectangle(cornerRadius: 6))
+        .padding(.vertical, AppTheme.Spacing.sm)
+        .padding(.horizontal, AppTheme.Spacing.md)
+        .background(AppTheme.Colors.cardBackground)
+        .clipShape(RoundedRectangle(cornerRadius: AppTheme.Radius.md))
+        .overlay(
+            RoundedRectangle(cornerRadius: AppTheme.Radius.md)
+                .strokeBorder(AppTheme.Colors.cardBorder, lineWidth: 1)
+        )
         .contextMenu {
             contextMenuItems
         }
@@ -134,8 +165,6 @@ struct JobRowView: View {
                 ErrorDetailsSheet(job: job, error: err, isPresented: $showingErrorSheet)
             }
         }
-        .accessibilityElement(children: .combine)
-        .accessibilityLabel("\(job.sourceFilename), \(job.sourceFormat.displayName) to \(job.targetFormat.displayName), Status: \(status.displayTitle)")
     }
     
     // MARK: - Subviews
@@ -145,22 +174,22 @@ struct JobRowView: View {
         switch status {
         case .waiting:
             Image(systemName: "clock")
-                .font(.system(size: 15))
+                .font(AppTheme.Typography.body)
                 .foregroundStyle(.secondary)
         case .converting:
             ProgressView()
                 .controlSize(.small)
         case .completed:
             Image(systemName: "checkmark.circle.fill")
-                .font(.system(size: 16))
-                .foregroundStyle(.green)
+                .font(.title3)
+                .foregroundStyle(AppTheme.Colors.success)
         case .failed:
             Image(systemName: "exclamationmark.triangle.fill")
-                .font(.system(size: 16))
-                .foregroundStyle(.red)
+                .font(.title3)
+                .foregroundStyle(AppTheme.Colors.error)
         case .cancelled:
             Image(systemName: "minus.circle.fill")
-                .font(.system(size: 16))
+                .font(.title3)
                 .foregroundStyle(.secondary)
         }
     }
@@ -168,23 +197,23 @@ struct JobRowView: View {
     private var statusColor: Color {
         switch status {
         case .waiting: return .secondary
-        case .converting: return .accentColor
-        case .completed: return .green
-        case .failed: return .red
+        case .converting: return AppTheme.Colors.accent
+        case .completed: return AppTheme.Colors.success
+        case .failed: return AppTheme.Colors.error
         case .cancelled: return .secondary
         }
     }
     
     @ViewBuilder
     private var actionControls: some View {
-        HStack(spacing: 6) {
+        HStack(spacing: AppTheme.Spacing.xs + 2) {
             switch status {
             case .waiting, .converting:
                 Button {
                     appState.conversionManager.cancel(jobId: job.id)
                 } label: {
                     Image(systemName: "xmark.circle")
-                        .font(.system(size: 14))
+                        .font(AppTheme.Typography.subheadline)
                 }
                 .buttonStyle(.plain)
                 .help("Cancel conversion")
@@ -197,7 +226,7 @@ struct JobRowView: View {
                             NSWorkspace.shared.open(outputURL)
                         } label: {
                             Image(systemName: "arrow.up.forward.app")
-                                .font(.system(size: 13))
+                                .font(AppTheme.Typography.subheadline)
                         }
                         .buttonStyle(.plain)
                         .help("Open output file")
@@ -207,7 +236,7 @@ struct JobRowView: View {
                             NSWorkspace.shared.activateFileViewerSelecting([outputURL])
                         } label: {
                             Image(systemName: "folder")
-                                .font(.system(size: 13))
+                                .font(AppTheme.Typography.subheadline)
                         }
                         .buttonStyle(.plain)
                         .help("Show output in Finder")
@@ -218,7 +247,7 @@ struct JobRowView: View {
                             NSPasteboard.general.setString(outputURL.path, forType: .string)
                         } label: {
                             Image(systemName: "doc.on.doc")
-                                .font(.system(size: 12))
+                                .font(AppTheme.Typography.caption)
                         }
                         .buttonStyle(.plain)
                         .help("Copy output file path")
@@ -234,7 +263,7 @@ struct JobRowView: View {
                     appState.conversionManager.removeJob(id: job.id)
                 } label: {
                     Image(systemName: "trash")
-                        .font(.system(size: 12))
+                        .font(AppTheme.Typography.caption)
                         .foregroundStyle(.secondary)
                 }
                 .buttonStyle(.plain)
@@ -246,8 +275,8 @@ struct JobRowView: View {
                     showingErrorSheet = true
                 } label: {
                     Image(systemName: "info.circle")
-                        .font(.system(size: 13))
-                        .foregroundStyle(.red)
+                        .font(AppTheme.Typography.subheadline)
+                        .foregroundStyle(AppTheme.Colors.error)
                 }
                 .buttonStyle(.plain)
                 .help("View error details")
@@ -257,8 +286,8 @@ struct JobRowView: View {
                     appState.conversionManager.retry(jobId: job.id, using: appState.conversionQueue)
                 } label: {
                     Image(systemName: "arrow.clockwise")
-                        .font(.system(size: 13, weight: .semibold))
-                        .foregroundStyle(Color.accentColor)
+                        .font(AppTheme.Typography.subheadline.weight(.semibold))
+                        .foregroundStyle(AppTheme.Colors.accent)
                 }
                 .buttonStyle(.plain)
                 .help("Retry conversion")
@@ -268,7 +297,7 @@ struct JobRowView: View {
                     appState.conversionManager.removeJob(id: job.id)
                 } label: {
                     Image(systemName: "trash")
-                        .font(.system(size: 12))
+                        .font(AppTheme.Typography.caption)
                         .foregroundStyle(.secondary)
                 }
                 .buttonStyle(.plain)
@@ -280,8 +309,8 @@ struct JobRowView: View {
                     appState.conversionManager.retry(jobId: job.id, using: appState.conversionQueue)
                 } label: {
                     Image(systemName: "arrow.clockwise")
-                        .font(.system(size: 13))
-                        .foregroundStyle(Color.accentColor)
+                        .font(AppTheme.Typography.subheadline)
+                        .foregroundStyle(AppTheme.Colors.accent)
                 }
                 .buttonStyle(.plain)
                 .help("Retry conversion")
@@ -291,7 +320,7 @@ struct JobRowView: View {
                     appState.conversionManager.removeJob(id: job.id)
                 } label: {
                     Image(systemName: "trash")
-                        .font(.system(size: 12))
+                        .font(AppTheme.Typography.caption)
                         .foregroundStyle(.secondary)
                 }
                 .buttonStyle(.plain)
@@ -362,15 +391,16 @@ struct ErrorDetailsSheet: View {
     let job: ConversionJob
     let error: ConversionError
     @Binding var isPresented: Bool
+    @State private var showTechnicalDetails: Bool = true
     
     var body: some View {
-        VStack(alignment: .leading, spacing: 16) {
+        VStack(alignment: .leading, spacing: AppTheme.Spacing.md) {
             HStack {
                 Image(systemName: "exclamationmark.triangle.fill")
                     .font(.title2)
-                    .foregroundStyle(.red)
-                Text("Conversion Error")
-                    .font(.headline)
+                    .foregroundStyle(AppTheme.Colors.error)
+                Text(ErrorDetailsFormatter.title(for: error))
+                    .font(AppTheme.Typography.sectionTitle)
                 Spacer()
                 Button("Done") {
                     isPresented = false
@@ -378,15 +408,22 @@ struct ErrorDetailsSheet: View {
                 .keyboardShortcut(.defaultAction)
             }
             
-            Text("File: \(job.sourceFilename)")
-                .font(.subheadline)
-                .foregroundStyle(.secondary)
-            
-            VStack(alignment: .leading, spacing: 6) {
-                Text("Error Details:")
-                    .font(.caption)
+            VStack(alignment: .leading, spacing: AppTheme.Spacing.xs) {
+                Text("File: \(job.sourceFilename)")
+                    .font(AppTheme.Typography.subheadline.weight(.medium))
+                Text(ErrorDetailsFormatter.sanitize(error.userFacingMessage))
+                    .font(AppTheme.Typography.caption)
                     .foregroundStyle(.secondary)
-                
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+
+            AppInfoBanner(
+                style: .info,
+                message: ErrorDetailsFormatter.suggestedAction(for: error),
+                icon: "lightbulb.fill"
+            )
+            
+            DisclosureGroup("Technical Details", isExpanded: $showTechnicalDetails) {
                 ScrollView {
                     Text(ErrorDetailsFormatter.format(
                         inputFilename: job.sourceFilename,
@@ -394,15 +431,17 @@ struct ErrorDetailsSheet: View {
                         outputFormat: job.outputFormat.displayName,
                         error: error
                     ))
-                    .font(.system(size: 11, design: .monospaced))
+                    .font(.system(.caption, design: .monospaced))
                     .textSelection(.enabled)
-                    .padding(8)
+                    .padding(AppTheme.Spacing.sm)
                     .frame(maxWidth: .infinity, alignment: .topLeading)
                 }
-                .background(Color(nsColor: .textBackgroundColor))
-                .clipShape(RoundedRectangle(cornerRadius: 6))
-                .frame(maxHeight: 160)
+                .background(AppTheme.Colors.elevatedSurface)
+                .clipShape(RoundedRectangle(cornerRadius: AppTheme.Radius.sm))
+                .frame(maxHeight: 140)
+                .padding(.top, AppTheme.Spacing.xs)
             }
+            .font(AppTheme.Typography.caption.weight(.medium))
             
             HStack {
                 Button("Copy Error Details") {
@@ -419,7 +458,8 @@ struct ErrorDetailsSheet: View {
                 Spacer()
             }
         }
-        .padding(20)
-        .frame(width: 480, height: 320)
+        .padding(AppTheme.Spacing.xl)
+        .frame(width: 500, height: 380)
+        .onExitCommand { isPresented = false }
     }
 }

@@ -9,6 +9,7 @@ final class PresetStore: ObservableObject {
     private let logger = Logger(subsystem: "com.localconvert.app", category: "PresetStore")
     
     @Published private(set) var userPresets: [SavedPreset] = []
+    @Published private(set) var lastPersistenceError: String?
     
     let fileURL: URL
     
@@ -16,14 +17,16 @@ final class PresetStore: ObservableObject {
         if let customURL = fileURL {
             self.fileURL = customURL
         } else {
-            let appSupport = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first!
-            let bundleID = Bundle.main.bundleIdentifier ?? "com.localconvert.app"
-            let dir = appSupport.appendingPathComponent(bundleID)
-            try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
-            self.fileURL = dir.appendingPathComponent("presets.json")
+            let resolvedURL = AppStoragePaths.presetsFileURL
+            try? FileManager.default.createDirectory(at: resolvedURL.deletingLastPathComponent(), withIntermediateDirectories: true)
+            self.fileURL = resolvedURL
         }
         
         load()
+    }
+
+    func clearPersistenceError() {
+        lastPersistenceError = nil
     }
     
     // MARK: - CRUD Operations
@@ -84,6 +87,12 @@ final class PresetStore: ObservableObject {
         logger.info("Reset user presets to default factory templates (\(self.userPresets.count, privacy: .public) presets)")
         persist()
     }
+
+    func replaceAll(_ presets: [SavedPreset]) {
+        userPresets = presets
+        logger.info("Restored preset collection (\(self.userPresets.count, privacy: .public) presets)")
+        persist()
+    }
     
     // MARK: - Persistence
     
@@ -100,9 +109,11 @@ final class PresetStore: ObservableObject {
             let decoder = JSONDecoder()
             decoder.dateDecodingStrategy = .iso8601
             userPresets = try decoder.decode([SavedPreset].self, from: data)
-            logger.info("Loaded \(self.userPresets.count, privacy: .public) saved presets from \(self.fileURL.lastPathComponent, privacy: .public)")
+            lastPersistenceError = nil
+            logger.info("Loaded \(self.userPresets.count, privacy: .public) saved presets from \(self.fileURL.lastPathComponent, privacy: .private)")
         } catch {
-            logger.error("Failed to decode presets from \(self.fileURL.path, privacy: .public): \(error.localizedDescription, privacy: .public). Falling back to safe recovery.")
+            let sanitizedError = ErrorDetailsFormatter.sanitize(error.localizedDescription)
+            logger.error("Failed to decode presets from \(self.fileURL.path, privacy: .private): \(error.localizedDescription, privacy: .private). Falling back to safe recovery.")
             
             // Backup corrupted file
             let timestamp = Int(Date().timeIntervalSince1970)
@@ -111,11 +122,22 @@ final class PresetStore: ObservableObject {
             
             // Fallback safely to defaults without crashing
             userPresets = SavedPreset.defaultTemplates
-            persist()
+            let persisted = persist()
+            if persisted {
+                lastPersistenceError = "Failed to load saved presets; corrupt file backed up as '\(backupURL.lastPathComponent)'."
+            }
+            StructuredDiagnostics.record(
+                category: .fileAccess,
+                severity: .internalError,
+                stage: "loadPresets",
+                filename: fileURL.lastPathComponent,
+                message: "Failed to load presets (backed up to \(backupURL.lastPathComponent)): \(sanitizedError)"
+            )
         }
     }
     
-    func persist() {
+    @discardableResult
+    func persist() -> Bool {
         do {
             let encoder = JSONEncoder()
             encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
@@ -127,9 +149,21 @@ final class PresetStore: ObservableObject {
             try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
             
             try data.write(to: fileURL, options: .atomic)
-            logger.debug("Persisted \(self.userPresets.count, privacy: .public) presets to \(self.fileURL.lastPathComponent, privacy: .public)")
+            lastPersistenceError = nil
+            logger.debug("Persisted \(self.userPresets.count, privacy: .public) presets to \(self.fileURL.lastPathComponent, privacy: .private)")
+            return true
         } catch {
-            logger.error("Failed to persist presets to \(self.fileURL.path, privacy: .public): \(error.localizedDescription, privacy: .public)")
+            let sanitizedError = ErrorDetailsFormatter.sanitize(error.localizedDescription)
+            logger.error("Failed to persist presets to \(self.fileURL.path, privacy: .private): \(error.localizedDescription, privacy: .private)")
+            lastPersistenceError = "Failed to save presets: \(sanitizedError)"
+            StructuredDiagnostics.record(
+                category: .fileAccess,
+                severity: .internalError,
+                stage: "persistPresets",
+                filename: fileURL.lastPathComponent,
+                message: "Failed to persist presets: \(sanitizedError)"
+            )
+            return false
         }
     }
 }

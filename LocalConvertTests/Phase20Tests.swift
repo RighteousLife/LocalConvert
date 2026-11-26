@@ -215,13 +215,16 @@ struct Phase20Tests {
     
     // MARK: - 5. AppNavigationTab & AppSettings
     
-    @Test("AppNavigationTab covers all 7 primary app sections")
+    @Test("AppNavigationTab covers all 10 primary app sections")
     func testAppNavigationTabCases() {
         let allTabs = AppNavigationTab.allCases
-        #expect(allTabs.count == 7)
+        #expect(allTabs.count == 10)
         #expect(allTabs.contains(.convert))
         #expect(allTabs.contains(.jobs))
         #expect(allTabs.contains(.pdfToolbox))
+        #expect(allTabs.contains(.audioToolbox))
+        #expect(allTabs.contains(.audioWorkspace))
+        #expect(allTabs.contains(.imageToolbox))
         #expect(allTabs.contains(.metadata))
         #expect(allTabs.contains(.presets))
         #expect(allTabs.contains(.history))
@@ -243,34 +246,44 @@ struct Phase20Tests {
     
     @Test("AppIcon.icns exists and has full multi-representation size (> 1MB)")
     func testAppIconIntegrity() {
-        let currentFileURL = URL(fileURLWithPath: #filePath)
-        let projectRoot = currentFileURL.deletingLastPathComponent().deletingLastPathComponent()
-        let sourceIconURL = projectRoot.appendingPathComponent("LocalConvert/Resources/AppIcon.icns")
-        
-        #expect(FileManager.default.fileExists(atPath: sourceIconURL.path))
-        
-        guard let attributes = try? FileManager.default.attributesOfItem(atPath: sourceIconURL.path),
+        let iconURL: URL
+        if let bundledIconURL = Bundle.main.url(forResource: "AppIcon", withExtension: "icns") {
+            iconURL = bundledIconURL
+        } else {
+            let currentFileURL = URL(fileURLWithPath: #filePath)
+            let projectRoot = currentFileURL.deletingLastPathComponent().deletingLastPathComponent()
+            iconURL = projectRoot.appendingPathComponent("LocalConvert/Resources/AppIcon.icns")
+        }
+
+        #expect(FileManager.default.fileExists(atPath: iconURL.path))
+
+        guard let attributes = try? FileManager.default.attributesOfItem(atPath: iconURL.path),
               let fileSize = attributes[.size] as? Int64 else {
             Issue.record("Could not read AppIcon.icns file size")
             return
         }
-        
+
         // Full 10-representation Retina icns is ~1.56 MB (1,563,338 bytes), significantly larger than minimal 87 KB placeholder
         #expect(fileSize > 1_000_000, "AppIcon.icns must contain full Retina representations, size was \(fileSize) bytes")
     }
-    
+
     @Test("Info.plist contains CFBundleIconFile set to AppIcon")
     func testInfoPlistIconConfiguration() {
+        if let iconFile = Bundle.main.object(forInfoDictionaryKey: "CFBundleIconFile") as? String {
+            #expect(iconFile == "AppIcon")
+            return
+        }
+
         let currentFileURL = URL(fileURLWithPath: #filePath)
         let projectRoot = currentFileURL.deletingLastPathComponent().deletingLastPathComponent()
         let infoPlistURL = projectRoot.appendingPathComponent("LocalConvert/Info.plist")
-        
+
         guard let data = try? Data(contentsOf: infoPlistURL),
               let plist = try? PropertyListSerialization.propertyList(from: data, format: nil) as? [String: Any] else {
             Issue.record("Could not read Info.plist")
             return
         }
-        
+
         #expect(plist["CFBundleIconFile"] as? String == "AppIcon")
     }
 }

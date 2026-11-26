@@ -43,64 +43,51 @@ struct FileDetector: Sendable {
     private static let signatures: [(bytes: [UInt8], offset: Int, format: FileFormat)] = [
         // PDF
         ([0x25, 0x50, 0x44, 0x46], 0, .pdf),           // %PDF
-        // PNG
-        ([0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A], 0, .png),
         // JPEG
         ([0xFF, 0xD8, 0xFF], 0, .jpg),
-        // GIF87a
+        // GIF87a / GIF89a
         ([0x47, 0x49, 0x46, 0x38, 0x37, 0x61], 0, .gif),
-        // GIF89a
         ([0x47, 0x49, 0x46, 0x38, 0x39, 0x61], 0, .gif),
-        // TIFF (little-endian)
-        ([0x49, 0x49, 0x2A, 0x00], 0, .tiff),
-        // TIFF (big-endian)
-        ([0x4D, 0x4D, 0x00, 0x2A], 0, .tiff),
+        // JPEG 2000 (JP2 box & J2K codestream)
+        ([0x00, 0x00, 0x00, 0x0C, 0x6A, 0x50, 0x20, 0x20], 0, .jp2),
+        ([0xFF, 0x4F, 0xFF, 0x51], 0, .jp2),
+        // JPEG XL codestream
+        ([0xFF, 0x0A], 0, .jxl),
+        // OpenEXR
+        ([0x76, 0x2F, 0x31, 0x01], 0, .exr),
+        // QOI
+        ([0x71, 0x6F, 0x69, 0x66], 0, .qoi),
         // BMP
         ([0x42, 0x4D], 0, .bmp),
-        // WebP (RIFF....WEBP)
-        ([0x52, 0x49, 0x46, 0x46], 0, .webp), // Needs secondary check for WEBP at offset 8
-        // ZIP (also DOCX, XLSX, PPTX are ZIP-based)
-        ([0x50, 0x4B, 0x03, 0x04], 0, .zip),
-        // 7z
-        ([0x37, 0x7A, 0xBC, 0xAF, 0x27, 0x1C], 0, .sevenZ),
-        // GZip
-        ([0x1F, 0x8B], 0, .gz),
-        // BZ2
-        ([0x42, 0x5A, 0x68], 0, .bz2),
-        // XZ
-        ([0xFD, 0x37, 0x7A, 0x58, 0x5A, 0x00], 0, .xz),
-        // MP3 (ID3)
-        ([0x49, 0x44, 0x33], 0, .mp3),
-        // MP3 (sync word)
-        ([0xFF, 0xFB], 0, .mp3),
-        // FLAC
-        ([0x66, 0x4C, 0x61, 0x43], 0, .flac),
-        // OGG
-        ([0x4F, 0x67, 0x67, 0x53], 0, .ogg),
-        // WAV (RIFF....WAVE)
-        ([0x52, 0x49, 0x46, 0x46], 0, .wav), // Needs secondary check for WAVE at offset 8
-        // AIFF
-        ([0x46, 0x4F, 0x52, 0x4D], 0, .aiff),
-        // MP4/MOV (ftyp)
-        ([0x66, 0x74, 0x79, 0x70], 4, .mp4),
-        // AVI (RIFF....AVI )
-        ([0x52, 0x49, 0x46, 0x46], 0, .avi), // Needs secondary check for AVI  at offset 8
         // ICNS (icns)
         ([0x69, 0x63, 0x6E, 0x73], 0, .icns),
         // PSD (8BPS)
         ([0x38, 0x42, 0x50, 0x53], 0, .psd),
-        // CAF (caff)
-        ([0x63, 0x61, 0x66, 0x66], 0, .caf),
-        // AC3 sync word
-        ([0x0B, 0x77], 0, .ac3),
         // ICO (00 00 01 00)
         ([0x00, 0x00, 0x01, 0x00], 0, .ico),
-        // RTF ({\rtf1)
-        ([0x7B, 0x5C, 0x72, 0x74, 0x66, 0x31], 0, .rtf),
-        // SVG (<svg)
-        ([0x3C, 0x73, 0x76, 0x67], 0, .svg),
-        // XML (<?xml) - often SVG
-        ([0x3C, 0x3F, 0x78, 0x6D, 0x6C], 0, .svg),
+        // SGI RGB (01 DA)
+        ([0x01, 0xDA], 0, .sgi),
+        // Archives
+        ([0x37, 0x7A, 0xBC, 0xAF, 0x27, 0x1C], 0, .sevenZ),
+        ([0x52, 0x61, 0x72, 0x21, 0x1A, 0x07], 0, .rar),
+        // Audio
+        ([0x49, 0x44, 0x33], 0, .mp3),
+        ([0xFF, 0xFB], 0, .mp3),
+        ([0xFF, 0xF3], 0, .mp3),
+        ([0xFF, 0xF2], 0, .mp3),
+        ([0x66, 0x4C, 0x61, 0x43], 0, .flac),
+        ([0x63, 0x61, 0x66, 0x66], 0, .caf),
+        ([0x0B, 0x77], 0, .ac3),
+        ([0x2E, 0x73, 0x6E, 0x64], 0, .au),            // .snd
+        ([0x77, 0x76, 0x70, 0x6B], 0, .wv),            // wvpk
+        ([0x4D, 0x41, 0x43, 0x20], 0, .ape),           // MAC 
+        ([0x23, 0x21, 0x41, 0x4D, 0x52], 0, .amr),     // #!AMR
+        ([0x7F, 0xFE, 0x80, 0x01], 0, .dts),           // DTS core
+        // Video
+        ([0x46, 0x4C, 0x56, 0x01], 0, .flv),           // FLV
+        ([0x00, 0x00, 0x01, 0xBA], 0, .mpg),           // MPEG-PS / VOB
+        // RTF ({\rtf)
+        ([0x7B, 0x5C, 0x72, 0x74, 0x66], 0, .rtf),
     ]
     
     // MARK: - Public API
@@ -108,7 +95,7 @@ struct FileDetector: Sendable {
     func detect(url: URL) -> FileDetectionResult {
         let extensionFormat = detectByExtension(url: url)
         let utTypeFormat = detectByUTType(url: url)
-        let magicBytesFormat = detectByMagicBytes(url: url)
+        let magicBytesFormat = detectByMagicBytes(url: url, extensionHint: extensionFormat)
         
         // Determine confidence
         let confidence: DetectionConfidence
@@ -144,55 +131,95 @@ struct FileDetector: Sendable {
     // MARK: - Detection Methods
     
     private func detectByExtension(url: URL) -> FileFormat? {
+        let lowerName = url.lastPathComponent.lowercased()
+        for (suffix, format) in FileFormat.compoundExtensions {
+            if lowerName.hasSuffix(suffix) {
+                return format
+            }
+        }
         let ext = url.pathExtension
         guard !ext.isEmpty else { return nil }
         return FileFormat.from(extension: ext)
     }
     
     private func detectByUTType(url: URL) -> FileFormat? {
+        let lowerName = url.lastPathComponent.lowercased()
+        for (suffix, format) in FileFormat.compoundExtensions {
+            if lowerName.hasSuffix(suffix) {
+                return format
+            }
+        }
         guard let utType = try? url.resourceValues(forKeys: [.contentTypeKey]).contentType else {
             return nil
         }
         return FileFormat.from(utType: utType)
     }
     
-    private func detectByMagicBytes(url: URL) -> FileFormat? {
+    private func detectByMagicBytes(url: URL, extensionHint: FileFormat?) -> FileFormat? {
         guard let fileHandle = try? FileHandle(forReadingFrom: url) else { return nil }
         defer { try? fileHandle.close() }
         
-        guard let headerData = try? fileHandle.read(upToCount: 16) else { return nil }
+        guard let headerData = try? fileHandle.read(upToCount: 4096), !headerData.isEmpty else { return nil }
         let bytes = Array(headerData)
+        let ext = url.pathExtension.lowercased()
         
-        // Check RIFF-based formats first (need secondary check)
-        if bytes.count >= 12 && bytes[0] == 0x52 && bytes[1] == 0x49 && bytes[2] == 0x46 && bytes[3] == 0x46 {
-            let subType = Array(bytes[8..<12])
-            if subType == [0x57, 0x45, 0x42, 0x50] { // WEBP
-                return .webp
-            } else if subType == [0x57, 0x41, 0x56, 0x45] { // WAVE
-                return .wav
-            } else if subType == [0x41, 0x56, 0x49, 0x20] { // AVI 
-                return .avi
+        // 1. PNG vs APNG (check acTL chunk before IDAT)
+        if bytes.starts(with: [0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A]) {
+            if let acTLRange = headerData.range(of: Data("acTL".utf8)) {
+                let idatRange = headerData.range(of: Data("IDAT".utf8))
+                if idatRange == nil || acTLRange.lowerBound < idatRange!.lowerBound {
+                    return .apng
+                }
             }
+            return ext == "apng" ? .apng : .png
         }
         
-        // Check HEIC/HEIF / MP4 / MOV / M4A / 3GP (ftyp box)
+        // 2. RIFF-based formats (WEBP, WAVE, AVI)
+        if bytes.count >= 12 && bytes[0] == 0x52 && bytes[1] == 0x49 && bytes[2] == 0x46 && bytes[3] == 0x46 {
+            let subType = Array(bytes[8..<12])
+            if subType == [0x57, 0x45, 0x42, 0x50] { return .webp }
+            if subType == [0x57, 0x41, 0x56, 0x45] { return .wav }
+            if subType == [0x41, 0x56, 0x49, 0x20] { return .avi }
+        }
+        
+        // 3. ISOBMFF containers (`ftyp` or JPEG XL container)
+        if bytes.count >= 12 && bytes[0...7] == [0x00, 0x00, 0x00, 0x0C, 0x4A, 0x58, 0x4C, 0x20] {
+            return .jxl
+        }
         if bytes.count >= 12 && bytes[4] == 0x66 && bytes[5] == 0x74 && bytes[6] == 0x79 && bytes[7] == 0x70 {
             let brand = String(bytes: Array(bytes[8..<12]), encoding: .ascii)?.lowercased() ?? ""
-            let ext = url.pathExtension.lowercased()
-            if brand.hasPrefix("3gp") || brand.hasPrefix("3g2") || brand.hasPrefix("3ge") || brand.hasPrefix("3gg") || ext == "3gp" || ext == "3gpp" || ext == "3g2" {
+            if brand.hasPrefix("3g2") || ext == "3g2" || ext == "3gp2" {
+                return .threeG2
+            }
+            if brand.hasPrefix("3gp") || brand.hasPrefix("3ge") || brand.hasPrefix("3gg") || ext == "3gp" || ext == "3gpp" {
                 return .threeGP
             }
             if brand.hasPrefix("avif") || brand.hasPrefix("avis") {
                 return .avif
             }
-            if brand.hasPrefix("heic") || brand.hasPrefix("heif") || brand.hasPrefix("mif1") {
+            if brand.hasPrefix("heic") || brand.hasPrefix("heix") || brand.hasPrefix("hevc") || brand.hasPrefix("mif1") || brand.hasPrefix("heif") {
                 return .heic
+            }
+            if brand.hasPrefix("jxl") {
+                return .jxl
+            }
+            if brand.hasPrefix("crx") || ext == "cr3" {
+                return .cr3
             }
             if brand.hasPrefix("alac") || ext == "alac" {
                 return .alac
             }
-            if brand.hasPrefix("m4a") || brand.hasPrefix("m4b") || ext == "m4a" {
+            if brand.hasPrefix("m4b") || ext == "m4b" {
+                return .m4b
+            }
+            if brand.hasPrefix("m4v") || ext == "m4v" {
+                return .m4v
+            }
+            if brand.hasPrefix("m4a") || ext == "m4a" {
                 return .m4a
+            }
+            if brand.hasPrefix("f4v") || ext == "f4v" {
+                return .f4v
             }
             if brand.hasPrefix("qt") || ext == "mov" {
                 return .mov
@@ -200,70 +227,197 @@ struct FileDetector: Sendable {
             if brand.hasPrefix("isom") || brand.hasPrefix("mp4") || ext == "mp4" {
                 return .mp4
             }
-            // Fallback for general MP4 containers
-            if ext == "m4v" { return .m4v }
             return .mp4
         }
         
-        // Check MPEG transport stream sync byte 0x47 (MTS / M2TS)
-        if bytes.first == 0x47 {
-            let ext = url.pathExtension.lowercased()
-            if ext == "m2ts" {
-                return .m2ts
-            }
-            if ext == "mts" {
-                return .mts
-            }
+        // 4. AIFF (FORM....AIFF / AIFC)
+        if bytes.count >= 12 && bytes[0...3] == [0x46, 0x4F, 0x52, 0x4D] {
+            return .aiff
         }
         
-        // Check TIFF / DNG
-        if (bytes.starts(with: [0x49, 0x49, 0x2A, 0x00]) || bytes.starts(with: [0x4D, 0x4D, 0x00, 0x2A])) {
-            let ext = url.pathExtension.lowercased()
-            if ext == "dng" {
-                return .dng
+        // 5. ASF / WMV / WMA
+        if bytes.starts(with: [0x30, 0x26, 0xB2, 0x75, 0x8E, 0x66, 0xCF, 0x11]) {
+            if ext == "wma" { return .wma }
+            if ext == "asf" { return .asf }
+            return .wmv
+        }
+        
+        // 6. MPEG-TS (0x47 sync byte)
+        if bytes.first == 0x47 {
+            if ext == "m2ts" { return .m2ts }
+            if ext == "mts" { return .mts }
+            if ext == "ts" { return .ts }
+        }
+        
+        // 7. MPEG-PS vs VOB
+        if bytes.starts(with: [0x00, 0x00, 0x01, 0xBA]) {
+            if ext == "vob" { return .vob }
+            return .mpg
+        }
+        
+        // 8. Radiance HDR
+        if headerData.starts(with: Data("#?RADIANCE".utf8)) || headerData.starts(with: Data("#?RGBE".utf8)) {
+            return .hdr
+        }
+        
+        // 9. Netpbm P1-P6 + whitespace
+        if bytes.count >= 3 && bytes[0] == 0x50 && (0x31...0x36).contains(bytes[1]) &&
+            [0x0A, 0x0D, 0x20, 0x09].contains(bytes[2]) {
+            return .ppm
+        }
+        
+        // 10. TIFF / Camera RAW TIFF-based formats
+        if bytes.starts(with: [0x49, 0x49, 0x2A, 0x00]) || bytes.starts(with: [0x4D, 0x4D, 0x00, 0x2A]) || bytes.starts(with: [0x49, 0x49, 0x52, 0x4F]) {
+            if let extFmt = extensionHint, extFmt.isRawImage {
+                return extFmt
             }
             return .tiff
         }
         
-        // Check EBML header (Matroska / WebM)
+        // 11. EBML (MKV / WebM / MKA)
         if bytes.count >= 4 && bytes[0] == 0x1A && bytes[1] == 0x45 && bytes[2] == 0xDF && bytes[3] == 0xA3 {
-            let ext = url.pathExtension.lowercased()
-            if ext == "webm" {
+            if headerData.range(of: Data("webm".utf8)) != nil || ext == "webm" {
                 return .webm
+            }
+            if ext == "mka" {
+                return .mka
             }
             return .mkv
         }
         
-        // Check Ogg container (OGG / Opus)
+        // 12. Ogg container (OGG / Opus / OGV)
         if bytes.count >= 4 && bytes[0] == 0x4F && bytes[1] == 0x67 && bytes[2] == 0x67 && bytes[3] == 0x53 {
-            let ext = url.pathExtension.lowercased()
-            if ext == "opus" {
+            if headerData.range(of: Data("OpusHead".utf8)) != nil || ext == "opus" {
                 return .opus
+            }
+            if headerData.range(of: Data("theora".utf8)) != nil || ext == "ogv" {
+                return .ogv
             }
             return .ogg
         }
         
-        // Check ZIP-based formats (Office documents)
-        if bytes.count >= 4 && bytes[0] == 0x50 && bytes[1] == 0x4B && bytes[2] == 0x03 && bytes[3] == 0x04 {
-            // ZIP-based - could be DOCX, XLSX, PPTX, or plain ZIP
-            // For accuracy, check file extension for Office formats
-            if let extFormat = detectByExtension(url: url),
-               [.docx, .xlsx, .pptx, .odt, .ods, .odp].contains(extFormat) {
-                return extFormat
-            }
-            return .zip
+        // 13. Compound Archives (tar.gz, tar.bz2, tar.xz) + GZip / BZip2 / XZ / TAR
+        if bytes.starts(with: [0x1F, 0x8B]) {
+            return extensionHint == .tgz ? .tgz : .gz
+        }
+        if bytes.starts(with: [0x42, 0x5A, 0x68]) {
+            return extensionHint == .tbz2 ? .tbz2 : .bz2
+        }
+        if bytes.starts(with: [0xFD, 0x37, 0x7A, 0x58, 0x5A, 0x00]) {
+            return extensionHint == .txz ? .txz : .xz
+        }
+        if bytes.count >= 263 && Array(bytes[257..<262]) == [0x75, 0x73, 0x74, 0x61, 0x72] { // "ustar"
+            return .tar
         }
         
-        // Standard signature matching
+        // 14. ZIP & ZIP-based packages (inspect inner OOXML / ODF / EPUB markers before falling back)
+        if bytes.starts(with: [0x50, 0x4B, 0x03, 0x04]) || bytes.starts(with: [0x50, 0x4B, 0x05, 0x06]) {
+            return inspectZipContainerFormat(url: url, extensionHint: extensionHint)
+        }
+        
+        // 15. Legacy OLE2 Compound Binary (DOC, XLS, PPT, PPS)
+        if bytes.starts(with: [0xD0, 0xCF, 0x11, 0xE0, 0xA1, 0xB1, 0x1A, 0xE1]) {
+            if let hint = extensionHint, [.doc, .xls, .ppt, .pps].contains(hint) {
+                return hint
+            }
+        }
+        
+        // 16. Standard fixed-byte signatures
         for sig in Self.signatures {
-            guard sig.format != .webp && sig.format != .wav && sig.format != .avi else { continue }
-            guard sig.format != .zip else { continue }
             if matchesSignature(bytes: bytes, signature: sig.bytes, offset: sig.offset) {
                 return sig.format
             }
         }
         
+        // 17. SVG / HTML / Text-based Subtitles (WebVTT, ASS/SSA, SRT, MicroDVD)
+        if let textPrefix = String(data: headerData.prefix(2048), encoding: .utf8) {
+            let trimmed = textPrefix.trimmingCharacters(in: CharacterSet.whitespacesAndNewlines.union(CharacterSet(charactersIn: "\u{FEFF}")))
+            let lower = trimmed.lowercased()
+            if lower.hasPrefix("<svg") || (lower.hasPrefix("<?xml") && lower.contains("<svg")) {
+                return .svg
+            }
+            if lower.hasPrefix("<!doctype html") || lower.hasPrefix("<html") {
+                return .html
+            }
+            if trimmed.hasPrefix("WEBVTT") {
+                return .vtt
+            }
+            if trimmed.contains("[Script Info]") && (trimmed.contains("[V4+ Styles]") || trimmed.contains("[Events]")) {
+                return ext == "ssa" ? .ssa : .ass
+            }
+            if trimmed.range(of: #"^\d+\r?\n\d{2}:\d{2}:\d{2},\d{3}\s*-->"#, options: .regularExpression) != nil {
+                return .srt
+            }
+            if ext == "sub" && trimmed.range(of: #"^\{\d+\}\{\d+\}"#, options: .regularExpression) != nil {
+                return .sub
+            }
+        }
+        
+        // 18. HDMV PGS bitmap subtitle (.sup)
+        if bytes.count >= 2 && bytes[0] == 0x50 && bytes[1] == 0x47 && ext == "sup" {
+            return .sup
+        }
+        
         return nil
+    }
+    
+    private func inspectZipContainerFormat(url: URL, extensionHint: FileFormat?) -> FileFormat {
+        // Read up to 64 KB from start + central directory tail up to 64 KB to inspect package entries
+        var probeData = Data()
+        if let fh = try? FileHandle(forReadingFrom: url) {
+            defer { try? fh.close() }
+            if let head = try? fh.read(upToCount: 65_536) {
+                probeData.append(head)
+            }
+            if let size = (try? FileManager.default.attributesOfItem(atPath: url.path)[.size] as? NSNumber)?.uint64Value,
+               size > 65_536 {
+                let tailOffset = size - 65_536
+                if (try? fh.seek(toOffset: tailOffset)) != nil,
+                   let tail = try? fh.readToEnd() {
+                    probeData.append(tail)
+                }
+            }
+        }
+        
+        // Check ODF mimetype strings first
+        if probeData.range(of: Data("application/vnd.oasis.opendocument.text".utf8)) != nil {
+            return .odt
+        }
+        if probeData.range(of: Data("application/vnd.oasis.opendocument.spreadsheet".utf8)) != nil {
+            return .ods
+        }
+        if probeData.range(of: Data("application/vnd.oasis.opendocument.presentation".utf8)) != nil {
+            return .odp
+        }
+        if probeData.range(of: Data("application/epub+zip".utf8)) != nil {
+            return .epub
+        }
+        
+        // Check OOXML root folder / content markers while preserving macro/template extension distinctions
+        if probeData.range(of: Data("word/".utf8)) != nil {
+            if let hint = extensionHint, [.docm, .dotx, .docx].contains(hint) {
+                return hint
+            }
+            return .docx
+        }
+        if probeData.range(of: Data("xl/".utf8)) != nil {
+            if let hint = extensionHint, [.xlsm, .xltx, .xlsx].contains(hint) {
+                return hint
+            }
+            return .xlsx
+        }
+        if probeData.range(of: Data("ppt/".utf8)) != nil {
+            if let hint = extensionHint, [.pptm, .potx, .ppsx, .pptx].contains(hint) {
+                return hint
+            }
+            return .pptx
+        }
+        
+        if let hint = extensionHint,
+           [.docx, .docm, .dotx, .xlsx, .xlsm, .xltx, .pptx, .pptm, .potx, .ppsx, .odt, .ods, .odp, .epub].contains(hint) {
+            return hint
+        }
+        return .zip
     }
     
     private func matchesSignature(bytes: [UInt8], signature: [UInt8], offset: Int) -> Bool {

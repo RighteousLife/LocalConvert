@@ -7,32 +7,48 @@ import os.log
 // MARK: - PDF Grid Layout
 
 struct PDFGridLayout: Sendable, Equatable {
+    static let minimumDivisionCount = 1
+    static let maximumDivisionCount = 5
+    static let columnsOptionKey = "pdf_grid_columns"
+    static let rowsOptionKey = "pdf_grid_rows"
+
     let rows: Int
     let columns: Int
     
     static let twoByTwo = PDFGridLayout(rows: 2, columns: 2)
     
     init(rows: Int = 2, columns: Int = 2) {
-        self.rows = max(1, rows)
-        self.columns = max(1, columns)
+        self.rows = min(Self.maximumDivisionCount, max(Self.minimumDivisionCount, rows))
+        self.columns = min(Self.maximumDivisionCount, max(Self.minimumDivisionCount, columns))
     }
     
     /// Returns cell rectangles for a given page bounds in standard reading order:
     /// Top-Left -> Top-Right -> Bottom-Left -> Bottom-Right.
     /// In PDF page coordinates: Y=0 is at bottom, Y=max is at top.
     func cellRects(for pageBounds: CGRect) -> [CGRect] {
-        let cellWidth = pageBounds.width / CGFloat(columns)
-        let cellHeight = pageBounds.height / CGFloat(rows)
+        let xEdges = (0...columns).map { index in
+            index == columns
+                ? pageBounds.maxX
+                : pageBounds.minX + pageBounds.width * CGFloat(index) / CGFloat(columns)
+        }
+        let yEdges = (0...rows).map { index in
+            index == rows
+                ? pageBounds.maxY
+                : pageBounds.minY + pageBounds.height * CGFloat(index) / CGFloat(rows)
+        }
         
         var rects: [CGRect] = []
         rects.reserveCapacity(rows * columns)
         
         // Reading order: from top row down to bottom row
         for r in 0..<rows {
-            let y = pageBounds.minY + CGFloat(rows - 1 - r) * cellHeight
+            let yEdgeIndex = rows - 1 - r
+            let y = yEdges[yEdgeIndex]
+            let height = yEdges[yEdgeIndex + 1] - y
             for c in 0..<columns {
-                let x = pageBounds.minX + CGFloat(c) * cellWidth
-                rects.append(CGRect(x: x, y: y, width: cellWidth, height: cellHeight))
+                let x = xEdges[c]
+                let width = xEdges[c + 1] - x
+                rects.append(CGRect(x: x, y: y, width: width, height: height))
             }
         }
         return rects
@@ -65,13 +81,6 @@ enum PDFGridPageSplitter {
     ) async throws -> PDFGridSplitResult {
         
         try Task.checkCancellation()
-        
-        var isSuccess = false
-        defer {
-            if !isSuccess {
-                try? FileManager.default.removeItem(at: outputURL)
-            }
-        }
         
         guard FileManager.default.fileExists(atPath: input.path) else {
             throw ConversionError.inputFileNotFound(input)
@@ -132,19 +141,30 @@ enum PDFGridPageSplitter {
         try Task.checkCancellation()
         progress(.determinate(0.55, message: "Creating separate pages PDF..."))
         
+        let stagingDir = FileManager.default.temporaryDirectory
+            .appendingPathComponent("LocalConvert-PDFGridSplit-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: stagingDir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: stagingDir) }
+        
+        let vectorTempURL = stagingDir.appendingPathComponent("vector.pdf")
+        let rasterTempURL = stagingDir.appendingPathComponent("raster.pdf")
+        
         // 1. Primary Vector PDF Creation
         var isVectorPreserved = true
         var writeSuccess = false
+        var stagedOutputURL = vectorTempURL
         
         do {
-            try createVectorPDF(cells: cellsToExtract, outputURL: outputURL, progress: progress)
+            try createVectorPDF(cells: cellsToExtract, outputURL: vectorTempURL, progress: progress)
             
             // Validate generated output
-            if let verifyDoc = PDFDocument(url: outputURL), verifyDoc.pageCount == cellsToExtract.count {
+            if let verifyDoc = PDFDocument(url: vectorTempURL), verifyDoc.pageCount == cellsToExtract.count {
                 writeSuccess = true
             } else {
                 isVectorPreserved = false
             }
+        } catch is CancellationError {
+            throw CancellationError()
         } catch {
             isVectorPreserved = false
         }
@@ -153,20 +173,24 @@ enum PDFGridPageSplitter {
         if !writeSuccess {
             logger.warning("Vector PDF generation did not succeed. Using high-resolution raster fallback...")
             try Task.checkCancellation()
-            try createRasterFallbackPDF(cells: cellsToExtract, outputURL: outputURL, progress: progress)
+            try createRasterFallbackPDF(cells: cellsToExtract, outputURL: rasterTempURL, progress: progress)
+            stagedOutputURL = rasterTempURL
             isVectorPreserved = false
         }
         
         try Task.checkCancellation()
+        let committedURL = try OutputReservationCoordinator.moveOrReplaceTempFile(
+            stagedOutputURL,
+            to: outputURL,
+            policy: .overwrite
+        )
         progress(.determinate(1.0, message: "Complete"))
-        
-        isSuccess = true
         
         return PDFGridSplitResult(
             totalPhysicalPages: physicalPageCount,
             extractedPagesCount: cellsToExtract.count,
             skippedEmptyCellsCount: totalEmptySkipped,
-            outputURL: outputURL,
+            outputURL: committedURL,
             isVectorPreserved: isVectorPreserved
         )
     }

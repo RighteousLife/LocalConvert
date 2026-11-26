@@ -20,15 +20,15 @@ struct ArtworkEditorView: View {
     }
     
     var body: some View {
-        HStack(alignment: .top, spacing: 16) {
+        HStack(alignment: .top, spacing: AppTheme.Spacing.lg) {
             // Artwork Preview
             ZStack {
-                RoundedRectangle(cornerRadius: 8)
-                    .fill(Color(NSColor.controlBackgroundColor))
+                RoundedRectangle(cornerRadius: AppTheme.Radius.md)
+                    .fill(AppTheme.Colors.cardBackground)
                     .frame(width: 110, height: 110)
                     .overlay(
-                        RoundedRectangle(cornerRadius: 8)
-                            .stroke(isTargeted ? Color.accentColor : Color(NSColor.separatorColor), lineWidth: isTargeted ? 2 : 1)
+                        RoundedRectangle(cornerRadius: AppTheme.Radius.md)
+                            .stroke(isTargeted ? AppTheme.Colors.accent : AppTheme.Colors.cardBorder, lineWidth: isTargeted ? 2 : 1)
                     )
                 
                 if let image = artwork?.image {
@@ -36,16 +36,16 @@ struct ArtworkEditorView: View {
                         .resizable()
                         .aspectRatio(contentMode: .fit)
                         .frame(width: 100, height: 100)
-                        .cornerRadius(6)
+                        .clipShape(RoundedRectangle(cornerRadius: AppTheme.Radius.sm))
                         .accessibilityLabel("Cover Artwork Image")
                 } else {
-                    VStack(spacing: 4) {
+                    VStack(spacing: AppTheme.Spacing.xs) {
                         Image(systemName: "photo")
-                            .font(.system(size: 28))
-                            .foregroundColor(.secondary)
+                            .font(.title2)
+                            .foregroundStyle(.secondary)
                         Text("No Cover")
                             .font(.caption2)
-                            .foregroundColor(.secondary)
+                            .foregroundStyle(.secondary)
                     }
                     .accessibilityLabel("No artwork image set")
                 }
@@ -72,6 +72,14 @@ struct ArtworkEditorView: View {
                     Text("Drop an image or choose a file (JPEG, PNG, HEIC).")
                         .font(.caption)
                         .foregroundColor(.secondary)
+                    
+                    if let art = artwork {
+                        let sizeStr = ByteCountFormatter.string(fromByteCount: Int64(art.data.count), countStyle: .file)
+                        let dimStr = art.image.map { " · \(Int($0.size.width))×\(Int($0.size.height))" } ?? ""
+                        Text("\(art.mimeType)\(dimStr) · \(sizeStr)")
+                            .font(.caption2)
+                            .foregroundColor(.secondary)
+                    }
                     
                     HStack(spacing: 8) {
                         Button("Choose Artwork...") {

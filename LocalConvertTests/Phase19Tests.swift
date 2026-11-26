@@ -669,21 +669,29 @@ struct Phase19Tests {
         let (isDngValid, _) = validator.isPresetValid(dngTargetPreset, registry: registry)
         #expect(isDngValid == false)
         
-        // PSD is read-only
-        let psdTargetPreset = SavedPreset(
-            name: "Invalid PSD Target",
-            targetFormat: .psd
+        // JXL is now writable via bundled libjxl (Phase 35)
+        let jxlTargetPreset = SavedPreset(
+            name: "Valid JXL Target",
+            targetFormat: .jxl
         )
-        let (isPsdValid, _) = validator.isPresetValid(psdTargetPreset, registry: registry)
-        #expect(isPsdValid == false)
+        let (isJxlValid, _) = validator.isPresetValid(jxlTargetPreset, registry: registry)
+        #expect(isJxlValid == true)
         
-        // 3GP is read-only
-        let threeGPTargetPreset = SavedPreset(
-            name: "Invalid 3GP Target",
-            targetFormat: .threeGP
+        // SGI is read-only
+        let sgiTargetPreset = SavedPreset(
+            name: "Invalid SGI Target",
+            targetFormat: .sgi
         )
-        let (is3gpValid, _) = validator.isPresetValid(threeGPTargetPreset, registry: registry)
-        #expect(is3gpValid == false)
+        let (isSgiValid, _) = validator.isPresetValid(sgiTargetPreset, registry: registry)
+        #expect(isSgiValid == false)
+        
+        // MTS is read-only
+        let mtsTargetPreset = SavedPreset(
+            name: "Invalid MTS Target",
+            targetFormat: .mts
+        )
+        let (isMtsValid, _) = validator.isPresetValid(mtsTargetPreset, registry: registry)
+        #expect(isMtsValid == false)
         
         // Cross-category invalid route (Audio into Video-only MP4 preset without video stream)
         let videoPreset = SavedPreset(

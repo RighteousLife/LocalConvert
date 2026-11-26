@@ -7,9 +7,14 @@ import os.log
 struct MediaProbe: Sendable {
     
     private static let logger = Logger(subsystem: "com.localconvert.app", category: "MediaProbe")
+    static let defaultProbeTimeoutSeconds: TimeInterval = 30.0
     
     /// Probes a media file using ffprobe and extracts comprehensive container & stream information
-    static func probe(url: URL, ffprobePath: String) async throws -> MediaInfo {
+    static func probe(
+        url: URL,
+        ffprobePath: String,
+        timeout: TimeInterval = defaultProbeTimeoutSeconds
+    ) async throws -> MediaInfo {
         guard FileManager.default.fileExists(atPath: url.path) else {
             throw ConversionError.inputFileNotFound(url)
         }
@@ -24,40 +29,26 @@ struct MediaProbe: Sendable {
             url.path
         ]
         
-        let stdoutPipe = Pipe()
-        let stderrPipe = Pipe()
-        process.standardOutput = stdoutPipe
-        process.standardError = stderrPipe
-        
-        let stdoutTask = Task { () -> Data in
-            return stdoutPipe.fileHandleForReading.readDataToEndOfFile()
-        }
-        let stderrTask = Task { () -> Data in
-            return stderrPipe.fileHandleForReading.readDataToEndOfFile()
-        }
-        
+        let output: ProcessExecutionOutput
         do {
-            try process.run()
-            try? stdoutPipe.fileHandleForWriting.close()
-            try? stderrPipe.fileHandleForWriting.close()
+            output = try await AsyncProcessRunner.run(process, stdin: .nullDevice, timeout: timeout)
+        } catch is CancellationError {
+            throw CancellationError()
+        } catch let timeoutErr as ProcessTimeoutError {
+            throw ConversionError.engineExecutionFailed(
+                "Media inspection timed out after \(Int(timeoutErr.timeoutSeconds)) seconds.",
+                underlyingError: timeoutErr.localizedDescription
+            )
         } catch {
             throw ConversionError.engineExecutionFailed(
                 "Failed to execute ffprobe: \(error.localizedDescription)",
                 underlyingError: error.localizedDescription
             )
         }
+        let outputData = output.stdout
+        let errorData = output.stderr
         
-        if process.isRunning {
-            await withCheckedContinuation { continuation in
-                process.terminationHandler = { _ in
-                    continuation.resume()
-                }
-            }
-        }
-        let outputData = await stdoutTask.value
-        let errorData = await stderrTask.value
-        
-        guard process.terminationStatus == 0 else {
+        guard output.terminationStatus == 0 else {
             let errorMsg = String(data: errorData, encoding: .utf8) ?? "Unknown ffprobe error"
             throw ConversionError.invalidInput("The media file could not be read or parsed by ffprobe: \(errorMsg)")
         }
@@ -103,6 +94,7 @@ struct MediaProbe: Sendable {
                 let streamDuration = rawStream.duration.flatMap { Double($0) }
                 let bitRate = rawStream.bit_rate.flatMap { Int64($0) }
                 let sampleRate = rawStream.sample_rate.flatMap { Int($0) }
+                let isAttachedPic = (rawStream.disposition?["attached_pic"] == 1)
                 
                 let streamInfo = MediaStreamInfo(
                     index: rawStream.index,
@@ -115,7 +107,8 @@ struct MediaProbe: Sendable {
                     frameRate: frameRate,
                     sampleRate: sampleRate,
                     channels: rawStream.channels,
-                    duration: streamDuration
+                    duration: streamDuration,
+                    isAttachedPic: isAttachedPic
                 )
                 streams.append(streamInfo)
             }
@@ -168,6 +161,13 @@ struct MediaProbe: Sendable {
             guard info.hasAudio else {
                 throw ConversionError.engineExecutionFailed(
                     "Generated audio file \(outputURL.lastPathComponent) contains no audio stream.",
+                    underlyingError: "Streams found: \(info.streams.map { $0.codecName }.joined(separator: ", "))"
+                )
+            }
+        } else if expectedFormat == .gif || expectedFormat == .apng {
+            guard info.hasVideo else {
+                throw ConversionError.engineExecutionFailed(
+                    "Generated animated image \(outputURL.lastPathComponent) contains no visual frames.",
                     underlyingError: "Streams found: \(info.streams.map { $0.codecName }.joined(separator: ", "))"
                 )
             }

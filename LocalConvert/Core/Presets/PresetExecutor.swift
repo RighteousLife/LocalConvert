@@ -36,6 +36,10 @@ struct PresetExecutor: Sendable {
         destinationOverride: URL? = nil,
         defaultOutputLocation: OutputLocation = .sameFolder,
         customOutputDirectory: URL? = nil,
+        collisionPolicyOverride: ExistingFileHandling? = nil,
+        source: ConversionSource = .manual,
+        watchFolderRuleID: UUID? = nil,
+        watchFolderRuleName: String? = nil,
         fileDetector: FileDetector = FileDetector(),
         registry: ConversionRegistry = .shared
     ) -> PresetExecutionReport {
@@ -77,6 +81,14 @@ struct PresetExecutor: Sendable {
             
             // Prepare options with preset metadata
             var jobOptions = preset.options
+            if let policy = collisionPolicyOverride {
+                jobOptions.overwriteExisting = (policy == .overwrite)
+                if policy == .skip {
+                    jobOptions.customOptions["existing_file_handling"] = ExistingFileHandling.skip.rawValue
+                } else {
+                    jobOptions.customOptions.removeValue(forKey: "existing_file_handling")
+                }
+            }
             jobOptions.customOptions["preset_name"] = preset.name
             
             switch preset.outputNamingPolicy {
@@ -95,7 +107,10 @@ struct PresetExecutor: Sendable {
                 outputDirectory: outputDir,
                 options: jobOptions,
                 batchID: batchID,
-                presetName: preset.name
+                presetName: preset.name,
+                source: source,
+                watchFolderRuleID: watchFolderRuleID,
+                watchFolderRuleName: watchFolderRuleName
             )
             
             jobs.append(job)

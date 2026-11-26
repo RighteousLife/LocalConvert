@@ -83,9 +83,16 @@ struct CommonMetadata: Sendable, Equatable {
     var yearString: String? {
         get { year.map { String($0) } }
         set {
-            if let val = newValue, let intVal = Int(val) {
-                year = intVal
-            } else if newValue == nil {
+            if let val = newValue {
+                let trimmed = val.trimmingCharacters(in: .whitespacesAndNewlines)
+                if trimmed.isEmpty {
+                    year = nil
+                } else if let intVal = Int(trimmed) {
+                    year = intVal
+                } else if trimmed.count >= 4, let prefixYear = Int(String(trimmed.prefix(4))) {
+                    year = prefixYear
+                }
+            } else {
                 year = nil
             }
         }
@@ -97,6 +104,7 @@ struct CommonMetadata: Sendable, Equatable {
     var comment: String?
     var copyright: String?
     var encoder: String?
+    var lyrics: String?
     
     // Documents & Office
     var author: String?
@@ -128,6 +136,7 @@ struct CommonMetadata: Sendable, Equatable {
         comment: String? = nil,
         copyright: String? = nil,
         encoder: String? = nil,
+        lyrics: String? = nil,
         author: String? = nil,
         subject: String? = nil,
         keywords: [String]? = nil,
@@ -154,6 +163,7 @@ struct CommonMetadata: Sendable, Equatable {
         self.comment = comment
         self.copyright = copyright
         self.encoder = encoder
+        self.lyrics = lyrics
         self.author = author
         self.subject = subject
         self.keywords = keywords
@@ -180,6 +190,7 @@ struct MetadataDocument: Sendable, Equatable {
     var artwork: MetadataArtwork?
     var gps: MetadataGPS?
     var isDirty: Bool = false
+    var isStrippedAll: Bool = false
     
     init(
         format: FileFormat,
@@ -189,7 +200,8 @@ struct MetadataDocument: Sendable, Equatable {
         technical: [String: String] = [:],
         artwork: MetadataArtwork? = nil,
         gps: MetadataGPS? = nil,
-        isDirty: Bool = false
+        isDirty: Bool = false,
+        isStrippedAll: Bool = false
     ) {
         self.format = format
         self.fileURL = fileURL
@@ -199,6 +211,14 @@ struct MetadataDocument: Sendable, Equatable {
         self.artwork = artwork
         self.gps = gps
         self.isDirty = isDirty
+        self.isStrippedAll = isStrippedAll
+    }
+
+    var isEditableMetadataEmpty: Bool {
+        common == CommonMetadata()
+            && customFields.isEmpty
+            && artwork == nil
+            && gps == nil
     }
     
     func value(for fieldId: String) -> MetadataValue? {
@@ -221,6 +241,7 @@ struct MetadataDocument: Sendable, Equatable {
         case "comment": return common.comment.map { .string($0) }
         case "copyright": return common.copyright.map { .string($0) }
         case "encoder": return common.encoder.map { .string($0) }
+        case "lyrics": return common.lyrics.map { .string($0) }
         case "author": return common.author.map { .string($0) }
         case "subject": return common.subject.map { .string($0) }
         case "creator": return common.creator.map { .string($0) }
@@ -264,6 +285,7 @@ struct MetadataDocument: Sendable, Equatable {
         case "comment": common.comment = value?.stringValue
         case "copyright": common.copyright = value?.stringValue
         case "encoder": common.encoder = value?.stringValue
+        case "lyrics": common.lyrics = value?.stringValue
         case "author": common.author = value?.stringValue
         case "subject": common.subject = value?.stringValue
         case "creator": common.creator = value?.stringValue

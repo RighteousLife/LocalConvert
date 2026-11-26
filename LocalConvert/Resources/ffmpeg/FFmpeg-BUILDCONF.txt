@@ -1,31 +1,35 @@
 FFmpeg 9.0.2 LGPLv3+ Static Build for LocalConvert
 Architecture: Apple Silicon (arm64)
+Deployment Target: macOS 15.0 (LC_BUILD_VERSION minos 15.0)
 License: LGPL version 3 or later
 
 Configure Flags:
---prefix=/tmp/LocalConvert-FFmpeg \
---enable-static \
---disable-shared \
---pkg-config-flags="--static" \
---enable-pthreads \
---enable-version3 \
---cc=clang \
---extra-cflags="-I/opt/homebrew/include" \
---extra-ldflags="-L/tmp/static-libs" \
---extra-libs="-lmpg123" \
---enable-videotoolbox \
---enable-audiotoolbox \
---enable-neon \
---enable-libmp3lame \
---enable-libopus \
---enable-libvpx \
---disable-ffplay \
---disable-doc \
+--prefix=/tmp/localconvert-phase55-1-stage/ffmpeg-out
+--enable-static
+--disable-shared
+--pkg-config-flags="--static"
+--enable-pthreads
+--enable-version3
+--cc=/usr/bin/clang
+--extra-cflags="-arch arm64 -mmacosx-version-min=15.0 -I/tmp/localconvert-phase55-1-stage/prefix/include"
+--extra-ldflags="-arch arm64 -mmacosx-version-min=15.0 -L/tmp/localconvert-phase55-1-stage/prefix/lib"
+--extra-libs="-lmpg123"
+--enable-videotoolbox
+--enable-audiotoolbox
+--enable-neon
+--enable-libmp3lame
+--enable-libopus
+--enable-libvpx
+--disable-ffplay
+--disable-doc
 --disable-debug
+--disable-xlib
+--disable-sdl2
+--disable-lzma
 
-Static components linked into binaries:
-- libmp3lame (LGPL) + libmpg123 (LGPL)
-- libopus (BSD 3-Clause)
-- libvpx (BSD 3-Clause)
+Static components built from upstream source with -mmacosx-version-min=15.0 and linked statically:
+- lame 4.0 (libmp3lame.a, LGPL) + mpg123 1.33.7 (libmpg123.a, LGPL)
+- opus 1.6.1 (libopus.a, BSD 3-Clause)
+- libvpx 1.17.0 (libvpx.a, BSD 3-Clause)
 - VideoToolbox & AudioToolbox (Apple macOS native system frameworks)
 - Zero Homebrew runtime shared libraries (no /opt/homebrew dylibs required)

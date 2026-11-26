@@ -1,4 +1,5 @@
 import Foundation
+import Combine
 import SwiftUI
 import os.log
 
@@ -6,10 +7,13 @@ import os.log
 
 struct DroppedFile: Identifiable, Sendable {
     let id: UUID
-    let url: URL
+    var url: URL
     let detectionResult: FileDetectionResult
     var selectedOutputFormat: FileFormat?
     var options: ConversionOptions
+    let fileSize: Int64
+    let formattedFileSize: String
+    let availableOutputFormats: [FileFormat]
     
     var fileName: String {
         url.lastPathComponent
@@ -17,20 +21,6 @@ struct DroppedFile: Identifiable, Sendable {
     
     var detectedFormat: FileFormat? {
         detectionResult.bestFormat
-    }
-    
-    var fileSize: Int64 {
-        (try? FileManager.default.attributesOfItem(atPath: url.path)[.size] as? Int64) ?? 0
-    }
-    
-    var formattedFileSize: String {
-        ByteCountFormatter.string(fromByteCount: fileSize, countStyle: .file)
-    }
-    
-    var availableOutputFormats: [FileFormat] {
-        guard let format = detectedFormat else { return [] }
-        return ConversionRegistry.shared.supportedOutputFormats(for: format)
-            .sorted { $0.displayName < $1.displayName }
     }
     
     var estimatedOutputSize: Int64? {
@@ -60,58 +50,45 @@ struct DroppedFile: Identifiable, Sendable {
     var recommendedOutputFormats: [FileFormat] {
         guard let inFormat = detectedFormat else { return [] }
         let available = ConversionRegistry.shared.supportedOutputFormats(for: inFormat)
-        
-        var recommended: [FileFormat] = []
-        switch inFormat.category {
-        case .image:
-            recommended = [.webp, .jpg, .png, .pdf]
-        case .video:
-            recommended = [.mp4, .gif, .mp3]
-        case .audio:
-            recommended = [.m4a, .mp3, .wav]
-        case .document:
-            if inFormat == .pdf {
-                recommended = [.docx, .xlsx]
-            } else {
-                recommended = [.pdf, .docx, .xlsx]
-            }
-        default:
-            break
-        }
-        
-        return recommended.filter { $0 != inFormat && available.contains($0) }
+        return ConversionRegistry.shared.recommendedOutputFormats(for: inFormat)
+            .filter { available.contains($0) }
     }
     
+    var trimEligibleOutputFormats: [FileFormat] {
+        guard let detected = detectedFormat, detected.category == .video else {
+            return availableOutputFormats
+        }
+        var combined = Set(availableOutputFormats)
+        if FormatCapabilityRegistry.shared.capability(for: detected).canWrite {
+            combined.insert(detected)
+        }
+        return combined.sorted { $0.displayName < $1.displayName }
+    }
+
     var optionDescriptors: [ConversionOptionDescriptor] {
         guard let inFormat = detectedFormat, let outFormat = selectedOutputFormat else { return [] }
-        return ConversionRegistry.shared.optionDescriptors(from: inFormat, to: outFormat)
+        return ConversionRegistry.shared.optionDescriptors(from: inFormat, to: outFormat, options: options)
     }
     
     init(url: URL, detectionResult: FileDetectionResult, options: ConversionOptions = .default) {
         self.id = UUID()
         self.url = url
         self.detectionResult = detectionResult
-        
         self.options = options
-        
-        // Auto-select first recommended output format, fallback to first available
+
+        let resolvedSize = (try? FileManager.default.attributesOfItem(atPath: url.path)[.size] as? Int64) ?? 0
+        self.fileSize = resolvedSize
+        self.formattedFileSize = ByteCountFormatter.string(fromByteCount: resolvedSize, countStyle: .file)
+
+        // Auto-select first recommended output format from ConversionRegistry, fallback to first available
         if let detected = detectionResult.bestFormat {
+            let recommended = ConversionRegistry.shared.recommendedOutputFormats(for: detected)
             let available = ConversionRegistry.shared.supportedOutputFormats(for: detected)
                 .sorted { $0.displayName < $1.displayName }
-            
-            // First check recommended logic we wrote above
-            // We need to re-implement a tiny bit of the logic here since we can't call self.recommendedOutputFormats yet
-            var recommended: [FileFormat] = []
-            switch detected.category {
-            case .image: recommended = [.webp, .jpg, .png, .pdf]
-            case .video: recommended = [.mp4, .gif, .mp3]
-            case .audio: recommended = [.m4a, .mp3, .wav]
-            case .document: recommended = (detected == .pdf) ? [.docx, .xlsx] : [.pdf, .docx, .xlsx]
-            default: break
-            }
-            
-            let filteredRecommended = recommended.filter { $0 != detected && available.contains($0) }
-            self.selectedOutputFormat = filteredRecommended.first ?? available.first
+            self.availableOutputFormats = available
+            self.selectedOutputFormat = recommended.first ?? available.first
+        } else {
+            self.availableOutputFormats = []
         }
     }
 }
@@ -122,6 +99,9 @@ enum AppNavigationTab: String, Hashable, CaseIterable, Identifiable {
     case convert = "Convert"
     case jobs = "Jobs"
     case pdfToolbox = "PDF Toolbox"
+    case audioToolbox = "Audio Toolbox"
+    case audioWorkspace = "Audio Workspace"
+    case imageToolbox = "Image Toolbox"
     case metadata = "Metadata"
     case presets = "Presets"
     case history = "History"
@@ -134,6 +114,9 @@ enum AppNavigationTab: String, Hashable, CaseIterable, Identifiable {
         case .convert: return "arrow.triangle.2.circlepath"
         case .jobs: return "list.bullet.rectangle"
         case .pdfToolbox: return "doc.viewfinder"
+        case .audioToolbox: return "waveform"
+        case .audioWorkspace: return "music.note.house"
+        case .imageToolbox: return "photo.stack"
         case .metadata: return "tag"
         case .presets: return "slider.horizontal.3"
         case .history: return "clock"
@@ -171,48 +154,96 @@ final class AppState: ObservableObject {
     public static weak var shared: AppState?
     
     private let logger = Logger(subsystem: "com.localconvert.app", category: "AppState")
-    private let fileDetector = FileDetector()
+    let fileDetector = FileDetector()
+    private var isUITestingOutputLocked = false
     
     @Published var selectedTab: AppNavigationTab = .convert
     @Published var droppedFiles: [DroppedFile] = []
     @Published var outputLocation: OutputLocation = .sameFolder {
         didSet {
+            guard !isUITestingOutputLocked else { return }
             OutputManager.savePreferences(location: outputLocation, customDirectory: customOutputDirectory)
+            let mapped = DefaultOutputLocation(from: outputLocation)
+            if AppSettings.shared.defaultOutputLocation != mapped {
+                AppSettings.shared.defaultOutputLocation = mapped
+            }
         }
     }
     @Published var customOutputDirectory: URL? {
         didSet {
+            guard !isUITestingOutputLocked else { return }
             OutputManager.savePreferences(location: outputLocation, customDirectory: customOutputDirectory)
+            if AppSettings.shared.customOutputDirectory != customOutputDirectory {
+                AppSettings.shared.customOutputDirectory = customOutputDirectory
+            }
         }
     }
     
-    @Published var isConverting = false
+    @Published var isConverting = false {
+        didSet {
+            MenuBarManager.shared.updateStatus()
+        }
+    }
     @Published var showError = false
+    @Published var errorTitle = "Conversion Notice"
     @Published var errorMessage = ""
+    @Published var errorSuggestion: String?
     @Published var errorDetails: String?
     @Published var folderRejectedNotice: String?
     @Published var pendingFolderURLs: [URL] = []
     @Published var dropFeedbackText: String?
     @Published var isDraggingOver = false
     @Published var lastConversionConfig: LastConversionConfig?
+    @Published var pendingHistorySourceFilter: HistorySourceFilter? = nil
+    @Published var pendingHistoryWatchFolderRuleID: UUID? = nil
+    @Published var pendingHistoryWatchFolderRuleName: String? = nil
+    @Published var pendingHistoryNavigationNonce: UInt64 = 0
     
     let conversionManager: ConversionManager
     let conversionQueue: ConversionQueue
+    let audioEditorStore: AudioEditorStore
+    let audioToolboxStore: AudioToolboxStore
+    lazy var audioWorkspace = AudioWorkspaceCoordinator()
+    let imageToolboxStore: ImageToolboxStore
+    let pdfToolboxStore: PDFToolboxStore
+    let watchFolderManager: WatchFolderManager
+    let undoCoordinator: UndoRedoCoordinator
+    let historyManager: HistoryManager
+    private var storeChangeCancellables = Set<AnyCancellable>()
+    private var progressMilestoneCancellable: AnyCancellable?
+    private var lastAnnouncedProgressMilestone: Int = 0
+    private var lastSidebarActiveJobCount: Int = 0
     
-    init() {
-        // Load saved output location preferences
-        let savedPrefs = OutputManager.loadSavedPreferences()
-        self.outputLocation = savedPrefs.location
-        self.customOutputDirectory = savedPrefs.customDirectory
+    init(
+        undoCoordinator: UndoRedoCoordinator = .shared,
+        watchFolderStoreURL: URL? = nil,
+        historyManager: HistoryManager = .shared,
+        uitestingOutputDirectory: URL? = nil
+    ) {
+        self.historyManager = historyManager
+        if let uitestingOutputDirectory {
+            self.isUITestingOutputLocked = true
+            self.outputLocation = .customFolder
+            self.customOutputDirectory = uitestingOutputDirectory
+        } else {
+            // Load saved output location preferences
+            let savedPrefs = OutputManager.loadSavedPreferences()
+            self.outputLocation = savedPrefs.location
+            self.customOutputDirectory = savedPrefs.customDirectory
+        }
         
         // Register engines
         let registry = ConversionRegistry.shared
-        registry.register(engine: ImageConversionEngine())
-        registry.register(engine: OfficeConversionEngine())
-        registry.register(engine: PDFConversionEngine())
-        registry.register(engine: MediaConversionEngine())
-        registry.register(engine: TextConversionEngine())
-        registry.register(engine: PDFToolboxEngine())
+        if registry.registeredEngines.isEmpty {
+            registry.register(engine: ImageConversionEngine())
+            registry.register(engine: OfficeConversionEngine())
+            registry.register(engine: PDFConversionEngine())
+            registry.register(engine: MediaConversionEngine())
+            registry.register(engine: SubtitleConversionEngine())
+            registry.register(engine: ArchiveConversionEngine())
+            registry.register(engine: TextConversionEngine())
+            registry.register(engine: PDFToolboxEngine())
+        }
         
         // Register metadata providers
         let metaRegistry = MetadataRegistry.shared
@@ -222,16 +253,133 @@ final class AppState: ObservableObject {
         metaRegistry.register(provider: PDFMetadataProvider())
         metaRegistry.register(provider: OfficeMetadataProvider())
         
-        let manager = ConversionManager(registry: registry)
-        let queue = ConversionQueue(conversionManager: manager)
+        let manager = ConversionManager(registry: registry, historyManager: historyManager)
+        let queue = ConversionQueue(conversionManager: manager, undoCoordinator: undoCoordinator)
         self.conversionManager = manager
         self.conversionQueue = queue
+        self.undoCoordinator = undoCoordinator
+        self.audioEditorStore = AudioEditorStore(undoCoordinator: undoCoordinator)
+        self.audioToolboxStore = AudioToolboxStore(undoCoordinator: undoCoordinator)
+        self.imageToolboxStore = ImageToolboxStore(undoCoordinator: undoCoordinator)
+        self.pdfToolboxStore = PDFToolboxStore(undoCoordinator: undoCoordinator)
+        let watchManager = WatchFolderManager(
+            store: WatchFolderStore(fileURL: watchFolderStoreURL),
+            conversionManager: manager,
+            conversionQueue: queue
+        )
+        self.watchFolderManager = watchManager
+
+        self.lastSidebarActiveJobCount = manager.runningOrWaitingCount
+
+        conversionManager.objectWillChange
+            .sink { [weak self] _ in
+                guard let self else { return }
+                if self.selectedTab == .convert || self.selectedTab == .jobs {
+                    self.objectWillChange.send()
+                }
+            }
+            .store(in: &storeChangeCancellables)
+
+        Publishers.CombineLatest(manager.$activeJobs, manager.$jobStatuses)
+            .dropFirst()
+            .sink { [weak self] jobs, statuses in
+                guard let self else { return }
+                let nextActiveCount = jobs.reduce(into: 0) { count, job in
+                    if let status = statuses[job.id], status.isActive {
+                        count += 1
+                    }
+                }
+                guard nextActiveCount != self.lastSidebarActiveJobCount else { return }
+                self.lastSidebarActiveJobCount = nextActiveCount
+                if self.selectedTab != .convert && self.selectedTab != .jobs {
+                    self.objectWillChange.send()
+                }
+            }
+            .store(in: &storeChangeCancellables)
+
+        conversionQueue.objectWillChange
+            .sink { [weak self] _ in
+                guard let self else { return }
+                if self.selectedTab == .convert || self.selectedTab == .jobs {
+                    self.objectWillChange.send()
+                }
+            }
+            .store(in: &storeChangeCancellables)
+
+        audioToolboxStore.objectWillChange
+            .sink { [weak self] _ in
+                guard let self else { return }
+                if self.selectedTab == .audioToolbox || self.selectedTab == .audioWorkspace {
+                    self.objectWillChange.send()
+                }
+            }
+            .store(in: &storeChangeCancellables)
+
+        imageToolboxStore.objectWillChange
+            .sink { [weak self] _ in
+                guard let self else { return }
+                if self.selectedTab == .imageToolbox {
+                    self.objectWillChange.send()
+                }
+            }
+            .store(in: &storeChangeCancellables)
+
+        pdfToolboxStore.objectWillChange
+            .sink { [weak self] _ in
+                guard let self else { return }
+                if self.selectedTab == .pdfToolbox {
+                    self.objectWillChange.send()
+                }
+            }
+            .store(in: &storeChangeCancellables)
+
+        watchManager.objectWillChange
+            .sink { [weak self] _ in
+                guard let self else { return }
+                if self.selectedTab == .presets {
+                    self.objectWillChange.send()
+                }
+                Task { @MainActor in
+                    MenuBarManager.shared.updateStatus()
+                }
+            }
+            .store(in: &storeChangeCancellables)
+
+        watchManager.defaultOutputLocationProvider = { [weak self] in
+            guard let self else {
+                let prefs = OutputManager.loadSavedPreferences()
+                return (prefs.location, prefs.customDirectory)
+            }
+            return (self.outputLocation, self.customOutputDirectory)
+        }
         
+        queue.onQueueStarted = { [weak self] in
+            self?.isConverting = true
+            self?.lastAnnouncedProgressMilestone = 0
+            let count = self?.conversionQueue.totalCount ?? 0
+            if count > 0 {
+                AccessibilityAnnouncer.announce("Started converting \(count) file\(count == 1 ? "" : "s").", priority: .medium)
+            }
+        }
         queue.onQueueCompleted = { [weak self] in
             self?.isConverting = false
+            self?.lastAnnouncedProgressMilestone = 0
+        }
+        progressMilestoneCancellable = manager.$jobStatuses.sink { [weak self] _ in
+            guard let self, self.isConverting else { return }
+            MenuBarManager.shared.updateStatus()
+            let pct = Int((self.conversionQueue.progress * 100.0).rounded(.down))
+            for milestone in [25, 50, 75] where pct >= milestone && self.lastAnnouncedProgressMilestone < milestone {
+                self.lastAnnouncedProgressMilestone = milestone
+                AccessibilityAnnouncer.announce("Conversion \(milestone) percent complete.", priority: .low)
+            }
         }
         
         AppState.shared = self
+        let deferredURLs = AppDelegate.consumePendingOpenURLs()
+        if !deferredURLs.isEmpty {
+            addFiles(urls: deferredURLs)
+        }
         logger.info("AppState initialized with \(registry.registeredEngines.count, privacy: .public) engines and ConversionQueue")
     }
     
@@ -275,6 +423,41 @@ final class AppState: ObservableObject {
     public func addFiles(urls: [URL]) {
         handleDroppedURLs(urls)
         NSApp.activate(ignoringOtherApps: true)
+    }
+
+    /// Context-aware file open router for `⌘O` (Add Files...).
+    /// Preserves the active toolbox or Metadata tab when compatible files are opened; switches to `.convert` from non-editor tabs.
+    public func routeOpenFiles(_ urls: [URL]) {
+        guard !urls.isEmpty else { return }
+        if selectedTab == .metadata, let first = urls.first {
+            addFiles(urls: urls)
+            Task { @MainActor in
+                await MetadataManager.shared.load(url: first)
+            }
+            return
+        }
+
+        addFiles(urls: urls)
+        let categories = Set(urls.compactMap { fileDetector.detect(url: $0).bestFormat?.category })
+        let formats = Set(urls.compactMap { fileDetector.detect(url: $0).bestFormat })
+
+        switch selectedTab {
+        case .convert:
+            break
+        case .imageToolbox where categories.contains(.image):
+            break
+        case .pdfToolbox where formats.contains(.pdf) || categories.contains(.image):
+            break
+        case .audioToolbox where categories.contains(.audio) || categories.contains(.video):
+            break
+        default:
+            selectedTab = .convert
+        }
+    }
+
+    /// True when at least one queued file has a valid detected format and target output format and no conversion is currently running.
+    var canStartBatchConversion: Bool {
+        !isConverting && droppedFiles.contains { $0.detectedFormat != nil && $0.selectedOutputFormat != nil }
     }
     
     public func handleQuickAction(urls: [URL], action: String) {
@@ -359,8 +542,11 @@ final class AppState: ObservableObject {
                 droppedFile.selectedOutputFormat = targetFormat
                 if let preset = targetPreset {
                     var newOptions = droppedFile.options
-                    newOptions.preset = preset
-                    newOptions.applyPreset()
+                    newOptions.applyPreset(
+                        preset,
+                        inputFormat: result.bestFormat,
+                        outputFormat: targetFormat
+                    )
                     droppedFile.options = newOptions
                 }
                 filesToConvert.append(droppedFile)
@@ -395,24 +581,54 @@ final class AppState: ObservableObject {
     }
     
     func handleDroppedURLs(_ urls: [URL]) {
+        let before = droppedFiles
         let validation = FinderHandoffHandler.validateAndSanitize(
             urls: urls,
             registry: ConversionRegistry.shared,
             fileDetector: fileDetector
         )
+
+        var newValidAdded = 0
+        var newUnsupportedAdded = 0
+        var duplicateCount = 0
+        let validSet = Set(validation.validURLs)
         
         for url in validation.validURLs + validation.unsupportedURLs {
+            let std = url.standardizedFileURL
+            if droppedFiles.contains(where: { $0.url == url || $0.url.standardizedFileURL == std }) {
+                duplicateCount += 1
+                continue
+            }
             let result = fileDetector.detect(url: url)
-            let droppedFile = DroppedFile(
+            var droppedFile = DroppedFile(
                 url: url,
                 detectionResult: result,
                 options: AppSettings.shared.defaultConversionOptions
             )
-            
-            // Avoid duplicates
-            if !droppedFiles.contains(where: { $0.url == url }) {
-                droppedFiles.append(droppedFile)
+            droppedFile.options = AppSettings.shared.initialOptionsForNewFile(
+                inputFormat: droppedFile.detectedFormat,
+                outputFormat: droppedFile.selectedOutputFormat
+            )
+            droppedFiles.append(droppedFile)
+            if validSet.contains(url) {
+                newValidAdded += 1
+            } else {
+                newUnsupportedAdded += 1
             }
+        }
+
+        let addedCount = droppedFiles.count - before.count
+        if addedCount > 0 {
+            let after = droppedFiles
+            let coordinator = undoCoordinator
+            let cmd = DroppedFilesUndoCommand(
+                operationType: .queueAddFiles,
+                title: "Add \(addedCount) File(s)",
+                beforeFiles: before,
+                afterFiles: after,
+                applyFiles: { [weak self] restored in self?.droppedFiles = restored }
+            )
+            Task { await coordinator.record(cmd) }
         }
         
         if !validation.rejectedFolders.isEmpty {
@@ -420,103 +636,99 @@ final class AppState: ObservableObject {
             pendingFolderURLs = validation.rejectedFolders
         }
         
-        let validCount = validation.validURLs.count
-        if validCount > 0 {
-            dropFeedbackText = "\(validCount) file\(validCount == 1 ? "" : "s") added"
+        if newValidAdded > 0 {
+            let dupSuffix = duplicateCount > 0 ? " (\(duplicateCount) duplicate skipped)" : ""
+            let feedback = "\(newValidAdded) file\(newValidAdded == 1 ? "" : "s") added\(dupSuffix)"
+            dropFeedbackText = feedback
             Task { @MainActor in
                 try? await Task.sleep(nanoseconds: 3_000_000_000)
-                if self.dropFeedbackText?.contains("\(validCount)") == true {
+                if self.dropFeedbackText == feedback {
+                    self.dropFeedbackText = nil
+                }
+            }
+        } else if newUnsupportedAdded > 0 {
+            let feedback = "\(newUnsupportedAdded) unsupported file\(newUnsupportedAdded == 1 ? "" : "s") added"
+            dropFeedbackText = feedback
+            Task { @MainActor in
+                try? await Task.sleep(nanoseconds: 3_000_000_000)
+                if self.dropFeedbackText == feedback {
+                    self.dropFeedbackText = nil
+                }
+            }
+        } else if duplicateCount > 0 {
+            let feedback = duplicateCount == 1 ? "File is already in the queue" : "\(duplicateCount) duplicate files skipped"
+            dropFeedbackText = feedback
+            Task { @MainActor in
+                try? await Task.sleep(nanoseconds: 3_000_000_000)
+                if self.dropFeedbackText == feedback {
                     self.dropFeedbackText = nil
                 }
             }
         }
         
-        logger.info("Handled \(urls.count, privacy: .public) items (\(self.droppedFiles.count, privacy: .public) total files in list, \(validation.validURLs.count, privacy: .public) valid, \(validation.rejectedFolders.count, privacy: .public) folders rejected)")
+        logger.info("Handled \(urls.count, privacy: .public) items (\(self.droppedFiles.count, privacy: .public) total files in list, \(validation.validURLs.count, privacy: .public) valid, \(duplicateCount, privacy: .public) duplicates, \(validation.rejectedFolders.count, privacy: .public) folders rejected)")
     }
-    
-    // MARK: - Folder Smart Import
-    
-    public func importFilesFromPendingFolders() {
-        let foldersToScan = pendingFolderURLs
-        folderRejectedNotice = nil
-        pendingFolderURLs = []
-        
-        guard !foldersToScan.isEmpty else { return }
-        
-        var discoveredURLs: [URL] = []
-        let fileManager = FileManager.default
-        
-        for folder in foldersToScan {
-            guard let enumerator = fileManager.enumerator(
-                at: folder,
-                includingPropertiesForKeys: [.isRegularFileKey, .isHiddenKey],
-                options: [.skipsHiddenFiles, .skipsPackageDescendants]
-            ) else { continue }
-            
-            for case let fileURL as URL in enumerator {
-                if discoveredURLs.count >= 1000 {
-                    break
-                }
-                
-                let standardized = fileURL.resolvingSymlinksInPath().standardizedFileURL
-                var isDir: ObjCBool = false
-                guard fileManager.fileExists(atPath: standardized.path, isDirectory: &isDir), !isDir.boolValue else {
-                    continue
-                }
-                
-                if standardized.lastPathComponent.hasPrefix(".") {
-                    continue
-                }
-                
-                let detection = fileDetector.detect(url: standardized)
-                if let format = detection.bestFormat {
-                    let targets = ConversionRegistry.shared.supportedOutputFormats(for: format)
-                    if !targets.isEmpty {
-                        discoveredURLs.append(standardized)
-                    }
-                }
+
+    /// Reorders queued files non-destructively and records an Undo/Redo step.
+    public func moveFiles(fromOffsets source: IndexSet, toOffset destination: Int) {
+        let before = droppedFiles
+        droppedFiles.move(fromOffsets: source, toOffset: destination)
+        let after = droppedFiles
+        guard before.map(\.id) != after.map(\.id) else { return }
+        let coordinator = undoCoordinator
+        let cmd = DroppedFilesUndoCommand(
+            operationType: .queueAddFiles,
+            title: "Reorder Queue Files",
+            beforeFiles: before,
+            afterFiles: after,
+            applyFiles: { [weak self] restored in self?.droppedFiles = restored }
+        )
+        Task { await coordinator.record(cmd) }
+    }
+
+    /// Synchronizes queued `DroppedFile` URLs and `ImageToolboxStore` per-URL state after a batch rename, undo, or redo.
+    public func applyRenamedURLs(_ moves: [(from: URL, to: URL)]) {
+        guard !moves.isEmpty else { return }
+        var moveMap: [URL: URL] = [:]
+        for move in moves {
+            moveMap[move.from.standardizedFileURL.resolvingSymlinksInPath()] = move.to
+        }
+        var updatedFiles = droppedFiles
+        var didMutateFiles = false
+        for idx in updatedFiles.indices {
+            let currentKey = updatedFiles[idx].url.standardizedFileURL.resolvingSymlinksInPath()
+            if let newURL = moveMap[currentKey] {
+                updatedFiles[idx].url = newURL
+                didMutateFiles = true
             }
         }
-        
-        if !discoveredURLs.isEmpty {
-            addFiles(urls: discoveredURLs)
-            let count = discoveredURLs.count
-            dropFeedbackText = "\(count) supported file\(count == 1 ? "" : "s") imported from folder"
-            Task { @MainActor in
-                try? await Task.sleep(nanoseconds: 3_000_000_000)
-                if self.dropFeedbackText?.contains("imported") == true {
-                    self.dropFeedbackText = nil
-                }
-            }
-        } else {
-            folderRejectedNotice = "No supported files found in the dropped folder."
+        if didMutateFiles {
+            droppedFiles = updatedFiles
         }
+        imageToolboxStore.migrateURLs(moves)
+        audioToolboxStore.migrateURLs(moves)
     }
-    
-    func removeFile(_ file: DroppedFile) {
-        droppedFiles.removeAll { $0.id == file.id }
-    }
-    
-    func removeAllFiles() {
-        droppedFiles.removeAll()
-        conversionManager.clearCompleted()
-        conversionQueue.reset()
-        folderRejectedNotice = nil
-        pendingFolderURLs = []
-        dropFeedbackText = nil
-    }
-    
-    func updateOutputFormat(for fileId: UUID, format: FileFormat) {
-        if let index = droppedFiles.firstIndex(where: { $0.id == fileId }) {
-            droppedFiles[index].selectedOutputFormat = format
-            AppSettings.shared.addRecentOutputFormat(format)
+
+    /// Removes any queued `DroppedFile` entries matching the specified URLs (e.g. after moving duplicates to macOS Trash).
+    public func removeFiles(matchingURLs urls: Set<URL>, recordUndo: Bool = false) {
+        guard !urls.isEmpty else { return }
+        let standardizedTargets = Set(urls.map { $0.standardizedFileURL.resolvingSymlinksInPath() })
+        let before = droppedFiles
+        droppedFiles.removeAll { file in
+            standardizedTargets.contains(file.url.standardizedFileURL.resolvingSymlinksInPath())
         }
-    }
-    
-    func updateOptions(for fileId: UUID, options: ConversionOptions) {
-        if let index = droppedFiles.firstIndex(where: { $0.id == fileId }) {
-            droppedFiles[index].options = options
-        }
+        let after = droppedFiles
+        guard recordUndo, before.count != after.count else { return }
+        let removedCount = before.count - after.count
+        let coordinator = undoCoordinator
+        let cmd = DroppedFilesUndoCommand(
+            operationType: .queueRemoveFiles,
+            title: "Remove \(removedCount) File(s)",
+            beforeFiles: before,
+            afterFiles: after,
+            applyFiles: { [weak self] restored in self?.droppedFiles = restored }
+        )
+        Task { await coordinator.record(cmd) }
     }
     
     // MARK: - Quick Convert & Presets
@@ -533,17 +745,16 @@ final class AppState: ObservableObject {
         
         guard !commonFormats.isEmpty else { return [] }
         
-        let priorityOrder: [FileFormat] = [.webp, .jpg, .png, .pdf, .mp4, .mp3, .docx, .xlsx, .wav, .flac, .heic, .gif, .mov, .m4a]
-        var result: [FileFormat] = []
-        for fmt in priorityOrder {
-            if commonFormats.contains(fmt) {
-                result.append(fmt)
+        if let firstFormat = firstFile.detectedFormat {
+            let recommended = ConversionRegistry.shared.recommendedOutputFormats(for: firstFormat)
+            let ordered = recommended.filter { commonFormats.contains($0) }
+            if !ordered.isEmpty {
+                return Array(ordered.prefix(6))
             }
         }
-        for fmt in commonFormats where !result.contains(fmt) {
-            result.append(fmt)
-        }
-        return Array(result.prefix(6))
+        
+        let sorted = commonFormats.sorted { $0.displayName < $1.displayName }
+        return Array(sorted.prefix(6))
     }
     
     var quickPresets: [SavedPreset] {
@@ -604,10 +815,40 @@ final class AppState: ObservableObject {
     }
     
     // MARK: - Conversion
-    
+
+    func resolveInteractiveOutputDirectoryIfNeeded() -> (cancelled: Bool, directory: URL?) {
+        guard outputLocation == .askEveryTime else {
+            return (false, nil)
+        }
+        let isRunningTests = ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] != nil
+        guard !isRunningTests, NSApp.windows.contains(where: { $0.isVisible }) else {
+            return (false, nil)
+        }
+        let panel = NSOpenPanel()
+        panel.canChooseFiles = false
+        panel.canChooseDirectories = true
+        panel.canCreateDirectories = true
+        panel.allowsMultipleSelection = false
+        panel.prompt = "Choose Output Folder"
+        panel.message = "Select where LocalConvert should save the converted file(s)."
+        if let seed = customOutputDirectory ?? OutputManager.lastUsedDirectory {
+            panel.directoryURL = seed
+        }
+        if panel.runModal() == .OK, let url = panel.url {
+            OutputManager.lastUsedDirectory = url
+            return (false, url)
+        }
+        return (true, nil)
+    }
+
     func convertAll() {
         folderRejectedNotice = nil
+        let interactive = resolveInteractiveOutputDirectoryIfNeeded()
+        if interactive.cancelled {
+            return
+        }
         var jobs: [ConversionJob] = []
+        var unwritableDirs: [String] = []
         let batchID = droppedFiles.count > 1 ? UUID() : nil
         
         for file in droppedFiles {
@@ -616,19 +857,16 @@ final class AppState: ObservableObject {
                 continue
             }
             
-            let outputDir = OutputManager.resolveOutputDirectory(
+            let outputDir = interactive.directory ?? OutputManager.resolveOutputDirectory(
                 for: file.url,
                 preference: outputLocation,
                 customDirectory: customOutputDirectory
             )
             
-            // Validate output directory before starting conversion
+            // Validate output directory without aborting other valid files in the batch
             guard OutputManager.isOutputDirectoryValid(outputDir) else {
-                showError(
-                    message: "The destination folder is inaccessible or unwritable.",
-                    details: "Directory path: \(outputDir.path)"
-                )
-                return
+                unwritableDirs.append("\(file.url.lastPathComponent) → \(outputDir.path)")
+                continue
             }
             
             let job = ConversionJob(
@@ -643,6 +881,15 @@ final class AppState: ObservableObject {
             jobs.append(job)
         }
         
+        if !unwritableDirs.isEmpty {
+            showError(
+                message: jobs.isEmpty
+                    ? "The destination folder is inaccessible or unwritable."
+                    : "Some files were skipped because their destination folders are not writable.",
+                details: unwritableDirs.joined(separator: "\n")
+            )
+        }
+
         guard !jobs.isEmpty else {
             return
         }
@@ -668,8 +915,13 @@ final class AppState: ObservableObject {
               let outputFormat = file.selectedOutputFormat else {
             return
         }
-        
-        let outputDir = OutputManager.resolveOutputDirectory(
+
+        let interactive = resolveInteractiveOutputDirectoryIfNeeded()
+        if interactive.cancelled {
+            return
+        }
+
+        let outputDir = interactive.directory ?? OutputManager.resolveOutputDirectory(
             for: file.url,
             preference: outputLocation,
             customDirectory: customOutputDirectory
@@ -707,12 +959,42 @@ final class AppState: ObservableObject {
         conversionQueue.cancelAll()
         isConverting = false
     }
+
+    func syncOutputPreferencesToDefaults() {
+        guard !isUITestingOutputLocked else { return }
+        if outputLocation != .sameFolder {
+            outputLocation = .sameFolder
+        }
+        if customOutputDirectory != nil {
+            customOutputDirectory = nil
+        }
+    }
+
+    func openConversionHistory(
+        sourceFilter: HistorySourceFilter = .all,
+        watchFolderRuleID: UUID? = nil,
+        watchFolderRuleName: String? = nil
+    ) {
+        pendingHistorySourceFilter = sourceFilter
+        pendingHistoryWatchFolderRuleID = watchFolderRuleID
+        pendingHistoryWatchFolderRuleName = watchFolderRuleName
+        pendingHistoryNavigationNonce &+= 1
+        selectedTab = .history
+    }
     
     // MARK: - Error Handling
     
-    func showError(message: String, details: String? = nil) {
-        errorMessage = message
-        errorDetails = details
+    func showError(
+        title: String = "Conversion Notice",
+        message: String,
+        suggestion: String? = nil,
+        details: String? = nil
+    ) {
+        errorTitle = title
+        errorMessage = ErrorDetailsFormatter.sanitize(message)
+        errorSuggestion = suggestion
+        errorDetails = details.map { ErrorDetailsFormatter.sanitize($0) }
         showError = true
+        AccessibilityAnnouncer.announce("Error: \(errorMessage)", priority: .high)
     }
 }

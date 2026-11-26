@@ -102,14 +102,14 @@ struct PresetEditView: View {
             // Header
             HStack {
                 Text(originalPreset == nil ? "Create Preset" : "Edit Preset")
-                    .font(.headline)
+                    .font(AppTheme.Typography.sectionTitle)
                 Spacer()
                 Button("Cancel") {
                     dismiss()
                 }
                 .keyboardShortcut(.cancelAction)
             }
-            .padding()
+            .padding(AppTheme.Spacing.lg)
             
             Divider()
             
@@ -136,10 +136,9 @@ struct PresetEditView: View {
                     
                     if constraintMode == .category {
                         Picker("Category:", selection: $selectedCategoryConstraint) {
-                            Text("Image").tag(FormatCategory.image)
-                            Text("Video").tag(FormatCategory.video)
-                            Text("Audio").tag(FormatCategory.audio)
-                            Text("Document").tag(FormatCategory.document)
+                            ForEach(FormatCategory.allCases, id: \.self) { category in
+                                Text(category.displayName).tag(category)
+                            }
                         }
                     } else if constraintMode == .specific {
                         Picker("Source Format:", selection: $selectedSourceFormat) {
@@ -169,7 +168,9 @@ struct PresetEditView: View {
                         Toggle("WebP Lossless", isOn: $webpLossless)
                     }
                     
-                    if targetFormat == .pdf {
+                    if targetFormat == .pdf
+                        || (constraintMode == .category && selectedCategoryConstraint == .document)
+                        || (constraintMode == .specific && selectedSourceFormat == .pdf) {
                         Picker("PDF DPI:", selection: $pdfDPI) {
                             Text("72 DPI (Screen)").tag(72.0)
                             Text("150 DPI (Standard)").tag(150.0)
@@ -221,14 +222,15 @@ struct PresetEditView: View {
                 if let error = errorMessage {
                     Section {
                         Text(error)
-                            .foregroundStyle(.red)
-                            .font(.caption)
+                            .foregroundStyle(AppTheme.Colors.error)
+                            .font(AppTheme.Typography.caption)
                     }
                 }
             }
             .formStyle(.grouped)
+            .appWorkspaceSurface()
             
-            Divider()
+            AppDivider()
             
             // Footer Actions
             HStack {
@@ -240,9 +242,11 @@ struct PresetEditView: View {
                 .disabled(name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
                 .keyboardShortcut(.defaultAction)
             }
-            .padding()
+            .padding(AppTheme.Spacing.lg)
+            .background(AppTheme.Colors.subtleSurface)
         }
         .frame(minWidth: 480, minHeight: 520)
+        .appWorkspaceSurface()
     }
     
     // MARK: - Filtered Formats
@@ -307,13 +311,20 @@ struct PresetEditView: View {
             namingPolicy = .addPrefix(prefix: namingText.isEmpty ? "converted_" : namingText)
         }
         
-        let options = ConversionOptions(
-            preserveMetadata: preserveMetadata,
-            imageQuality: imageQuality,
-            pdfDPI: pdfDPI,
-            webpLossless: webpLossless,
-            mediaQuality: mediaQuality
-        )
+        var options = originalPreset?.options ?? ConversionOptions()
+        options.preserveMetadata = preserveMetadata
+        if targetFormat.category == .image || targetFormat == .pdf {
+            options.imageQuality = imageQuality
+        }
+        if targetFormat == .webp {
+            options.webpLossless = webpLossless
+        }
+        if targetFormat == .pdf || (constraintMode == .category && selectedCategoryConstraint == .document) || (constraintMode == .specific && selectedSourceFormat == .pdf) {
+            options.pdfDPI = pdfDPI
+        }
+        if targetFormat.category == .video || targetFormat.category == .audio {
+            options.mediaQuality = mediaQuality
+        }
         
         let preset = SavedPreset(
             id: originalPreset?.id ?? UUID(),

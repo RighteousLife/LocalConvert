@@ -187,7 +187,7 @@ struct Phase30Tests {
         #expect(report.contains("--- LocalConvert Error Report ---"))
         #expect(report.contains("Job ID: \(job.id.uuidString)"))
         #expect(report.contains("Input: protected.pdf"))
-        #expect(report.contains("Conversion: PDF → Word Document"))
+        #expect(report.contains("Conversion: \(FileFormat.pdf.displayName) → \(FileFormat.docx.displayName)"))
         #expect(report.contains("Password required"))
         #expect(!report.contains("mypassword"))
         #expect(report.contains("pwd=[REDACTED]"))

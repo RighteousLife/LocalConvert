@@ -28,6 +28,7 @@ struct MediaStreamInfo: Sendable, Codable, Equatable {
     let channels: Int?
     
     let duration: Double?
+    var isAttachedPic: Bool = false
 }
 
 // MARK: - Media Info (Probed metadata)
@@ -51,6 +52,15 @@ struct MediaInfo: Sendable, Codable, Equatable {
     var subtitleStreams: [MediaStreamInfo] {
         streams.filter { $0.streamType == .subtitle }
     }
+
+    var textSubtitleStreams: [MediaStreamInfo] {
+        let bitmapCodecs: Set<String> = ["dvd_subtitle", "hdmv_pgs_subtitle", "dvb_subtitle", "pgssub", "dvdsub", "xsub"]
+        return subtitleStreams.filter { !bitmapCodecs.contains($0.codecName.lowercased()) }
+    }
+
+    var hasTextSubtitleStream: Bool {
+        !textSubtitleStreams.isEmpty
+    }
     
     var primaryVideoStream: MediaStreamInfo? {
         videoStreams.first
@@ -62,6 +72,14 @@ struct MediaInfo: Sendable, Codable, Equatable {
     
     var hasVideo: Bool {
         !videoStreams.isEmpty
+    }
+
+    var hasAttachedArtwork: Bool {
+        streams.contains { $0.isAttachedPic }
+    }
+
+    var hasRealVideo: Bool {
+        videoStreams.contains { !$0.isAttachedPic }
     }
     
     var hasAudio: Bool {
@@ -101,6 +119,7 @@ struct FFprobeStreamDTO: Codable {
     let channels: Int?
     let duration: String?
     let bit_rate: String?
+    let disposition: [String: Int]?
 }
 
 struct FFprobeFormatDTO: Codable {

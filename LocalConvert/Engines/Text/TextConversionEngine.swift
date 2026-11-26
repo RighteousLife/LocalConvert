@@ -74,7 +74,13 @@ final class TextConversionEngine: ConversionEngine, @unchecked Sendable {
         
         let outputText = generateCSV(rows: rows, separator: targetSeparator)
         
-        let outputURL = ConversionManager.outputURL(for: input, format: outputFormat, in: outputDirectory)
+        let outputURL = try ConversionManager.reserveOutputURL(
+            for: input,
+            format: outputFormat,
+            in: outputDirectory,
+            options: options
+        )
+        defer { ConversionManager.releaseReservedOutputURL(outputURL) }
         try outputText.write(to: outputURL, atomically: true, encoding: .utf8)
         
         let duration = CFAbsoluteTimeGetCurrent() - startTime

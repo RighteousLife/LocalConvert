@@ -21,23 +21,28 @@ struct FileListView: View {
                 quickActionsStrip
             }
             
-            Divider()
+            AppDivider()
             
             fileListArea
             
-            Divider()
-            
-            if appState.isConverting {
-                progressArea
+            AppBottomActionBar {
+                VStack(spacing: AppTheme.Spacing.sm) {
+                    if appState.isConverting {
+                        progressArea
+                    }
+                    bottomBarArea
+                }
             }
-            
-            bottomBarArea
+            .onDrop(of: [.fileURL], isTargeted: .constant(false)) { providers in
+                handleFolderDrop(providers: providers)
+                return true
+            }
         }
         .background {
             if isTargeted {
-                RoundedRectangle(cornerRadius: 8)
-                    .strokeBorder(Color.accentColor, style: StrokeStyle(lineWidth: 2, dash: [8, 4]))
-                    .padding(4)
+                RoundedRectangle(cornerRadius: AppTheme.Radius.md)
+                    .strokeBorder(AppTheme.Colors.accent, style: StrokeStyle(lineWidth: 2, dash: [8, 4]))
+                    .padding(AppTheme.Spacing.xs)
             }
         }
     }
@@ -47,13 +52,14 @@ struct FileListView: View {
     @ViewBuilder
     private var toolbarArea: some View {
         HStack(alignment: .center) {
-            VStack(alignment: .leading, spacing: 2) {
+            VStack(alignment: .leading, spacing: AppTheme.Spacing.xxs) {
                 Text("\(appState.droppedFiles.count) file\(appState.droppedFiles.count == 1 ? "" : "s") in queue")
-                    .font(.headline)
+                    .font(AppTheme.Typography.sectionTitle)
+                    .accessibilityIdentifier("filelist.countLabel")
                 
                 if appState.isConverting {
                     Text("\(appState.activeJobCount) active • \(appState.completedJobCount) / \(appState.totalJobCount) completed")
-                        .font(.caption)
+                        .font(AppTheme.Typography.monoCaption)
                         .foregroundStyle(.secondary)
                 }
             }
@@ -71,6 +77,7 @@ struct FileListView: View {
             } label: {
                 Label("Apply Preset", systemImage: "wand.and.stars")
             }
+            .fixedSize(horizontal: true, vertical: false)
             .disabled(appState.isConverting || appState.droppedFiles.isEmpty)
             .accessibilityLabel("Apply saved preset to queue")
             
@@ -78,6 +85,7 @@ struct FileListView: View {
                 Label("Add Files", systemImage: "plus")
             }
             .buttonStyle(.borderless)
+            .fixedSize(horizontal: true, vertical: false)
             .disabled(appState.isConverting)
             .keyboardShortcut("o", modifiers: .command)
             .accessibilityLabel("Add files")
@@ -86,75 +94,87 @@ struct FileListView: View {
                 Label("Clear All", systemImage: "trash")
             }
             .buttonStyle(.borderless)
+            .fixedSize(horizontal: true, vertical: false)
             .disabled(appState.isConverting)
             .accessibilityLabel("Clear all files")
+            .accessibilityIdentifier("filelist.clearAll")
         }
-        .padding(.horizontal, 16)
-        .padding(.vertical, 12)
+        .padding(.horizontal, AppTheme.Spacing.lg)
+        .padding(.vertical, AppTheme.Spacing.md)
     }
     
     // MARK: - Folder Rejection Notice
     
     @ViewBuilder
     private func folderNoticeArea(notice: String) -> some View {
-        HStack(spacing: 8) {
-            Image(systemName: "folder.badge.questionmark")
-                .foregroundStyle(.orange)
-            Text(notice)
-                .font(.caption)
-            
-            if !appState.pendingFolderURLs.isEmpty {
-                Button(action: {
-                    appState.importFilesFromPendingFolders()
-                }) {
-                    Label("Import Files", systemImage: "arrow.down.doc")
-                        .font(.caption)
-                }
-                .controlSize(.small)
-                .buttonStyle(.borderedProminent)
-                .accessibilityLabel("Import Files")
-                .accessibilityHint("Adds supported files from the dropped folder.")
-            }
-            
-            Spacer()
-            
-            Button(action: {
+        AppInfoBanner(
+            style: .warning,
+            message: notice,
+            icon: "folder.badge.questionmark",
+            actionTitle: appState.pendingFolderURLs.isEmpty ? nil : "Import Files",
+            onAction: appState.pendingFolderURLs.isEmpty ? nil : { appState.importFilesFromPendingFolders() },
+            onDismiss: {
                 appState.folderRejectedNotice = nil
                 appState.pendingFolderURLs = []
-            }) {
-                Image(systemName: "xmark")
-                    .font(.caption2)
-                    .foregroundStyle(.secondary)
             }
-            .buttonStyle(.plain)
-            .accessibilityLabel("Dismiss folder notice")
-        }
-        .padding(.horizontal, 12)
-        .padding(.vertical, 8)
-        .background(Color.orange.opacity(0.12))
+        )
+        .padding(.horizontal, AppTheme.Spacing.lg)
+        .padding(.bottom, AppTheme.Spacing.sm)
     }
     
     // MARK: - Batch Completion Banner
     
     @ViewBuilder
     private var batchCompletionBanner: some View {
-        HStack(spacing: 12) {
+        AppCard(padding: AppTheme.Spacing.sm) {
+            ViewThatFits(in: .horizontal) {
+                HStack(spacing: AppTheme.Spacing.md) {
+                    batchCompletionSummaryContent
+                    Spacer(minLength: AppTheme.Spacing.sm)
+                    batchCompletionActionButtons
+                }
+
+                VStack(alignment: .leading, spacing: AppTheme.Spacing.xs + 2) {
+                    HStack(spacing: AppTheme.Spacing.md) {
+                        batchCompletionSummaryContent
+                        Spacer(minLength: 0)
+                    }
+                    HStack(spacing: AppTheme.Spacing.sm) {
+                        Spacer(minLength: 0)
+                        batchCompletionActionButtons
+                    }
+                }
+            }
+        }
+        .padding(.horizontal, AppTheme.Spacing.lg)
+        .padding(.bottom, AppTheme.Spacing.sm)
+    }
+
+    @ViewBuilder
+    private var batchCompletionSummaryContent: some View {
+        HStack(spacing: AppTheme.Spacing.md) {
             Image(systemName: appState.failedJobCount == 0 ? "checkmark.circle.fill" : "exclamationmark.triangle.fill")
                 .font(.title3)
-                .foregroundStyle(appState.failedJobCount == 0 ? .green : .orange)
-            
-            VStack(alignment: .leading, spacing: 2) {
+                .foregroundStyle(appState.failedJobCount == 0 ? AppTheme.Colors.success : AppTheme.Colors.warning)
+
+            VStack(alignment: .leading, spacing: AppTheme.Spacing.xxs) {
                 Text(appState.failedJobCount == 0 ? "Batch Conversion Complete" : "Batch Finished with Issues")
-                    .font(.subheadline)
+                    .font(AppTheme.Typography.subheadline)
                     .fontWeight(.medium)
-                
+                    .lineLimit(1)
+                    .accessibilityIdentifier("filelist.batchBannerTitle")
+
                 Text("\(appState.completedJobCount) succeeded\(appState.failedJobCount > 0 ? ", \(appState.failedJobCount) failed" : "")\(appState.cancelledJobCount > 0 ? ", \(appState.cancelledJobCount) cancelled" : "")")
-                    .font(.caption)
+                    .font(AppTheme.Typography.monoCaption)
                     .foregroundStyle(.secondary)
+                    .lineLimit(1)
             }
-            
-            Spacer()
-            
+        }
+    }
+
+    @ViewBuilder
+    private var batchCompletionActionButtons: some View {
+        HStack(spacing: AppTheme.Spacing.sm) {
             Button(action: {
                 appState.selectedTab = .jobs
             }) {
@@ -162,8 +182,9 @@ struct FileListView: View {
             }
             .controlSize(.small)
             .buttonStyle(.bordered)
+            .fixedSize(horizontal: true, vertical: false)
             .accessibilityLabel("View completed batch in Jobs Center")
-            
+
             if let outputDir = resolvedOutputDirectoryForFirstFile() {
                 Button(action: {
                     NSWorkspace.shared.activateFileViewerSelecting([outputDir])
@@ -172,12 +193,11 @@ struct FileListView: View {
                 }
                 .controlSize(.small)
                 .buttonStyle(.bordered)
+                .fixedSize(horizontal: true, vertical: false)
                 .accessibilityLabel("Open destination folder")
             }
         }
-        .padding(.horizontal, 16)
-        .padding(.vertical, 10)
-        .background(Color.secondary.opacity(0.08))
+        .fixedSize(horizontal: true, vertical: false)
     }
     
     // MARK: - Quick Actions Strip
@@ -229,7 +249,7 @@ struct FileListView: View {
                             .foregroundStyle(.secondary)
                         
                         ForEach(appState.quickConvertFormats, id: \.self) { format in
-                            Button(format.fileExtension.uppercased()) {
+                            Button(format.shortExtensionLabel) {
                                 appState.quickConvert(to: format)
                             }
                             .controlSize(.small)
@@ -268,10 +288,10 @@ struct FileListView: View {
                     }
                 }
             }
-            .padding(.horizontal, 16)
-            .padding(.vertical, 6)
+            .padding(.horizontal, AppTheme.Spacing.lg)
+            .padding(.vertical, AppTheme.Spacing.xs + 2)
         }
-        .background(Color(nsColor: .controlBackgroundColor).opacity(0.3))
+        .background(AppTheme.Colors.subtleSurface)
     }
     
     // MARK: - File List Area
@@ -279,12 +299,12 @@ struct FileListView: View {
     @ViewBuilder
     private var fileListArea: some View {
         ScrollView {
-            LazyVStack(spacing: 8) {
+            LazyVStack(spacing: AppTheme.Spacing.sm) {
                 ForEach(appState.droppedFiles) { file in
                     FileRowView(file: file)
                 }
             }
-            .padding(16)
+            .padding(AppTheme.Spacing.lg)
         }
         .onDrop(of: [.fileURL], isTargeted: $isTargeted) { providers in
             handleDrop(providers: providers)
@@ -296,92 +316,105 @@ struct FileListView: View {
     
     @ViewBuilder
     private var progressArea: some View {
-        VStack(spacing: 4) {
+        VStack(spacing: AppTheme.Spacing.xs) {
             HStack {
                 let currentStep = min(appState.completedJobCount + 1, appState.totalJobCount)
                 Text("Converting \(currentStep) of \(appState.totalJobCount)")
-                    .font(.caption)
+                    .font(AppTheme.Typography.caption)
                     .fontWeight(.medium)
                     .foregroundStyle(.secondary)
                 
                 Spacer()
                 
                 Text("\(Int(appState.batchProgress * 100))%")
-                    .font(.caption)
+                    .font(AppTheme.Typography.monoCaption)
                     .fontWeight(.medium)
-                    .monospacedDigit()
                     .foregroundStyle(.secondary)
             }
             
             ProgressView(value: appState.batchProgress)
                 .progressViewStyle(.linear)
+                .accessibilityLabel("Overall conversion progress")
+                .accessibilityValue("\(Int(appState.batchProgress * 100)) percent")
         }
-        .padding(.horizontal, 16)
-        .padding(.top, 8)
     }
     
     // MARK: - Bottom Controls Bar
     
     @ViewBuilder
     private var bottomBarArea: some View {
-        HStack(spacing: 14) {
-            // Output location picker
-            HStack(spacing: 8) {
-                Text("Output:")
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
-                
-                Picker("", selection: $appState.outputLocation) {
-                    ForEach(OutputLocation.allCases) { location in
-                        Text(location.rawValue).tag(location)
-                    }
-                }
-                .frame(maxWidth: 200)
-                .accessibilityLabel("Output destination selection")
+        ViewThatFits(in: .horizontal) {
+            HStack(spacing: AppTheme.Spacing.md + 2) {
+                outputLocationControls
+                Spacer(minLength: AppTheme.Spacing.sm)
+                conversionActionButtons
             }
-            
-            if appState.outputLocation == .customFolder {
-                Button(action: selectCustomFolder) {
-                    HStack(spacing: 4) {
-                        Image(systemName: "folder")
-                            .font(.caption)
-                        Text(appState.customOutputDirectory?.lastPathComponent ?? "Choose Folder...")
-                            .lineLimit(1)
-                            .truncationMode(.middle)
-                    }
+            VStack(alignment: .trailing, spacing: AppTheme.Spacing.sm) {
+                HStack(spacing: AppTheme.Spacing.md) {
+                    outputLocationControls
+                    Spacer(minLength: 0)
                 }
-                .controlSize(.small)
-                .help(appState.customOutputDirectory?.path ?? "Click to choose custom output directory")
-                .accessibilityLabel("Choose custom output folder")
-            }
-            
-            Spacer()
-            
-            // Convert / Cancel Actions
-            if appState.isConverting {
-                Button("Cancel", role: .cancel) {
-                    appState.cancelConversion()
-                }
-                .buttonStyle(.bordered)
-                .controlSize(.large)
-                .keyboardShortcut(.cancelAction)
-                .accessibilityLabel("Cancel ongoing conversion")
-            } else {
-                Button(action: { appState.convertAll() }) {
-                    Label("Convert All", systemImage: "arrow.triangle.2.circlepath")
-                        .frame(minWidth: 100)
-                }
-                .buttonStyle(.borderedProminent)
-                .controlSize(.large)
-                .disabled(!canConvert)
-                .keyboardShortcut(.return, modifiers: .command)
-                .accessibilityLabel("Convert all files")
+                conversionActionButtons
             }
         }
-        .padding(16)
-        .onDrop(of: [.fileURL], isTargeted: .constant(false)) { providers in
-            handleFolderDrop(providers: providers)
-            return true
+    }
+
+    @ViewBuilder
+    private var outputLocationControls: some View {
+        HStack(spacing: AppTheme.Spacing.sm) {
+            Text("Output:")
+                .font(AppTheme.Typography.subheadline)
+                .foregroundStyle(.secondary)
+                .fixedSize()
+
+            Picker("", selection: $appState.outputLocation) {
+                ForEach(OutputLocation.allCases) { location in
+                    Text(location.rawValue).tag(location)
+                }
+            }
+            .frame(minWidth: 150, maxWidth: 200)
+            .accessibilityLabel("Output destination selection")
+        }
+
+        if appState.outputLocation == .customFolder {
+            Button(action: selectCustomFolder) {
+                HStack(spacing: AppTheme.Spacing.xs) {
+                    Image(systemName: "folder")
+                        .font(AppTheme.Typography.caption)
+                    Text(appState.customOutputDirectory?.lastPathComponent ?? "Choose Folder...")
+                        .lineLimit(1)
+                        .truncationMode(.middle)
+                }
+            }
+            .controlSize(.small)
+            .help(appState.customOutputDirectory?.path ?? "Click to choose custom output directory")
+            .accessibilityLabel("Choose custom output folder")
+        }
+    }
+
+    @ViewBuilder
+    private var conversionActionButtons: some View {
+        if appState.isConverting {
+            Button("Cancel", role: .cancel) {
+                appState.cancelConversion()
+            }
+            .buttonStyle(.bordered)
+            .controlSize(.large)
+            .fixedSize()
+            .keyboardShortcut(.cancelAction)
+            .accessibilityLabel("Cancel ongoing conversion")
+        } else {
+            Button(action: { appState.convertAll() }) {
+                Label("Convert All", systemImage: "arrow.triangle.2.circlepath")
+                    .frame(minWidth: 100)
+            }
+            .buttonStyle(.borderedProminent)
+            .controlSize(.large)
+            .fixedSize()
+            .disabled(!canConvert)
+            .keyboardShortcut(.return, modifiers: .command)
+            .accessibilityLabel("Convert all files")
+            .accessibilityIdentifier("filelist.convertAll")
         }
     }
     

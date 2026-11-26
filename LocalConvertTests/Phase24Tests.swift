@@ -15,7 +15,8 @@ struct Phase24Tests {
         pagesConfiguration: [Int], // e.g. [4, 4, 3]
         pageSize: CGSize = CGSize(width: 800, height: 600),
         in directory: URL,
-        name: String = "multiup.pdf"
+        name: String = "multiup.pdf",
+        layout: PDFGridLayout = .twoByTwo
     ) throws -> URL {
         let url = directory.appendingPathComponent(name)
         var mediaBox = CGRect(origin: .zero, size: pageSize)
@@ -24,8 +25,6 @@ struct Phase24Tests {
         }
         
         var globalSlideNumber = 1
-        let layout = PDFGridLayout.twoByTwo
-        
         for count in pagesConfiguration {
             context.beginPDFPage([kCGPDFContextMediaBox as String: NSData(bytes: &mediaBox, length: MemoryLayout<CGRect>.size)] as CFDictionary)
             
@@ -88,6 +87,202 @@ struct Phase24Tests {
         
         // 4. Bottom-Right: x=400, y=0, w=400, h=300
         #expect(cells[3] == CGRect(x: 400, y: 0, width: 400, height: 300))
+    }
+
+    @Test("PDFGridLayout: 1x1 covers the full page bounds")
+    func testGridLayoutOneByOneCoversFullPage() {
+        let bounds = CGRect(x: 13.25, y: 7.5, width: 701.25, height: 503.75)
+        let cells = PDFGridLayout(rows: 1, columns: 1).cellRects(for: bounds)
+
+        #expect(cells == [bounds])
+    }
+
+    @Test("PDFGridLayout: Uneven dimensions share exact edges without gaps or overlaps")
+    func testGridLayoutUnevenDimensionsShareEdges() {
+        let bounds = CGRect(x: 13.25, y: 7.5, width: 1000.1, height: 601.3)
+        let layout = PDFGridLayout(rows: 5, columns: 3)
+        let cells = layout.cellRects(for: bounds)
+
+        #expect(cells.count == 15)
+        #expect(cells.first?.minX == bounds.minX)
+        #expect(cells.first?.maxY == bounds.maxY)
+        #expect(cells.last?.maxX == bounds.maxX)
+        #expect(cells.last?.minY == bounds.minY)
+
+        for row in 0..<layout.rows {
+            for column in 0..<layout.columns {
+                let index = row * layout.columns + column
+                if column > 0 {
+                    #expect(cells[index - 1].maxX == cells[index].minX)
+                }
+                if row > 0 {
+                    let cellAbove = cells[index - layout.columns]
+                    #expect(cellAbove.minY == cells[index].maxY)
+                }
+                #expect(cells[index].width > 0)
+                #expect(cells[index].height > 0)
+            }
+        }
+    }
+
+    @Test("Separate Pages: Missing grid options retain the 2x2 default")
+    func testSeparatePagesMissingGridOptionsDefaultsToTwoByTwo() async throws {
+        let tempDir = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: tempDir) }
+
+        let inputURL = try createMultiUpPDF(pagesConfiguration: [4], in: tempDir, name: "default_grid.pdf")
+        var options = ConversionOptions()
+        options.customOptions["pdf_operation"] = "separatePages"
+
+        let result = try await PDFToolboxEngine().convert(
+            inputs: [inputURL],
+            to: .pdf,
+            outputDirectory: tempDir,
+            options: options,
+            progress: { _ in }
+        )
+
+        let output = try #require(PDFDocument(url: result.outputURL))
+        #expect(output.pageCount == 4)
+    }
+
+    @Test("Separate Pages: Configurable grid dimensions produce the requested candidate counts")
+    func testSeparatePagesConfigurableGridDimensions() async throws {
+        let cases: [(columns: Int, rows: Int, count: Int)] = [
+            (1, 1, 1),
+            (2, 2, 4),
+            (3, 3, 9),
+            (4, 4, 16),
+            (3, 5, 15),
+            (4, 5, 20)
+        ]
+
+        for (columns, rows, candidateCount) in cases {
+            let tempDir = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+            try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
+            defer { try? FileManager.default.removeItem(at: tempDir) }
+
+            let layout = PDFGridLayout(rows: rows, columns: columns)
+            let inputURL = try createMultiUpPDF(
+                pagesConfiguration: [candidateCount],
+                in: tempDir,
+                name: "grid_\(columns)x\(rows).pdf",
+                layout: layout
+            )
+            var options = ConversionOptions()
+            options.customOptions["pdf_operation"] = "separatePages"
+            options.customOptions[PDFGridLayout.columnsOptionKey] = String(columns)
+            options.customOptions[PDFGridLayout.rowsOptionKey] = String(rows)
+
+            let result = try await PDFToolboxEngine().convert(
+                inputs: [inputURL],
+                to: .pdf,
+                outputDirectory: tempDir,
+                options: options,
+                progress: { _ in }
+            )
+
+            let output = try #require(PDFDocument(url: result.outputURL))
+            #expect(output.pageCount == candidateCount)
+            if columns == 1, rows == 1 {
+                let bounds = try #require(output.page(at: 0)).bounds(for: .mediaBox)
+                #expect(bounds.width == 800)
+                #expect(bounds.height == 600)
+            }
+        }
+    }
+
+    @Test("Separate Pages: Invalid grid options outside 1 through 5 are rejected")
+    func testSeparatePagesRejectsInvalidGridOptions() async throws {
+        let invalidValues = ["-1", "0", "6"]
+
+        for key in [PDFGridLayout.columnsOptionKey, PDFGridLayout.rowsOptionKey] {
+            for invalidValue in invalidValues {
+                let tempDir = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+                try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
+                defer { try? FileManager.default.removeItem(at: tempDir) }
+
+                let inputURL = try createMultiUpPDF(pagesConfiguration: [4], in: tempDir, name: "invalid_grid.pdf")
+                var options = ConversionOptions()
+                options.customOptions["pdf_operation"] = "separatePages"
+                options.customOptions[key] = invalidValue
+
+                await #expect(throws: ConversionError.self) {
+                    try await PDFToolboxEngine().convert(
+                        inputs: [inputURL],
+                        to: .pdf,
+                        outputDirectory: tempDir,
+                        options: options,
+                        progress: { _ in }
+                    )
+                }
+            }
+        }
+    }
+
+    @Test("Separate Pages: Configurable grid preserves top-left to bottom-right output ordering")
+    func testSeparatePagesConfigurableGridOutputOrdering() async throws {
+        let tempDir = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: tempDir) }
+
+        let layout = PDFGridLayout(rows: 3, columns: 2)
+        let inputURL = try createMultiUpPDF(
+            pagesConfiguration: [6],
+            in: tempDir,
+            name: "ordered_grid.pdf",
+            layout: layout
+        )
+        var options = ConversionOptions()
+        options.customOptions["pdf_operation"] = "separatePages"
+        options.customOptions[PDFGridLayout.columnsOptionKey] = "2"
+        options.customOptions[PDFGridLayout.rowsOptionKey] = "3"
+
+        let result = try await PDFToolboxEngine().convert(
+            inputs: [inputURL],
+            to: .pdf,
+            outputDirectory: tempDir,
+            options: options,
+            progress: { _ in }
+        )
+        let output = try #require(PDFDocument(url: result.outputURL))
+
+        #expect(output.pageCount == 6)
+        for index in 0..<6 {
+            let page = try #require(output.page(at: index))
+            #expect((page.string ?? "").contains("Slide \(index + 1)"))
+        }
+    }
+
+    @Test("Separate Pages: Blank-cell detection still skips empty configurable-grid cells")
+    func testSeparatePagesConfigurableGridSkipsBlankCells() async throws {
+        let tempDir = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: tempDir) }
+
+        let layout = PDFGridLayout(rows: 3, columns: 3)
+        let inputURL = try createMultiUpPDF(
+            pagesConfiguration: [8],
+            in: tempDir,
+            name: "blank_grid_cell.pdf",
+            layout: layout
+        )
+        var options = ConversionOptions()
+        options.customOptions["pdf_operation"] = "separatePages"
+        options.customOptions[PDFGridLayout.columnsOptionKey] = "3"
+        options.customOptions[PDFGridLayout.rowsOptionKey] = "3"
+
+        let result = try await PDFToolboxEngine().convert(
+            inputs: [inputURL],
+            to: .pdf,
+            outputDirectory: tempDir,
+            options: options,
+            progress: { _ in }
+        )
+        let output = try #require(PDFDocument(url: result.outputURL))
+
+        #expect(output.pageCount == 8)
     }
     
     // MARK: - 2. 4+4+3 Separation Tests

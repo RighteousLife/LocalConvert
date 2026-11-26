@@ -5,6 +5,17 @@ import CoreImage
 import UniformTypeIdentifiers
 import os.log
 
+// MARK: - Resampling Method
+
+enum ImageResamplingMethod: String, Codable, CaseIterable, Sendable, Equatable, Hashable, Identifiable {
+    case nearest = "Nearest Neighbor"
+    case bilinear = "Bilinear"
+    case bicubic = "Bicubic"
+    case lanczos = "Lanczos"
+
+    var id: String { rawValue }
+}
+
 // MARK: - Target Size Optimization Result
 
 struct TargetSizeOptimizationResult: Sendable {
@@ -19,7 +30,77 @@ struct TargetSizeOptimizationResult: Sendable {
 struct ImageProcessor: Sendable {
     
     private static let logger = Logger(subsystem: "com.localconvert.app", category: "ImageProcessor")
+
+    private enum CIContextCacheKey: Hashable {
+        case named(String)
+        case icc(Data)
+        case fallback(Int32, Int)
+    }
+
+    private final class CIContextPoolBox: @unchecked Sendable {
+        var contexts: [CIContextCacheKey: CIContext] = [:]
+        var insertionOrder: [CIContextCacheKey] = []
+    }
+
+    private static let ciContextPool = OSAllocatedUnfairLock(initialState: CIContextPoolBox())
+    private static let maxCachedCIContexts = 12
+
+    /// Returns a thread-safe, color-space-keyed shared `CIContext` to avoid per-image GPU pipeline allocations.
+    static func sharedCIContext(for colorSpace: CGColorSpace) -> CIContext {
+        let key: CIContextCacheKey
+        if let name = colorSpace.name as String? {
+            key = .named(name)
+        } else if let iccData = colorSpace.copyICCData() as Data? {
+            key = .icc(iccData)
+        } else {
+            key = .fallback(colorSpace.model.rawValue, colorSpace.numberOfComponents)
+        }
+
+        return ciContextPool.withLock { pool in
+            if let existing = pool.contexts[key] {
+                return existing
+            }
+            let context = CIContext(options: [
+                .workingColorSpace: colorSpace,
+                .outputColorSpace: colorSpace,
+                .useSoftwareRenderer: false,
+                .cacheIntermediates: false
+            ])
+            pool.contexts[key] = context
+            pool.insertionOrder.append(key)
+            while pool.insertionOrder.count > maxCachedCIContexts {
+                let evicted = pool.insertionOrder.removeFirst()
+                pool.contexts.removeValue(forKey: evicted)
+            }
+            return context
+        }
+    }
     
+    nonisolated static func ciRenderFormat(for cgImage: CGImage) -> CIFormat {
+        if cgImage.bitsPerComponent > 8 {
+            return cgImage.bitmapInfo.contains(.floatComponents) ? .RGBAh : .RGBA16
+        }
+        return .RGBA8
+    }
+
+    /// Applies an EXIF `CGImagePropertyOrientation` to pixels upright, using bounded `autoreleasepool` and >=16 MP cache clearing.
+    static func orientCGImage(_ cgImage: CGImage, orientation: CGImagePropertyOrientation) -> CGImage {
+        guard orientation != .up else { return cgImage }
+        return autoreleasepool {
+            let ciImage = CIImage(cgImage: cgImage).oriented(orientation)
+            let colorSpace: CGColorSpace = (cgImage.colorSpace?.model == .rgb ? cgImage.colorSpace : nil)
+                ?? CGColorSpace(name: CGColorSpace.sRGB)
+                ?? CGColorSpaceCreateDeviceRGB()
+            let format = ciRenderFormat(for: cgImage)
+            let ciContext = ImageProcessor.sharedCIContext(for: colorSpace)
+            let rendered = ciContext.createCGImage(ciImage, from: ciImage.extent, format: format, colorSpace: colorSpace)
+            if cgImage.width * cgImage.height >= 16_000_000 {
+                ciContext.clearCaches()
+            }
+            return rendered ?? cgImage
+        }
+    }
+
     // MARK: - Crop & Resize Transformations
     
     /// Applies cropping and resizing transformations to a CGImage based on ConversionOptions
@@ -122,7 +203,9 @@ struct ImageProcessor: Sendable {
     
     static func applyResize(
         cgImage: CGImage,
-        options: ConversionOptions
+        options: ConversionOptions,
+        resampling: ImageResamplingMethod? = nil,
+        sharpenAmount: Double? = nil
     ) throws -> CGImage {
         let currentW = Double(cgImage.width)
         let currentH = Double(cgImage.height)
@@ -207,41 +290,226 @@ struct ImageProcessor: Sendable {
         if finalW == cgImage.width && finalH == cgImage.height {
             return cgImage
         }
-        
-        // High-quality bitmap context rendering
-        let colorSpace = cgImage.colorSpace ?? CGColorSpace(name: CGColorSpace.sRGB)!
-        var bitmapInfo = cgImage.bitmapInfo
-        if bitmapInfo.contains(.alphaInfoMask) && (cgImage.alphaInfo == .none || cgImage.alphaInfo == .noneSkipLast || cgImage.alphaInfo == .noneSkipFirst) {
-            bitmapInfo = CGBitmapInfo(rawValue: CGImageAlphaInfo.noneSkipLast.rawValue)
-        } else {
-            bitmapInfo = CGBitmapInfo(rawValue: CGImageAlphaInfo.premultipliedLast.rawValue)
-        }
-        
-        guard let context = CGContext(
-            data: nil,
+
+        let resolvedMethod: ImageResamplingMethod = resampling
+            ?? options.customOptions["image_resampling"].flatMap { ImageResamplingMethod(rawValue: $0) }
+            ?? .lanczos
+        let resolvedSharpen = max(0.0, min(2.0, sharpenAmount
+            ?? options.customOptions["image_sharpen"].flatMap { Double($0) }
+            ?? 0.0))
+
+        return try resampleCGImage(
+            cgImage,
             width: finalW,
             height: finalH,
-            bitsPerComponent: 8,
-            bytesPerRow: 0,
-            space: colorSpace,
-            bitmapInfo: bitmapInfo.rawValue
-        ) else {
-            throw ConversionError.engineExecutionFailed(
-                "Failed to allocate bitmap context for resizing to \(finalW)x\(finalH).",
-                underlyingError: nil
-            )
+            method: resolvedMethod,
+            sharpenAmount: resolvedSharpen
+        )
+    }
+
+    static let opaqueOutputFormats: Set<FileFormat> = [.jpg, .bmp, .ppm, .pcx, .wbmp, .hdr]
+
+    /// Composites alpha channels onto an opaque white background when encoding to opaque formats.
+    static func flattenAlphaOntoWhiteIfNeeded(_ image: CGImage, for format: FileFormat) -> CGImage {
+        guard opaqueOutputFormats.contains(format) else { return image }
+        let hasAlpha = !(image.alphaInfo == .none || image.alphaInfo == .noneSkipLast || image.alphaInfo == .noneSkipFirst)
+        guard hasAlpha else { return image }
+
+        let targetSpace: CGColorSpace = (image.colorSpace?.model == .rgb ? image.colorSpace : nil)
+            ?? CGColorSpace(name: CGColorSpace.sRGB)
+            ?? CGColorSpaceCreateDeviceRGB()
+        let bpc = image.bitsPerComponent > 8 ? 16 : 8
+        let byteOrder16Host: UInt32 = (CFByteOrderGetCurrent() == Int(CFByteOrderLittleEndian.rawValue))
+            ? CGBitmapInfo.byteOrder16Little.rawValue
+            : CGBitmapInfo.byteOrder16Big.rawValue
+
+        let candidateSpaces: [CGColorSpace] = [
+            targetSpace,
+            CGColorSpace(name: CGColorSpace.itur_2020),
+            bpc > 8 ? CGColorSpace(name: CGColorSpace.extendedSRGB) : nil,
+            CGColorSpace(name: CGColorSpace.sRGB)
+        ].compactMap { $0 }
+
+        for space in candidateSpaces {
+            let bpcCandidates = (bpc == 16) ? [16, 8] : [8]
+            for candidateBPC in bpcCandidates {
+                let spaceBitmapInfo = (candidateBPC == 16)
+                    ? (CGImageAlphaInfo.noneSkipLast.rawValue | byteOrder16Host)
+                    : CGImageAlphaInfo.noneSkipLast.rawValue
+                if let ctx = CGContext(
+                    data: nil,
+                    width: image.width,
+                    height: image.height,
+                    bitsPerComponent: candidateBPC,
+                    bytesPerRow: 0,
+                    space: space,
+                    bitmapInfo: spaceBitmapInfo
+                ) {
+                    ctx.setFillColor(red: 1, green: 1, blue: 1, alpha: 1)
+                    ctx.fill(CGRect(x: 0, y: 0, width: image.width, height: image.height))
+                    ctx.draw(image, in: CGRect(x: 0, y: 0, width: image.width, height: image.height))
+                    if let composed = ctx.makeImage() {
+                        return composed
+                    }
+                }
+            }
         }
-        
-        context.interpolationQuality = .high
-        context.draw(cgImage, in: CGRect(x: 0, y: 0, width: finalW, height: finalH))
-        
-        guard let resized = context.makeImage() else {
-            throw ConversionError.engineExecutionFailed(
-                "Failed to render resized image.",
-                underlyingError: nil
-            )
+        return image
+    }
+
+    /// Prepares an image for encoding (opaque alpha flattening and ICO <= 256×256 square aspect-fit canvas).
+    static func prepareImageForEncoding(_ image: CGImage, format: FileFormat) -> CGImage {
+        var prepared = flattenAlphaOntoWhiteIfNeeded(image, for: format)
+        if format == .ico && (prepared.width > 256 || prepared.height > 256 || prepared.width != prepared.height) {
+            let side = min(256, max(16, max(prepared.width, prepared.height)))
+            let colorSpace = CGColorSpace(name: CGColorSpace.sRGB) ?? CGColorSpaceCreateDeviceRGB()
+            let bitmapInfo = CGImageAlphaInfo.premultipliedLast.rawValue | CGBitmapInfo.byteOrder32Big.rawValue
+            if let ctx = CGContext(
+                data: nil,
+                width: side,
+                height: side,
+                bitsPerComponent: 8,
+                bytesPerRow: 0,
+                space: colorSpace,
+                bitmapInfo: bitmapInfo
+            ) {
+                ctx.interpolationQuality = .high
+                ctx.setAllowsAntialiasing(true)
+                ctx.setShouldAntialias(true)
+                ctx.clear(CGRect(x: 0, y: 0, width: side, height: side))
+
+                let origW = CGFloat(prepared.width)
+                let origH = CGFloat(prepared.height)
+                let scale = min(CGFloat(side) / origW, CGFloat(side) / origH)
+                let fitW = origW * scale
+                let fitH = origH * scale
+                let originX = (CGFloat(side) - fitW) / 2.0
+                let originY = (CGFloat(side) - fitH) / 2.0
+                ctx.draw(prepared, in: CGRect(x: originX, y: originY, width: fitW, height: fitH))
+                if let squared = ctx.makeImage() {
+                    prepared = squared
+                }
+            }
         }
-        
+        return prepared
+    }
+
+    /// Resamples a CGImage using genuine Nearest, Bilinear, Bicubic, or Lanczos filtering with optional post-resize sharpening.
+    static func resampleCGImage(
+        _ cgImage: CGImage,
+        width finalW: Int,
+        height finalH: Int,
+        method: ImageResamplingMethod,
+        sharpenAmount: Double = 0.0
+    ) throws -> CGImage {
+        let colorSpace: CGColorSpace = (cgImage.colorSpace?.model == .rgb ? cgImage.colorSpace : nil)
+            ?? CGColorSpace(name: CGColorSpace.sRGB)
+            ?? CGColorSpaceCreateDeviceRGB()
+        let targetBPC = cgImage.bitsPerComponent > 8 ? 16 : 8
+        let targetCIFormat = ciRenderFormat(for: cgImage)
+        let hasAlpha = !(cgImage.alphaInfo == .none || cgImage.alphaInfo == .noneSkipLast || cgImage.alphaInfo == .noneSkipFirst)
+
+        var outputImage: CGImage?
+
+        switch method {
+        case .nearest, .bilinear:
+            let alphaBit = hasAlpha ? CGImageAlphaInfo.premultipliedLast.rawValue : CGImageAlphaInfo.noneSkipLast.rawValue
+            let byteOrder16Host: UInt32 = (CFByteOrderGetCurrent() == Int(CFByteOrderLittleEndian.rawValue))
+                ? CGBitmapInfo.byteOrder16Little.rawValue
+                : CGBitmapInfo.byteOrder16Big.rawValue
+            let bitmapInfo: UInt32 = (targetBPC == 16) ? (alphaBit | byteOrder16Host) : alphaBit
+
+            let primaryContext = CGContext(
+                data: nil,
+                width: finalW,
+                height: finalH,
+                bitsPerComponent: targetBPC,
+                bytesPerRow: 0,
+                space: colorSpace,
+                bitmapInfo: bitmapInfo
+            )
+            let rec2020Context: CGContext? = (primaryContext == nil && targetBPC == 16)
+                ? CGColorSpace(name: CGColorSpace.itur_2020).flatMap {
+                    CGContext(data: nil, width: finalW, height: finalH, bitsPerComponent: 16, bytesPerRow: 0, space: $0, bitmapInfo: bitmapInfo)
+                }
+                : nil
+            let context = primaryContext ?? rec2020Context ?? CGContext(
+                data: nil,
+                width: finalW,
+                height: finalH,
+                bitsPerComponent: 8,
+                bytesPerRow: 0,
+                space: CGColorSpace(name: CGColorSpace.sRGB) ?? colorSpace,
+                bitmapInfo: alphaBit
+            )
+            guard let context else {
+                throw ConversionError.engineExecutionFailed(
+                    "Failed to allocate bitmap context for resizing to \(finalW)x\(finalH).",
+                    underlyingError: nil
+                )
+            }
+            context.interpolationQuality = (method == .nearest) ? .none : .medium
+            context.draw(cgImage, in: CGRect(x: 0, y: 0, width: finalW, height: finalH))
+            outputImage = context.makeImage()
+
+        case .bicubic, .lanczos:
+            let ciContext = ImageProcessor.sharedCIContext(for: colorSpace)
+            outputImage = autoreleasepool {
+                let ciInput = CIImage(cgImage: cgImage)
+                let scaleX = CGFloat(finalW) / max(1.0, CGFloat(cgImage.width))
+                let scaleY = CGFloat(finalH) / max(1.0, CGFloat(cgImage.height))
+                var working: CIImage
+
+                if method == .bicubic, let bicubic = CIFilter(name: "CIBicubicScaleTransform") {
+                    bicubic.setValue(ciInput, forKey: kCIInputImageKey)
+                    bicubic.setValue(scaleY, forKey: kCIInputScaleKey)
+                    bicubic.setValue(scaleX / max(0.0001, scaleY), forKey: kCIInputAspectRatioKey)
+                    working = bicubic.outputImage ?? ciInput.transformed(by: CGAffineTransform(scaleX: scaleX, y: scaleY))
+                } else if method == .lanczos, let lanczos = CIFilter(name: "CILanczosScaleTransform") {
+                    lanczos.setValue(ciInput, forKey: kCIInputImageKey)
+                    lanczos.setValue(scaleY, forKey: kCIInputScaleKey)
+                    lanczos.setValue(scaleX / max(0.0001, scaleY), forKey: kCIInputAspectRatioKey)
+                    working = lanczos.outputImage ?? ciInput.transformed(by: CGAffineTransform(scaleX: scaleX, y: scaleY))
+                } else {
+                    working = ciInput.transformed(by: CGAffineTransform(scaleX: scaleX, y: scaleY))
+                }
+
+                let targetBounds = CGRect(x: 0, y: 0, width: finalW, height: finalH)
+                working = working.cropped(to: targetBounds)
+                let rendered = ciContext.createCGImage(working, from: targetBounds, format: targetCIFormat, colorSpace: colorSpace)
+                    ?? CGColorSpace(name: CGColorSpace.itur_2020).flatMap {
+                        ciContext.createCGImage(working, from: targetBounds, format: targetCIFormat, colorSpace: $0)
+                    }
+                if max(cgImage.width * cgImage.height, finalW * finalH) >= 16_000_000 {
+                    ciContext.clearCaches()
+                }
+                return rendered
+            }
+        }
+
+        guard var resized = outputImage else {
+            throw ConversionError.engineExecutionFailed("Failed to render resized image.", underlyingError: nil)
+        }
+
+        if sharpenAmount > 0.01, let sharpenFilter = CIFilter(name: "CISharpenLuminance") {
+            let targetRenderCS = (resized.colorSpace?.model == .rgb ? resized.colorSpace : nil) ?? colorSpace
+            let sharpenedCG: CGImage? = autoreleasepool {
+                let ciInput = CIImage(cgImage: resized)
+                sharpenFilter.setValue(ciInput, forKey: kCIInputImageKey)
+                sharpenFilter.setValue(sharpenAmount, forKey: kCIInputSharpnessKey)
+                guard let sharpened = sharpenFilter.outputImage else { return nil }
+                let ciContext = ImageProcessor.sharedCIContext(for: targetRenderCS)
+                let rendered = ciContext.createCGImage(sharpened, from: CGRect(x: 0, y: 0, width: finalW, height: finalH), format: targetCIFormat, colorSpace: targetRenderCS)
+                if finalW * finalH >= 16_000_000 {
+                    ciContext.clearCaches()
+                }
+                return rendered
+            }
+            if let cg = sharpenedCG {
+                resized = cg
+            }
+        }
+
         return resized
     }
     
@@ -281,15 +549,69 @@ struct ImageProcessor: Sendable {
         quality: Double,
         lossless: Bool,
         sourceProperties: [String: Any]?,
-        preserveMetadata: Bool
+        preserveMetadata: Bool,
+        jxlEffort: Int = 7,
+        jxlBitDepth: Int = 8,
+        jxlDistance: Double? = nil,
+        cancelFlag: UnsafePointer<Int32>? = nil
     ) throws -> Data {
+        let preparedImage = prepareImageForEncoding(cgImage, format: format)
+
         if format == .webp {
             let encoder = WebPEncoder()
             let mode: WebPEncodingMode = lossless
                 ? .lossless
                 : .lossy(quality: Float(max(0.0, min(1.0, quality)) * 100.0))
-            
-            return try encoder.encode(image: cgImage, mode: mode)
+
+            var exifData: Data? = nil
+            var xmpData: Data? = nil
+            if preserveMetadata, let sourceProperties, !sourceProperties.isEmpty {
+                var cfProps: [CFString: Any] = [:]
+                for (k, v) in sourceProperties {
+                    cfProps[k as CFString] = v
+                }
+                let serialized = JPEGXLCodec.serializeMetadataBoxes(from: cfProps)
+                exifData = serialized.exifTIFF
+                xmpData = serialized.xmp
+            }
+            let iccData = preparedImage.colorSpace?.copyICCData() as Data?
+            return try encoder.encode(
+                image: preparedImage,
+                mode: mode,
+                iccProfile: iccData,
+                exifData: exifData,
+                xmpData: xmpData,
+                cancelFlag: cancelFlag
+            )
+        }
+
+        if format == .jxl {
+            var exifData: Data? = nil
+            var xmpData: Data? = nil
+            if preserveMetadata, let sourceProperties, !sourceProperties.isEmpty {
+                var cfProps: [CFString: Any] = [:]
+                for (k, v) in sourceProperties {
+                    cfProps[k as CFString] = v
+                }
+                let serialized = JPEGXLCodec.serializeMetadataBoxes(from: cfProps)
+                exifData = serialized.exifTIFF
+                xmpData = serialized.xmp
+            }
+            let iccData = preparedImage.colorSpace?.copyICCData() as Data?
+            let effectiveBitDepth = max(jxlBitDepth, preparedImage.bitsPerComponent > 8 ? 16 : 8)
+            let jxlOpts = JXLEncodeOptions(
+                lossless: lossless,
+                quality: quality,
+                distance: lossless ? nil : jxlDistance,
+                effort: jxlEffort,
+                bitDepth: effectiveBitDepth,
+                preserveAlpha: true,
+                useContainer: true,
+                iccProfileData: iccData,
+                exifData: exifData,
+                xmpData: xmpData
+            )
+            return try JPEGXLCodec.encode(image: preparedImage, options: jxlOpts)
         }
         
         // ICNS Multi-representation Standard Sizes Export
@@ -307,8 +629,8 @@ struct ImageProcessor: Sendable {
             
             let colorSpace = CGColorSpace(name: CGColorSpace.sRGB) ?? CGColorSpaceCreateDeviceRGB()
             let bitmapInfo = CGImageAlphaInfo.premultipliedLast.rawValue | CGBitmapInfo.byteOrder32Big.rawValue
-            let origW = CGFloat(cgImage.width)
-            let origH = CGFloat(cgImage.height)
+            let origW = CGFloat(preparedImage.width)
+            let origH = CGFloat(preparedImage.height)
             
             for size in standardSizes {
                 guard let context = CGContext(
@@ -331,7 +653,7 @@ struct ImageProcessor: Sendable {
                 let fitH = origH * scale
                 let originX = (CGFloat(size) - fitW) / 2.0
                 let originY = (CGFloat(size) - fitH) / 2.0
-                context.draw(cgImage, in: CGRect(x: originX, y: originY, width: fitW, height: fitH))
+                context.draw(preparedImage, in: CGRect(x: originX, y: originY, width: fitW, height: fitH))
                 
                 if let representation = context.makeImage() {
                     CGImageDestinationAddImage(destination, representation, nil)
@@ -376,11 +698,11 @@ struct ImageProcessor: Sendable {
                 tiffDict[kCGImagePropertyTIFFOrientation as String] = 1
                 destProperties[kCGImagePropertyTIFFDictionary as String] = tiffDict
             }
-            destProperties[kCGImagePropertyPixelWidth as String] = cgImage.width
-            destProperties[kCGImagePropertyPixelHeight as String] = cgImage.height
+            destProperties[kCGImagePropertyPixelWidth as String] = preparedImage.width
+            destProperties[kCGImagePropertyPixelHeight as String] = preparedImage.height
         }
         
-        CGImageDestinationAddImage(destination, cgImage, destProperties as CFDictionary)
+        CGImageDestinationAddImage(destination, preparedImage, destProperties as CFDictionary)
         
         guard CGImageDestinationFinalize(destination) else {
             throw ConversionError.engineExecutionFailed(
@@ -403,13 +725,21 @@ struct ImageProcessor: Sendable {
         sourceProperties: [String: Any]?,
         progress: (@Sendable (Double) -> Void)? = nil
     ) throws -> TargetSizeOptimizationResult {
+        let jxlLossless = options.customOptions["jxl_lossless"] == "true"
+        let jxlEffort = options.customOptions["jxl_effort"].flatMap(Int.init) ?? 7
+        let jxlBitDepth = options.customOptions["jxl_bit_depth"].flatMap(Int.init) ?? 8
+        let isLossless = (targetFormat == .webp && options.webpLossless)
+            || (targetFormat == .jxl && jxlLossless)
+            || options.imageOptimizationMode == .lossless
         return try optimizeForTargetSize(
             cgImage: cgImage,
             format: targetFormat,
             targetBytes: targetSizeBytes,
             sourceProperties: sourceProperties,
             preserveMetadata: options.preserveMetadata,
-            lossless: options.webpLossless || options.imageOptimizationMode == .lossless,
+            lossless: isLossless,
+            jxlEffort: jxlEffort,
+            jxlBitDepth: jxlBitDepth,
             progress: progress
         )
     }
@@ -422,6 +752,8 @@ struct ImageProcessor: Sendable {
         sourceProperties: [String: Any]?,
         preserveMetadata: Bool,
         lossless: Bool = false,
+        jxlEffort: Int = 7,
+        jxlBitDepth: Int = 8,
         progress: (@Sendable (Double) -> Void)? = nil
     ) throws -> TargetSizeOptimizationResult {
         guard targetBytes > 0 else {
@@ -431,27 +763,31 @@ struct ImageProcessor: Sendable {
                 quality: 0.90,
                 lossless: false,
                 sourceProperties: sourceProperties,
-                preserveMetadata: preserveMetadata
+                preserveMetadata: preserveMetadata,
+                jxlEffort: jxlEffort,
+                jxlBitDepth: jxlBitDepth
             )
             return TargetSizeOptimizationResult(data: data, finalQuality: 0.90, targetReached: true, note: nil)
         }
         
-        // For lossless formats (PNG, lossless WebP, etc.), lossless encoding produces a fixed size
-        if format == .png || lossless {
+        // For lossless formats (PNG, lossless WebP, lossless JXL, etc.), lossless encoding produces a fixed size
+        if format == .png || format == .tiff || format == .bmp || format == .tga || lossless {
             let data = try encodeToMemory(
                 cgImage: cgImage,
                 format: format,
                 quality: 1.0,
                 lossless: true,
                 sourceProperties: sourceProperties,
-                preserveMetadata: preserveMetadata
+                preserveMetadata: preserveMetadata,
+                jxlEffort: jxlEffort,
+                jxlBitDepth: jxlBitDepth
             )
             let reached = Int64(data.count) <= targetBytes
             let note = reached ? nil : "Target size cannot be reached with lossless compression."
             return TargetSizeOptimizationResult(data: data, finalQuality: 1.0, targetReached: reached, note: note)
         }
         
-        // For lossy formats (JPEG, WebP, HEIC, AVIF), perform bounded binary search on quality
+        // For lossy formats (JPEG, WebP, HEIC, AVIF, JXL), perform bounded binary search on quality
         var lowQuality = 0.05
         var highQuality = 0.98
         var bestData: Data? = nil
@@ -464,7 +800,9 @@ struct ImageProcessor: Sendable {
             quality: 0.95,
             lossless: false,
             sourceProperties: sourceProperties,
-            preserveMetadata: preserveMetadata
+            preserveMetadata: preserveMetadata,
+            jxlEffort: jxlEffort,
+            jxlBitDepth: jxlBitDepth
         )
         
         if Int64(initialData.count) <= targetBytes {
@@ -475,7 +813,9 @@ struct ImageProcessor: Sendable {
                 quality: 1.0,
                 lossless: false,
                 sourceProperties: sourceProperties,
-                preserveMetadata: preserveMetadata
+                preserveMetadata: preserveMetadata,
+                jxlEffort: jxlEffort,
+                jxlBitDepth: jxlBitDepth
             ), Int64(maxData.count) <= targetBytes {
                 return TargetSizeOptimizationResult(data: maxData, finalQuality: 1.0, targetReached: true, note: nil)
             }
@@ -495,7 +835,9 @@ struct ImageProcessor: Sendable {
                 quality: midQuality,
                 lossless: false,
                 sourceProperties: sourceProperties,
-                preserveMetadata: preserveMetadata
+                preserveMetadata: preserveMetadata,
+                jxlEffort: jxlEffort,
+                jxlBitDepth: jxlBitDepth
             )
             
             let currentSize = Int64(testData.count)
@@ -527,7 +869,9 @@ struct ImageProcessor: Sendable {
             quality: 0.05,
             lossless: false,
             sourceProperties: sourceProperties,
-            preserveMetadata: preserveMetadata
+            preserveMetadata: preserveMetadata,
+            jxlEffort: jxlEffort,
+            jxlBitDepth: jxlBitDepth
         )
         return TargetSizeOptimizationResult(
             data: fallbackData,
@@ -629,6 +973,7 @@ struct ImageProcessor: Sendable {
         let formatMultiplier: Double
         switch targetFormat {
         case .webp: formatMultiplier = options.webpLossless ? 0.75 : 0.60
+        case .jxl: formatMultiplier = (options.customOptions["jxl_lossless"] == "true") ? 0.70 : 0.48
         case .avif: formatMultiplier = 0.50
         case .heic: formatMultiplier = 0.55
         case .jpg: formatMultiplier = 0.85
@@ -653,6 +998,13 @@ struct ImageProcessor: Sendable {
         case .bmp: return "com.microsoft.bmp"
         case .gif: return "com.compuserve.gif"
         case .avif: return "public.avif"
+        case .jp2: return "public.jpeg-2000"
+        case .psd: return "com.adobe.photoshop-image"
+        case .exr: return "com.ilm.openexr-image"
+        case .ppm: return "public.pbm"
+        case .hdr: return "public.radiance"
+        case .jxl: return "public.jpeg-xl"
+        case .sgi: return "com.sgi.sgi-image"
         case .ico: return "com.microsoft.ico"
         case .icns: return "com.apple.icns"
         case .tga: return "com.truevision.tga-image"

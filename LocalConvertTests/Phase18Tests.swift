@@ -20,54 +20,54 @@ struct Phase18Tests {
         #expect(FileFormat.dng.category == .image)
         #expect(FileFormat.dng.group == .images)
         #expect(FileFormat.dng.fileExtension == "dng")
-        #expect(FileFormat.dng.displayName == "DNG / Apple ProRAW")
+        #expect(FileFormat.dng.displayName == "DNG (RAW)")
         
         #expect(FileFormat.icns.category == .image)
         #expect(FileFormat.icns.group == .images)
         #expect(FileFormat.icns.fileExtension == "icns")
-        #expect(FileFormat.icns.displayName == "Apple Icon")
+        #expect(FileFormat.icns.displayName == "ICNS (macOS Icon)")
         
         #expect(FileFormat.psd.category == .image)
         #expect(FileFormat.psd.group == .images)
         #expect(FileFormat.psd.fileExtension == "psd")
-        #expect(FileFormat.psd.displayName == "Photoshop Document")
+        #expect(FileFormat.psd.displayName == "PSD (Photoshop)")
         
         #expect(FileFormat.tga.category == .image)
         #expect(FileFormat.tga.group == .images)
         #expect(FileFormat.tga.fileExtension == "tga")
-        #expect(FileFormat.tga.displayName == "TGA Image")
+        #expect(FileFormat.tga.displayName == "TGA (Targa)")
         
         // Audio Formats
         #expect(FileFormat.caf.category == .audio)
         #expect(FileFormat.caf.group == .audio)
         #expect(FileFormat.caf.fileExtension == "caf")
-        #expect(FileFormat.caf.displayName == "Core Audio Format")
+        #expect(FileFormat.caf.displayName == "CAF (Core Audio)")
         
         #expect(FileFormat.alac.category == .audio)
         #expect(FileFormat.alac.group == .audio)
         #expect(FileFormat.alac.fileExtension == "alac")
-        #expect(FileFormat.alac.displayName == "Apple Lossless Audio")
+        #expect(FileFormat.alac.displayName == "ALAC (Apple Lossless)")
         
         #expect(FileFormat.ac3.category == .audio)
         #expect(FileFormat.ac3.group == .audio)
         #expect(FileFormat.ac3.fileExtension == "ac3")
-        #expect(FileFormat.ac3.displayName == "Dolby Digital AC-3")
+        #expect(FileFormat.ac3.displayName == "AC-3 (Dolby Digital)")
         
         // Video Formats
         #expect(FileFormat.threeGP.category == .video)
         #expect(FileFormat.threeGP.group == .video)
         #expect(FileFormat.threeGP.fileExtension == "3gp")
-        #expect(FileFormat.threeGP.displayName == "3GP Video")
+        #expect(FileFormat.threeGP.displayName == "3GP")
         
         #expect(FileFormat.mts.category == .video)
         #expect(FileFormat.mts.group == .video)
         #expect(FileFormat.mts.fileExtension == "mts")
-        #expect(FileFormat.mts.displayName == "AVCHD Video (MTS)")
+        #expect(FileFormat.mts.displayName == "MTS (AVCHD)")
         
         #expect(FileFormat.m2ts.category == .video)
         #expect(FileFormat.m2ts.group == .video)
         #expect(FileFormat.m2ts.fileExtension == "m2ts")
-        #expect(FileFormat.m2ts.displayName == "Blu-ray Video (M2TS)")
+        #expect(FileFormat.m2ts.displayName == "M2TS (Blu-ray)")
     }
     
     @Test("Extension Parsing & Aliases")
@@ -81,10 +81,10 @@ struct Phase18Tests {
         #expect(FileFormat.from(extension: "caf") == .caf)
         #expect(FileFormat.from(extension: "alac") == .alac)
         #expect(FileFormat.from(extension: "ac3") == .ac3)
-        #expect(FileFormat.from(extension: "eac3") == .ac3)
+        #expect(FileFormat.from(extension: "eac3") == .eac3)
         #expect(FileFormat.from(extension: "3gp") == .threeGP)
         #expect(FileFormat.from(extension: "3gpp") == .threeGP)
-        #expect(FileFormat.from(extension: "3g2") == .threeGP)
+        #expect(FileFormat.from(extension: "3g2") == .threeG2)
         #expect(FileFormat.from(extension: "mts") == .mts)
         #expect(FileFormat.from(extension: "m2ts") == .m2ts)
     }
@@ -142,24 +142,28 @@ struct Phase18Tests {
     
     // MARK: - 3. Read-Only Guardrails & Capability Boundary Enforcement
     
-    @Test("Strict Read-Only Guardrails for DNG, PSD, 3GP, MTS, M2TS")
+    @Test("Strict Read-Only Guardrails for DNG, JXL, AMR, MTS, M2TS, OGV")
     func testReadOnlyGuardrails() {
         let allOutputs = FileFormat.allCases.flatMap { registry.supportedOutputFormats(for: $0) }
         let outputSet = Set(allOutputs)
         
-        // Target outputs should NEVER include DNG, PSD, 3GP, MTS, M2TS
+        // Target outputs should NEVER include read-only formats (DNG, AMR, MTS, M2TS, OGV)
+        // JXL is now full Read/Write via bundled libjxl (Phase 35)
         #expect(!outputSet.contains(.dng), "DNG encoding is not standard consumer format and must be strictly read-only")
-        #expect(!outputSet.contains(.psd), "PSD encoding is proprietary multi-layer format and must be strictly read-only")
-        #expect(!outputSet.contains(.threeGP), "3GP encoding is legacy mobile format and must be strictly read-only")
+        #expect(outputSet.contains(.jxl), "JPEG XL now has full native libjxl encoding support")
+        #expect(!outputSet.contains(.amr), "AMR has no encoder in bundled FFmpeg and must be strictly read-only")
         #expect(!outputSet.contains(.mts), "MTS encoding is camcorder format and must be strictly read-only")
         #expect(!outputSet.contains(.m2ts), "M2TS encoding is camcorder/Blu-ray format and must be strictly read-only")
+        #expect(!outputSet.contains(.ogv), "OGV has no Theora encoder in bundled FFmpeg and must be strictly read-only")
         
         // Inputs SHOULD be supported
         #expect(registry.supportedInputFormats.contains(.dng))
-        #expect(registry.supportedInputFormats.contains(.psd))
-        #expect(registry.supportedInputFormats.contains(.threeGP))
+        #expect(registry.supportedInputFormats.contains(.jxl))
         #expect(registry.supportedInputFormats.contains(.mts))
         #expect(registry.supportedInputFormats.contains(.m2ts))
+        // PSD and 3GP are verified writable in Phase 32
+        #expect(outputSet.contains(.psd))
+        #expect(outputSet.contains(.threeGP))
     }
     
     @Test("Bidirectional Capabilities: ICNS, ICO, TGA, CAF, ALAC, AC3")
@@ -602,9 +606,9 @@ struct Phase18Tests {
         
         // Read-only input formats must never be generated from other formats
         #expect(!registry.canConvert(from: .png, to: .dng))
-        #expect(!registry.canConvert(from: .jpg, to: .psd))
+        #expect(registry.canConvert(from: .jpg, to: .jxl))
         #expect(!registry.canConvert(from: .mp4, to: .mts))
         #expect(!registry.canConvert(from: .mov, to: .m2ts))
-        #expect(!registry.canConvert(from: .mp4, to: .threeGP))
+        #expect(!registry.canConvert(from: .mp4, to: .ogv))
     }
 }

@@ -42,27 +42,29 @@ Your files stay on your Mac. LocalConvert does not upload conversion data to a c
 
 ## Features
 
-### Image conversion & optimization
+### Image Toolbox Pro (`⌘8`) & Image Conversion
 
-- PNG, JPG/JPEG, WebP, HEIC, TIFF, BMP, GIF, AVIF, SVG, ICNS, and RAW/DNG workflows
-- Lossy and lossless WebP encoding
-- Output-quality controls
-- Target file size optimization with achievable-target feedback
-- Resize by dimensions, percentage, or edge
-- Crop with common aspect ratios or a custom rectangle
-- Image-to-PDF conversion
-- Batch processing
+- **Image Toolbox Pro (`⌘8`)**:
+  - **Universal JPEG XL (`libjxl 0.13.0`)**: Full read & write (`* ↔ JXL`), lossy/lossless encoding, compression effort `1–9`, 8/16-bit precision, alpha, animated JXL (`GIF/APNG ↔ JXL`), embedded ICC/EXIF/XMP container boxes, and lossless `JPEG ↔ JXL` bitstream transcoding & bit-exact JPEG reconstruction
+  - **Batch Resize & Resampling**: Exact dimensions, percentage, max width/height, fit inside, fill (crop-to-fit), Nearest / Bilinear / Bicubic / Lanczos resampling, post-resize sharpening, and multi-size preset export
+  - **Crop, Rotate & Flip**: Aspect presets, custom pixel size, 3×3 anchor positioning, normalized rectangle crop, `90°`/`180°` rotation, and horizontal/vertical mirror
+  - **Optimize File Size & Compression Profiles**: Target max file size search (KB/MB presets + honest quality-floor tradeoff reporting) and 6 compression profiles (`Maximum Quality`, `Balanced`, `Small File`, `Web Optimized`, `Archive / Lossless`, `Custom`)
+  - **Metadata & Privacy Cleaner**: EXIF/IPTC/TIFF/XMP/GPS/camera audit, 1-click GPS or full metadata strip, selective scrub, and inline edit across ImageIO formats and JXL containers
+  - **Watermark & Color Management**: Positioned (9-anchor) or tiled text/logo image watermarks with opacity/rotation/margin; ICC inspection plus `sRGB` and `Display P3` conversion
+  - **On-Device Background Removal & Interactive Compare**: Apple Vision foreground instance mask segmentation (transparent or solid fill with alpha-strip warnings) and split-slider / side-by-side Before/After zoom inspector
+- Additional supported image formats: PNG, JPG/JPEG, WebP (lossy/lossless), HEIC, TIFF, BMP, GIF, APNG, AVIF, JP2, PSD, EXR, PPM, HDR, QOI, PCX, WBMP, TGA, ICO, ICNS, SVG, and RAW/DNG (read-only)
+- Batch processing and image-to-PDF conversion
 
-### PDF Toolbox
+### PDF Toolbox Pro (`⌘3`)
 
-- Merge multiple PDFs
-- Split pages and ranges
-- Split multi-up/slide-style PDF pages
-- Extract, delete, reorder, and rotate pages
-- Compress PDFs
-- PDF ↔ image workflows
-- PDF → DOCX, PPTX, and XLSX
-- Password-protected PDF handling
+- **Organize**: Merge, split pages/ranges, multi-up slide splitter, extract, delete, reorder, rotate, PDF ↔ images, PDF → DOCX/PPTX/XLSX
+- **OCR & Searchable PDF**: Apple Vision (`VNRecognizeTextRequest`) Accurate/Fast OCR with dynamically queried recognition languages, invisible CoreText selectable text layer preserving visual fidelity, skip-searchable-page detection, page ranges, and optional `.txt` sidecar export
+- **PDF/A & Archiving**: Genuine archival export (`PDF/A-1b`, `PDF/A-2b`, `PDF/A-3b`, `PDF/A-4`) via bundled LibreOffice `draw_pdf_Export`, plus XMP `pdfaid` / `/OutputIntents` / font-embedding / encryption / transparency validation (`PDF/A-2u` generation explicitly marked unsupported)
+- **Permanent Redaction**: Text-search matches, interactive region boxes, and whole pages permanently rasterized & sanitized (zero text-stream residual, overlapping annotation removal, metadata scrubbing, and independent post-redaction verification; never overwrites source files)
+- **Compare**: LCS page alignment (insert/remove/modify), normalized line-level text diff, dimensions/rotation diff, and normalized pixel diff + red overlay highlight
+- **Advanced Compression**: 6 profiles (`Maximum Quality` lossless, `Balanced`, `Small File`, `Web Optimized`, `Email Attachment`, `Custom`) with configurable DPI, JPEG / JPEG 2000 / Lossless Flate, metadata stripping, size estimate range, and integrity validation
+- **Forms**: AcroForm inspection, inline editing, JSON export/import, and burn-in flattening (`PDFAnnotation` → static content), plus explicit read-only `/XFA` detection
+- **Inspect & Security**: Deep `CGPDFDocument`/`PDFKit` structure inspector (PDF version, fonts + embedding, images/color spaces, transparency, `/OutputIntents`, XMP, signatures, cipher & permissions) plus password encryption, granular `CGPDFAccessPermissions`, and owner-verified decryption
 
 ### Office & documents
 
@@ -73,21 +75,23 @@ Your files stay on your Mac. LocalConvert does not upload conversion data to a c
 - PDF → editable Office formats where supported
 - Native CSV ↔ TSV conversion
 
-### Audio & video
+### Audio Toolbox, Audio & Video
 
-- Audio: MP3, WAV, FLAC, M4A, AAC, OGG, OPUS, AIFF
-- Video: MP4, MOV, MKV, WebM, AVI, WMV, M4V
-- Video → GIF
-- Audio extraction
-- Route-aware soft-subtitle handling on compatible containers
-- Apple VideoToolbox acceleration where supported
+- **Audio formats**: MP3, WAV, FLAC, M4A, M4B, AAC, OGG, OPUS, AIFF, CAF, ALAC, AC-3, E-AC-3, DTS, WMA, AU, WV, MKA (plus read-only AMR, APE)
+- **Audio Toolbox (`⌘7`)**:
+  - Per-container codec controls (`aac`, `aac_at` VBR, `alac`, `libmp3lame` CBR/VBR, `flac` 16/24-bit, PCM 16/24/32/f32 LE/BE, `libopus`, `vorbis`, `ac3`, `eac3`, `dca`, `wmav2`, `wavpack`, and stream copy)
+  - Non-destructive waveform trimming, multi-segment extraction, multi-file merge, speed & pitch scaling, fades, reverse, and silence detection/removal
+  - Audio DSP: 5-band parametric EQ, high/low-pass filters, compressor, peak limiter, channel balance/stereo width, EBU R128 & peak normalization, `afftdn` noise reduction, and de-click
+  - **Spotify Compatibility & Safe Normalization**: Inspect MP3, M4A, MP4, M4B, M4P, FLAC, WAV, OGG, and Opus tracks against Spotify Desktop Local Files compatibility rules (`Officially Documented`, `Conditional Compatibility`, `Unsupported Format`, `DRM Protected`, `Unknown`, `Incompatible Video Container`), validate JPEG/PNG cover art magic bytes, and write safe normalized copies (ID3v2.3.0 UTF-16 + `USLT` lyrics + `APIC` Front Cover for MP3; native `moov.udta.meta.ilst` atoms + `stco`/`co64` offset shifting for AAC M4A/MP4) while preserving bit-exact compressed audio packets verified via SHA-256 `streamhash`
+- **Video**: MP4, MOV, MKV, WebM, AVI, WMV, M4V, 3GP, 3G2, MPG, TS, FLV, F4V, VOB, M2V (plus read-only OGV, MTS, M2TS)
+- Video → GIF, audio extraction, route-aware soft-subtitle handling, and Apple VideoToolbox acceleration where supported
 
 ### Metadata
 
 - View and edit supported image, audio, video, PDF, and Office metadata
 - EXIF/IPTC/TIFF/XMP workflows where supported
-- ID3, Vorbis/comment, QuickTime, and PDF metadata
-- Artwork editing for supported audio formats
+- ID3, Vorbis/comment, QuickTime/MP4 atoms, lyrics (`USLT`/`©lyr`), and PDF metadata
+- Cover artwork validation & embedding (`mp3`, `m4a`, `m4b`, `alac`, `flac`)
 - Remove supported metadata for privacy
 
 ### Jobs, presets & history
@@ -117,11 +121,15 @@ Your files stay on your Mac. LocalConvert does not upload conversion data to a c
 
 | Category | Input | Output |
 |---|---|---|
-| **Images** | PNG, JPG/JPEG, WebP, HEIC, TIFF, BMP, GIF, AVIF, SVG, ICNS, DNG/RAW | PNG, JPG/JPEG, WebP, HEIC, TIFF, BMP, GIF, AVIF, PDF, ICNS |
-| **PDF** | PDF, PNG, JPG, TIFF, WebP, HEIC | PDF, PNG, JPG, TIFF, DOCX, PPTX, XLSX |
-| **Office & documents** | DOCX, DOC, XLSX, XLS, PPTX, PPT, ODT, ODS, ODP, RTF, CSV, TSV, HTML | PDF, DOCX, XLSX, PPTX, CSV, TSV |
-| **Audio** | MP3, WAV, FLAC, M4A, AAC, OGG, OPUS, AIFF, CAF, ALAC, AC-3 | MP3, WAV, FLAC, M4A, AAC, OGG, OPUS, AIFF, CAF, ALAC, AC-3 |
-| **Video** | MP4, MOV, MKV, WebM, AVI, WMV, M4V, 3GP/3G2, MTS/M2TS | MP4, MOV, MKV, WebM, AVI, GIF, MP3 and supported audio outputs |
+| **Images** | PNG, JPG/JPEG, WebP, HEIC, TIFF, BMP, GIF, APNG, AVIF, JPEG XL (JXL), JP2, PSD, EXR, PPM, HDR, QOI, PCX, WBMP, TGA, ICO, ICNS, SVG, SGI (read-only), XPM (read-only), Camera RAW (DNG, CR2, CR3, NEF, NRW, ARW, RAF, RW2, ORF, PEF, SRW — read-only) | PNG, JPG/JPEG, WebP, HEIC, TIFF, BMP, GIF, APNG, AVIF, JPEG XL (JXL), JP2, PSD, EXR, PPM, HDR, QOI, PCX, WBMP, TGA, ICO, ICNS, PDF |
+| **PDF** | PDF, supported image formats | PDF, PNG, JPG, TIFF, DOCX, PPTX, XLSX |
+| **Office & Documents** | DOCX, DOC, DOTX, DOCM (macros dropped), ODT, RTF, TXT, MD, HTML, XLSX, XLS, XLTX, XLSM, XLSB (read-only), ODS, CSV, TSV, PPTX, PPT, POTX, PPTM, PPSX/PPS (read-only), ODP | DOCX, DOC, DOTX, ODT, RTF, TXT, MD, HTML, EPUB (export from Writer/MD/HTML), PDF, XLSX, XLS, XLTX, ODS, CSV, TSV, PPTX, PPT, POTX, ODP |
+| **Audio** | MP3, WAV, FLAC, M4A, M4B, AAC, OGG, OPUS, AIFF, CAF, ALAC, AC-3, E-AC-3, DTS, WMA, AU, WV, MKA, AMR (read-only), APE (read-only) | MP3, WAV, FLAC, M4A (AAC / ALAC), M4B, AAC, OGG, OPUS, AIFF, CAF, ALAC, AC-3, E-AC-3, DTS, WMA, AU, WV, MKA |
+| **Video** | MP4, MOV, MKV, WebM, AVI, WMV, ASF, M4V, 3GP, 3G2, MPG/MPEG, TS, FLV, F4V, VOB, M2V, MTS (read-only), M2TS (read-only), OGV (read-only) | MP4, MOV, MKV, WebM, AVI, WMV, ASF, M4V, 3GP, 3G2, MPG, TS, FLV, F4V, VOB, M2V, GIF, APNG, supported audio outputs, text subtitles |
+| **Subtitles** | SRT, VTT, ASS, SSA, SUB (MicroDVD read-only), text subtitle streams inside MKV/MP4/MOV/WebM/AVI/M4V/TS | SRT, VTT, ASS, SSA |
+| **Archives** | ZIP, 7Z, TAR, TAR.GZ (TGZ), TAR.BZ2 (TBZ2), TAR.XZ (TXZ), GZ, BZ2, RAR (read-only; encrypted RAR not supported) | ZIP, 7Z, TAR, TAR.GZ (TGZ), TAR.BZ2 (TBZ2), TAR.XZ (TXZ), GZ, BZ2 |
+
+See [docs/FORMAT_COMPATIBILITY.md](docs/FORMAT_COMPATIBILITY.md) for full read/write capability flags, codec behavior, and route warnings.
 
 > LocalConvert intentionally focuses on **consumer and Apple-ecosystem formats**. Professional/broadcast formats such as ProRes RAW, REDCODE RAW, XAVC/XDCAM, and broadcast MXF are outside the project's scope.
 
@@ -156,6 +164,8 @@ This is expected for the current open-source distribution model. The release sho
 | `⌘4` | Metadata Editor |
 | `⌘5` | Presets |
 | `⌘6` | History |
+| `⌘7` | Audio Toolbox |
+| `⌘8` | Image Toolbox |
 | `⌘,` | Settings |
 | `⌘Q` | Quit |
 
@@ -163,7 +173,7 @@ This is expected for the current open-source distribution model. The release sho
 
 - Conversion processing is designed to remain on-device.
 - The released application has **no Homebrew runtime dependency**.
-- FFmpeg/ffprobe, libwebp, and LibreOffice runtimes are bundled with the distribution.
+- FFmpeg/ffprobe, libwebp, libjxl, and LibreOffice runtimes are bundled with the distribution.
 - Office subprocesses use isolated temporary profiles and watchdogs.
 - Sensitive values are redacted from technical error details.
 - Password-protected PDF credentials are handled ephemerally and are not persisted by the application workflow.
