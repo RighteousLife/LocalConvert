@@ -126,10 +126,20 @@ enum ConversionJobStatus: Sendable, Equatable {
 @MainActor
 final class ConversionManager: ObservableObject {
     
+    typealias TrashItemHandler = @Sendable (URL) throws -> URL?
+
+    enum TrashOriginalEligibility: Sendable, Equatable {
+        case eligible([URL])
+        case skipped(String)
+    }
+
     private let logger = Logger(subsystem: "com.localconvert.app", category: "ConversionManager")
     private let registry: ConversionRegistry
     private let historyManager: HistoryManager
     private let diskSpaceGuard: DiskSpaceGuard
+    private let settings: AppSettings
+    private let queueStore: PersistentQueueStore
+    private let trashHandler: TrashItemHandler
     
     @Published var jobStatuses: [UUID: ConversionJobStatus] = [:]
     @Published var activeJobs: [ConversionJob] = []
@@ -137,10 +147,18 @@ final class ConversionManager: ObservableObject {
     @Published var jobCompletedTimes: [UUID: Date] = [:]
     @Published var jobResults: [UUID: ConversionResult] = [:]
     @Published var jobErrors: [UUID: ConversionError] = [:]
+    @Published private(set) var restoredQueueCount: Int = 0
+    @Published private(set) var restoredUnfinishedJobs: [ConversionJob] = []
+    @Published private(set) var restoredSkippedMissingCount: Int = 0
+    @Published private(set) var lastTrashedInputURLs: [URL] = []
     
     var jobs: [ConversionJob] {
         get { activeJobs }
         set { activeJobs = newValue }
+    }
+
+    var hasRestoredQueueBanner: Bool {
+        restoredQueueCount > 0
     }
     
     private var tasks: [UUID: Task<Void, Never>] = [:]
@@ -150,12 +168,26 @@ final class ConversionManager: ObservableObject {
     init(
         registry: ConversionRegistry = .shared,
         historyManager: HistoryManager = .shared,
-        diskSpaceGuard: DiskSpaceGuard = DiskSpaceGuard()
+        diskSpaceGuard: DiskSpaceGuard = DiskSpaceGuard(),
+        settings: AppSettings = .shared,
+        queueStore: PersistentQueueStore = PersistentQueueStore(),
+        trashHandler: @escaping TrashItemHandler = { url in
+            var resultingURL: NSURL?
+            try FileManager.default.trashItem(at: url, resultingItemURL: &resultingURL)
+            return resultingURL as URL?
+        },
+        restoreQueueOnInit: Bool = true
     ) {
         self.registry = registry
         self.historyManager = historyManager
         self.diskSpaceGuard = diskSpaceGuard
+        self.settings = settings
+        self.queueStore = queueStore
+        self.trashHandler = trashHandler
         _ = Self.cleanStaleTemporaryFiles()
+        if restoreQueueOnInit {
+            restoreUnfinishedQueueIfEnabled()
+        }
     }
     
     // MARK: - Status Queries
@@ -225,11 +257,17 @@ final class ConversionManager: ObservableObject {
     // MARK: - Job Management
 
     func registerPending(job: ConversionJob) {
+        var didMutate = false
         if !activeJobs.contains(where: { $0.id == job.id }) {
             activeJobs.append(job)
+            didMutate = true
         }
         if jobStatuses[job.id] == nil {
             jobStatuses[job.id] = .waiting
+            didMutate = true
+        }
+        if didMutate {
+            persistActiveQueueSnapshot()
         }
     }
     
@@ -238,6 +276,7 @@ final class ConversionManager: ObservableObject {
             activeJobs.append(job)
         }
         jobStatuses[job.id] = .waiting
+        persistActiveQueueSnapshot()
         
         let task = Task {
             await executeJob(job, onComplete: onComplete)
@@ -251,6 +290,7 @@ final class ConversionManager: ObservableObject {
         jobStatuses[jobId] = .cancelled
         jobCompletedTimes[jobId] = Date()
         onPendingCancel?(jobId)
+        persistActiveQueueSnapshot()
         logger.info("Job \(jobId) cancelled")
     }
     
@@ -261,6 +301,11 @@ final class ConversionManager: ObservableObject {
             jobCompletedTimes[id] = Date()
         }
         tasks.removeAll()
+        for job in activeJobs where (jobStatuses[job.id]?.isActive ?? true) {
+            jobStatuses[job.id] = .cancelled
+            jobCompletedTimes[job.id] = Date()
+        }
+        persistActiveQueueSnapshot()
     }
     
     func removeJob(id: UUID) {
@@ -272,6 +317,79 @@ final class ConversionManager: ObservableObject {
         jobCompletedTimes.removeValue(forKey: id)
         jobResults.removeValue(forKey: id)
         jobErrors.removeValue(forKey: id)
+        persistActiveQueueSnapshot()
+    }
+
+    // MARK: - Persistent Queue Recovery
+
+    func restoreUnfinishedQueueIfEnabled() {
+        guard settings.restoreUnfinishedQueueOnLaunch else { return }
+        let result = queueStore.load()
+        guard !result.recoveredJobs.isEmpty else {
+            if result.droppedMissingOrInvalidCount > 0 || result.wasCorrupted {
+                persistActiveQueueSnapshot()
+            }
+            return
+        }
+
+        var addedJobs: [ConversionJob] = []
+        for job in result.recoveredJobs {
+            if !activeJobs.contains(where: { $0.id == job.id }) {
+                activeJobs.append(job)
+            }
+            if jobStatuses[job.id] == nil {
+                jobStatuses[job.id] = .waiting
+            }
+            addedJobs.append(job)
+        }
+
+        restoredUnfinishedJobs = addedJobs
+        restoredQueueCount = addedJobs.count
+        restoredSkippedMissingCount = result.droppedMissingOrInvalidCount
+
+        if result.droppedMissingOrInvalidCount > 0 || result.droppedDuplicateCount > 0 {
+            persistActiveQueueSnapshot()
+        }
+        logger.info("Restored \(addedJobs.count, privacy: .public) unfinished job(s) from persistent queue")
+    }
+
+    func dismissRestoredQueueBanner(clearRestoredJobs: Bool = true) {
+        let restoredIDs = Set(restoredUnfinishedJobs.map(\.id))
+        restoredQueueCount = 0
+        restoredSkippedMissingCount = 0
+        restoredUnfinishedJobs = []
+        guard clearRestoredJobs, !restoredIDs.isEmpty else { return }
+
+        let removableIDs = Set(restoredIDs.filter { id in
+            jobStatuses[id] == .waiting && tasks[id] == nil
+        })
+        if !removableIDs.isEmpty {
+            for id in removableIDs {
+                jobStatuses.removeValue(forKey: id)
+                jobStartedTimes.removeValue(forKey: id)
+                jobCompletedTimes.removeValue(forKey: id)
+                jobResults.removeValue(forKey: id)
+                jobErrors.removeValue(forKey: id)
+            }
+            activeJobs.removeAll { removableIDs.contains($0.id) }
+            persistActiveQueueSnapshot()
+        }
+    }
+
+    @discardableResult
+    func consumeRestoredJobsForConvertTab() -> [ConversionJob] {
+        let eligible = restoredUnfinishedJobs.filter { job in
+            jobStatuses[job.id] == .waiting
+                && tasks[job.id] == nil
+                && job.inputURLs.allSatisfy { PersistentQueueStore.isValidRecoverableSourceFile($0) }
+        }
+        dismissRestoredQueueBanner(clearRestoredJobs: true)
+        return eligible
+    }
+
+    func persistActiveQueueSnapshot() {
+        let unfinished = activeJobs.filter { status(for: $0.id).isActive }
+        queueStore.save(jobs: unfinished)
     }
     
     func clearCompleted() {
@@ -444,7 +562,7 @@ final class ConversionManager: ObservableObject {
         defer {
             if let status = jobStatuses[job.id] {
                 // Record history only if enabled
-                if AppSettings.shared.saveConversionHistory {
+                if settings.saveConversionHistory {
                     let historyStatus: HistoryStatus
                     var outputSizeBytes: Int64? = nil
                     var outputURLPath: String? = nil
@@ -501,7 +619,11 @@ final class ConversionManager: ObservableObject {
                     
                     historyManager.addEntry(historyItem)
                 }
+                trashOriginalInputsIfEligible(for: job, status: status)
+                persistActiveQueueSnapshot()
                 onComplete?(status)
+            } else {
+                persistActiveQueueSnapshot()
             }
         }
         
@@ -735,6 +857,110 @@ final class ConversionManager: ObservableObject {
         )
         for url in removable {
             try? FileManager.default.removeItem(at: url)
+        }
+    }
+
+    // MARK: - Safe Move-Originals-to-Trash
+
+    nonisolated static func evaluateTrashEligibility(
+        job: ConversionJob,
+        status: ConversionJobStatus,
+        moveOriginalsToTrashEnabled: Bool,
+        isCancelled: Bool = false
+    ) -> TrashOriginalEligibility {
+        guard moveOriginalsToTrashEnabled else {
+            return .skipped("moveOriginalsToTrashAfterSuccess is disabled")
+        }
+        guard !isCancelled else {
+            return .skipped("Job was cancelled")
+        }
+        guard case .completed(let result) = status else {
+            return .skipped("Job did not complete successfully")
+        }
+
+        let outputs = result.allOutputURLs
+        guard !outputs.isEmpty else {
+            return .skipped("No output URLs produced")
+        }
+
+        let fm = FileManager.default
+        var protectedOutputPaths = Set<String>()
+        for outURL in outputs {
+            let stdOut = outURL.standardizedFileURL
+            let resolvedOut = stdOut.resolvingSymlinksInPath()
+            var isDir: ObjCBool = false
+            guard fm.fileExists(atPath: stdOut.path, isDirectory: &isDir), !isDir.boolValue else {
+                return .skipped("Output file missing or is a directory: \(stdOut.lastPathComponent)")
+            }
+            let fileSize = (try? fm.attributesOfItem(atPath: stdOut.path)[.size] as? NSNumber)?.int64Value ?? 0
+            guard fileSize > 0 else {
+                return .skipped("Output file is empty (0 bytes): \(stdOut.lastPathComponent)")
+            }
+            protectedOutputPaths.insert(stdOut.path)
+            protectedOutputPaths.insert(resolvedOut.path)
+        }
+
+        var eligibleInputs: [URL] = []
+        var seenResolvedInputs = Set<String>()
+
+        for inputURL in job.inputURLs {
+            let stdInput = inputURL.standardizedFileURL
+            let resolvedInput = stdInput.resolvingSymlinksInPath()
+            guard !protectedOutputPaths.contains(stdInput.path),
+                  !protectedOutputPaths.contains(resolvedInput.path) else {
+                continue
+            }
+            guard fm.fileExists(atPath: stdInput.path) else {
+                continue
+            }
+            guard seenResolvedInputs.insert(resolvedInput.path).inserted else {
+                continue
+            }
+            eligibleInputs.append(stdInput)
+        }
+
+        guard !eligibleInputs.isEmpty else {
+            return .skipped("No eligible distinct original input files to trash")
+        }
+        return .eligible(eligibleInputs)
+    }
+
+    private func trashOriginalInputsIfEligible(for job: ConversionJob, status: ConversionJobStatus) {
+        let eligibility = Self.evaluateTrashEligibility(
+            job: job,
+            status: status,
+            moveOriginalsToTrashEnabled: settings.moveOriginalsToTrashAfterSuccess,
+            isCancelled: Task.isCancelled
+        )
+        guard case .eligible(let inputURLs) = eligibility else {
+            return
+        }
+
+        for inputURL in inputURLs {
+            do {
+                _ = try trashHandler(inputURL)
+                lastTrashedInputURLs.append(inputURL)
+                logger.info("Moved original input file to Trash: \(inputURL.lastPathComponent, privacy: .private)")
+                StructuredDiagnostics.record(
+                    category: .fileAccess,
+                    severity: .info,
+                    stage: "trashOriginal",
+                    operationID: job.id.uuidString,
+                    filename: inputURL.lastPathComponent,
+                    message: "Moved original input file to macOS Trash after verified conversion success"
+                )
+            } catch {
+                let sanitized = ErrorDetailsFormatter.sanitize(error.localizedDescription)
+                logger.warning("Failed to move original input file to Trash (\(inputURL.lastPathComponent, privacy: .private)): \(sanitized, privacy: .private)")
+                StructuredDiagnostics.record(
+                    category: .fileAccess,
+                    severity: .validation,
+                    stage: "trashOriginal",
+                    operationID: job.id.uuidString,
+                    filename: inputURL.lastPathComponent,
+                    message: "Failed to move original to Trash (left intact): \(sanitized)"
+                )
+            }
         }
     }
 }

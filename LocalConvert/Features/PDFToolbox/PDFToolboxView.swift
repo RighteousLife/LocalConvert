@@ -38,7 +38,7 @@ struct PDFToolboxView: View {
                 appState.pdfToolboxStore.updateCompressionConfig(
                     for: key,
                     affectedURLs: urls,
-                    title: "Change PDF Optimization Settings",
+                    title: String(localized: "Change PDF Optimization Settings"),
                     coalesceKey: coalesce
                 ) { cfg in
                     cfg = nextVal
@@ -132,53 +132,53 @@ struct PDFToolboxView: View {
             // Left Toolbox Sidebar
             List(selection: $selectedOperation) {
                 Section {
-                    AppToolboxSidebarRow("Page Studio", systemImage: "square.grid.2x2", isSelected: selectedOperation == "pageStudio")
+                    AppToolboxSidebarRow(String(localized: "Page Studio"), systemImage: "square.grid.2x2", isSelected: selectedOperation == "pageStudio")
                         .tag("pageStudio")
-                    AppToolboxSidebarRow("Merge PDFs", systemImage: "doc.on.doc", isSelected: selectedOperation == "merge")
+                    AppToolboxSidebarRow(String(localized: "Merge PDFs"), systemImage: "doc.on.doc", isSelected: selectedOperation == "merge")
                         .tag("merge")
-                    AppToolboxSidebarRow("Split Pages", systemImage: "square.split.2x2", isSelected: selectedOperation == "separatePages")
+                    AppToolboxSidebarRow(String(localized: "Split Pages"), systemImage: "square.split.2x2", isSelected: selectedOperation == "separatePages")
                         .tag("separatePages")
-                    AppToolboxSidebarRow("Split Every Page", systemImage: "arrow.up.doc", isSelected: selectedOperation == "splitEveryPage")
+                    AppToolboxSidebarRow(String(localized: "Split Every Page"), systemImage: "arrow.up.doc", isSelected: selectedOperation == "splitEveryPage")
                         .tag("splitEveryPage")
-                    AppToolboxSidebarRow("Split by Ranges", systemImage: "scissors", isSelected: selectedOperation == "splitRanges")
+                    AppToolboxSidebarRow(String(localized: "Split by Ranges"), systemImage: "scissors", isSelected: selectedOperation == "splitRanges")
                         .tag("splitRanges")
-                    AppToolboxSidebarRow("Extract Pages", systemImage: "doc.text.magnifyingglass", isSelected: selectedOperation == "extract")
+                    AppToolboxSidebarRow(String(localized: "Extract Pages"), systemImage: "doc.text.magnifyingglass", isSelected: selectedOperation == "extract")
                         .tag("extract")
-                    AppToolboxSidebarRow("Delete Pages", systemImage: "trash", isSelected: selectedOperation == "delete")
+                    AppToolboxSidebarRow(String(localized: "Delete Pages"), systemImage: "trash", isSelected: selectedOperation == "delete")
                         .tag("delete")
-                    AppToolboxSidebarRow("Reorder Pages", systemImage: "arrow.up.arrow.down.square", isSelected: selectedOperation == "reorder")
+                    AppToolboxSidebarRow(String(localized: "Reorder Pages"), systemImage: "arrow.up.arrow.down.square", isSelected: selectedOperation == "reorder")
                         .tag("reorder")
-                    AppToolboxSidebarRow("Rotate Pages", systemImage: "rotate.right", isSelected: selectedOperation == "rotate")
+                    AppToolboxSidebarRow(String(localized: "Rotate Pages"), systemImage: "rotate.right", isSelected: selectedOperation == "rotate")
                         .tag("rotate")
-                    AppToolboxSidebarRow("PDF → Images", systemImage: "photo.on.rectangle", isSelected: selectedOperation == "pdfToImages")
+                    AppToolboxSidebarRow(String(localized: "PDF → Images"), systemImage: "photo.on.rectangle", isSelected: selectedOperation == "pdfToImages")
                         .tag("pdfToImages")
-                    AppToolboxSidebarRow("Images → PDF", systemImage: "doc.append", isSelected: selectedOperation == "imagesToPDF")
+                    AppToolboxSidebarRow(String(localized: "Images → PDF"), systemImage: "doc.append", isSelected: selectedOperation == "imagesToPDF")
                         .tag("imagesToPDF")
                 } header: {
-                    AppSidebarSectionHeader(title: "Organize")
+                    AppSidebarSectionHeader(title: String(localized: "Organize"))
                 }
 
                 Section {
-                    AppToolboxSidebarRow("Annotate & Edit", systemImage: "pencil.and.outline", isSelected: selectedOperation == "annotate")
+                    AppToolboxSidebarRow(String(localized: "Annotate & Edit"), systemImage: "pencil.and.outline", isSelected: selectedOperation == "annotate")
                         .tag("annotate")
-                    AppToolboxSidebarRow("OCR & Searchable PDF", systemImage: "text.viewfinder", isSelected: selectedOperation == "ocr")
+                    AppToolboxSidebarRow(String(localized: "OCR & Searchable PDF"), systemImage: "text.viewfinder", isSelected: selectedOperation == "ocr")
                         .tag("ocr")
-                    AppToolboxSidebarRow("PDF/A & Archiving", systemImage: "archivebox", isSelected: selectedOperation == "pdfa")
+                    AppToolboxSidebarRow(String(localized: "PDF/A & Archiving"), systemImage: "archivebox", isSelected: selectedOperation == "pdfa")
                         .tag("pdfa")
-                    AppToolboxSidebarRow("Redact", systemImage: "eye.slash.fill", isSelected: selectedOperation == "redact")
+                    AppToolboxSidebarRow(String(localized: "Redact"), systemImage: "eye.slash.fill", isSelected: selectedOperation == "redact")
                         .tag("redact")
-                    AppToolboxSidebarRow("Compare", systemImage: "doc.on.doc.fill", isSelected: selectedOperation == "compare")
+                    AppToolboxSidebarRow(String(localized: "Compare"), systemImage: "doc.on.doc.fill", isSelected: selectedOperation == "compare")
                         .tag("compare")
-                    AppToolboxSidebarRow("Compress PDF", systemImage: "arrow.down.right.and.arrow.up.left", isSelected: selectedOperation == "compress")
+                    AppToolboxSidebarRow(String(localized: "Compress PDF"), systemImage: "arrow.down.right.and.arrow.up.left", isSelected: selectedOperation == "compress")
                         .tag("compress")
-                    AppToolboxSidebarRow("Forms", systemImage: "list.bullet.rectangle", isSelected: selectedOperation == "forms")
+                    AppToolboxSidebarRow(String(localized: "Forms"), systemImage: "list.bullet.rectangle", isSelected: selectedOperation == "forms")
                         .tag("forms")
-                    AppToolboxSidebarRow("Inspect & Security", systemImage: "lock.shield", isSelected: selectedOperation == "inspectSecurity")
+                    AppToolboxSidebarRow(String(localized: "Inspect & Security"), systemImage: "lock.shield", isSelected: selectedOperation == "inspectSecurity")
                         .tag("inspectSecurity")
-                    AppToolboxSidebarRow("Normalize Page Sizes", systemImage: "doc.text.magnifyingglass", isSelected: selectedOperation == "normalizePageSizes")
+                    AppToolboxSidebarRow(String(localized: "Normalize Page Sizes"), systemImage: "doc.text.magnifyingglass", isSelected: selectedOperation == "normalizePageSizes")
                         .tag("normalizePageSizes")
                 } header: {
-                    AppSidebarSectionHeader(title: "PDF Pro Tools")
+                    AppSidebarSectionHeader(title: String(localized: "PDF Pro Tools"))
                 }
             }
             .listStyle(.sidebar)
@@ -214,9 +214,9 @@ struct PDFToolboxView: View {
     private var emptyStateView: some View {
         AppEmptyStateView(
             icon: selectedOperation == "imagesToPDF" ? "photo.on.rectangle.angled" : "doc.viewfinder",
-            title: selectedOperation == "imagesToPDF" ? "No Image Files Loaded" : "No PDF Files Loaded",
-            subtitle: selectedOperation == "imagesToPDF" ? "Add image files to combine into a PDF." : "Add PDF files to use PDF Toolbox.",
-            primaryButtonTitle: "Add Files...",
+            title: selectedOperation == "imagesToPDF" ? String(localized: "No Image Files Loaded") : String(localized: "No PDF Files Loaded"),
+            subtitle: selectedOperation == "imagesToPDF" ? String(localized: "Add image files to combine into a PDF.") : String(localized: "Add PDF files to use PDF Toolbox."),
+            primaryButtonTitle: String(localized: "Add Files..."),
             primaryButtonIcon: "plus",
             onPrimaryAction: openFilePicker
         )
@@ -229,7 +229,7 @@ struct PDFToolboxView: View {
             AppToolboxHeader(
                 title: operationDisplayName(for: selectedOperation),
                 subtitle: operationDescription(for: selectedOperation),
-                metadataText: "\(selectedCount) of \(candidateFiles.count) selected"
+                metadataText: String(localized: "\(selectedCount) of \(candidateFiles.count) selected")
             )
 
             // 2. File Selection (Horizontal Strip for standard/Pro tools; Ordered List for Merge / Images → PDF)
@@ -244,13 +244,13 @@ struct PDFToolboxView: View {
                 }
 
                 AppFileSelectionStrip(
-                    title: "Files (\(selectedCount) of \(candidateFiles.count) selected)",
+                    title: String(localized: "Files (\(selectedCount) of \(candidateFiles.count) selected)"),
                     items: items,
                     onToggleItem: { toggleSelection(for: $0) }
                 ) {
                     Button("Add Files...") { openFilePicker() }
                         .controlSize(.small)
-                    Button(selectedCount == candidateFiles.count ? "Deselect All" : "Select All") {
+                    Button(selectedCount == candidateFiles.count ? String(localized: "Deselect All") : String(localized: "Select All")) {
                         if selectedCount == candidateFiles.count {
                             selectedFileIDs.removeAll()
                         } else {
@@ -265,7 +265,7 @@ struct PDFToolboxView: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: AppTheme.Spacing.lg) {
                     if isMultiInputOperation {
-                        AppCard(title: "Merge Order (\(selectedCount) of \(candidateFiles.count) selected)", icon: "list.number") {
+                        AppCard(title: String(localized: "Merge Order (\(selectedCount) of \(candidateFiles.count) selected)"), icon: "list.number") {
                             VStack(spacing: AppTheme.Spacing.xs) {
                                 HStack {
                                     Text("Drag order controls set output sequence.")
@@ -275,7 +275,7 @@ struct PDFToolboxView: View {
                                     Button("Add Files...") { openFilePicker() }
                                         .controlSize(.small)
                                         .fixedSize(horizontal: true, vertical: false)
-                                    Button(selectedCount == candidateFiles.count ? "Deselect All" : "Select All") {
+                                    Button(selectedCount == candidateFiles.count ? String(localized: "Deselect All") : String(localized: "Select All")) {
                                         if selectedCount == candidateFiles.count {
                                             selectedFileIDs.removeAll()
                                         } else {
@@ -298,7 +298,7 @@ struct PDFToolboxView: View {
                                                 .foregroundStyle(isSelected ? AppTheme.Colors.accent : .secondary)
                                         }
                                         .buttonStyle(.plain)
-                                        .accessibilityLabel(isSelected ? "Deselect \(file.fileName)" : "Select \(file.fileName)")
+                                        .accessibilityLabel(isSelected ? String(localized: "Deselect \(file.fileName)") : String(localized: "Select \(file.fileName)"))
 
                                         Image(systemName: isImage ? "photo" : "doc.fill")
                                             .foregroundStyle(isImage ? AppTheme.Colors.accent : AppTheme.Colors.error)
@@ -322,7 +322,7 @@ struct PDFToolboxView: View {
                                             .controlSize(.mini)
                                             .disabled(orderedCandidateFiles.first?.id == file.id)
                                             .help("Move file up in merge order")
-                                            .accessibilityLabel("Move \(file.fileName) up in merge order")
+                                            .accessibilityLabel(String(localized: "Move \(file.fileName) up in merge order"))
 
                                             Button { moveDown(id: file.id) } label: {
                                                 Image(systemName: "chevron.down").font(.caption2)
@@ -331,7 +331,7 @@ struct PDFToolboxView: View {
                                             .controlSize(.mini)
                                             .disabled(orderedCandidateFiles.last?.id == file.id)
                                             .help("Move file down in merge order")
-                                            .accessibilityLabel("Move \(file.fileName) down in merge order")
+                                            .accessibilityLabel(String(localized: "Move \(file.fileName) down in merge order"))
                                         }
                                     }
                                     .padding(.vertical, AppTheme.Spacing.xs)
@@ -373,7 +373,7 @@ struct PDFToolboxView: View {
                         }
                         .buttonStyle(.borderedProminent)
                         .disabled(!canExecute)
-                        .accessibilityLabel("\(executeButtonTitle)")
+                        .accessibilityLabel(executeButtonTitle)
                     }
                 }
             }
@@ -392,8 +392,8 @@ struct PDFToolboxView: View {
         } else if selectedCount == 0 {
             AppEmptyStateView(
                 icon: "hand.tap",
-                title: "No File Selected",
-                subtitle: "Select a file from the bar above to configure this PDF operation."
+                title: String(localized: "No File Selected"),
+                subtitle: String(localized: "Select a file from the bar above to configure this PDF operation.")
             )
             .frame(minHeight: 220)
         } else if selectedCount == 1, let singleFile = selectedFiles.first {
@@ -417,16 +417,16 @@ struct PDFToolboxView: View {
                     VStack(alignment: .leading, spacing: AppTheme.Spacing.sm) {
                         AppInfoBanner(
                             style: .info,
-                            message: "Automatically separates multi-up PDF pages into individual pages, skipping empty cells."
+                            message: String(localized: "Automatically separates multi-up PDF pages into individual pages, skipping empty cells.")
                         )
                         separatePagesLayoutOptions
                     }
                 }
 
                 if ["splitRanges", "extract", "delete", "reorder", "rotate"].contains(selectedOperation) {
-                    AppCard(title: "Page Ranges", icon: "text.line.first.and.arrowtriangle.forward") {
+                    AppCard(title: String(localized: "Page Ranges"), icon: "text.line.first.and.arrowtriangle.forward") {
                         VStack(alignment: .leading, spacing: AppTheme.Spacing.xs) {
-                            TextField(selectedOperation == "rotate" ? "All pages (or e.g. 1-3, 5)" : "e.g. 1-3, 5, 8-10", text: $pageRanges)
+                            TextField(selectedOperation == "rotate" ? String(localized: "All pages (or e.g. 1-3, 5)") : String(localized: "e.g. 1-3, 5, 8-10"), text: $pageRanges)
                                 .textFieldStyle(.roundedBorder)
                                 .frame(maxWidth: 320)
                                 .accessibilityLabel("Page Ranges Input")
@@ -438,7 +438,7 @@ struct PDFToolboxView: View {
                 }
 
                 if selectedOperation == "rotate" {
-                    AppCard(title: "Rotation Options", icon: "rotate.right") {
+                    AppCard(title: String(localized: "Rotation Options"), icon: "rotate.right") {
                         Picker("Rotation Angle", selection: $rotationDegrees) {
                             Text("90° Clockwise").tag(90)
                             Text("180° Flip").tag(180)
@@ -454,19 +454,19 @@ struct PDFToolboxView: View {
                 if selectedOperation == "merge" {
                     AppInfoBanner(
                         style: .info,
-                        message: "Ready to merge \(selectedCount) PDF documents sequentially into a single PDF in the order shown above.",
+                        message: String(localized: "Ready to merge \(selectedCount) PDF documents sequentially into a single PDF in the order shown above."),
                         icon: "doc.on.doc.fill"
                     )
                 } else if selectedOperation == "imagesToPDF" {
                     AppInfoBanner(
                         style: .info,
-                        message: "Ready to combine \(selectedCount) images into a single multi-page PDF document.",
+                        message: String(localized: "Ready to combine \(selectedCount) images into a single multi-page PDF document."),
                         icon: "photo.stack"
                     )
                 } else if isBatchCapableOperation {
                     AppInfoBanner(
                         style: .info,
-                        message: "Batch mode: \(selectedCount) files selected. Each PDF will be processed individually in the queue.",
+                        message: String(localized: "Batch mode: \(selectedCount) files selected. Each PDF will be processed individually in the queue."),
                         icon: "square.stack.3d.up.fill"
                     )
                     if selectedOperation == "compress" {
@@ -477,7 +477,7 @@ struct PDFToolboxView: View {
                 } else {
                     AppInfoBanner(
                         style: .warning,
-                        message: "Please select exactly one PDF document to configure custom page ranges."
+                        message: String(localized: "Please select exactly one PDF document to configure custom page ranges.")
                     )
                 }
             }
@@ -487,7 +487,7 @@ struct PDFToolboxView: View {
     // MARK: - Helpers & State Management
 
     private var separatePagesLayoutOptions: some View {
-        AppCard(title: "Split Grid Layout", icon: "square.grid.2x2") {
+        AppCard(title: String(localized: "Split Grid Layout"), icon: "square.grid.2x2") {
             VStack(alignment: .leading, spacing: AppTheme.Spacing.sm) {
                 Stepper(value: $gridColumns, in: PDFGridLayout.minimumDivisionCount...PDFGridLayout.maximumDivisionCount) {
                     Text("Columns across: \(gridColumns)")
@@ -510,13 +510,13 @@ struct PDFToolboxView: View {
     
     private var executeButtonTitle: String {
         if selectedOperation == "merge" {
-            return "Merge \(selectedCount) PDFs"
+            return String(localized: "Merge \(selectedCount) PDFs")
         } else if selectedOperation == "imagesToPDF" {
-            return "Combine \(selectedCount) Images"
+            return String(localized: "Combine \(selectedCount) Images")
         } else if selectedCount > 1 && isBatchCapableOperation {
-            return "Batch Process (\(selectedCount) Files)"
+            return String(localized: "Batch Process (\(selectedCount) Files)")
         } else {
-            return "Execute Operation"
+            return String(localized: "Execute Operation")
         }
     }
     
@@ -738,52 +738,52 @@ struct PDFToolboxView: View {
     
     private func operationDisplayName(for op: String) -> String {
         switch op {
-        case "pageStudio": return "PDF Page Studio"
-        case "normalizePageSizes": return "Normalize PDF Page Sizes"
-        case "annotate": return "Annotate & Edit PDF"
-        case "merge": return "Merge PDFs"
-        case "separatePages": return "Split Pages"
-        case "splitEveryPage": return "Split Every Page"
-        case "splitRanges": return "Split by Page Ranges"
-        case "extract": return "Extract Pages"
-        case "delete": return "Delete Pages"
-        case "reorder": return "Reorder Pages"
-        case "rotate": return "Rotate Pages"
-        case "compress": return "Compress PDF"
-        case "pdfToImages": return "PDF to Images"
-        case "imagesToPDF": return "Images to PDF"
-        case "ocr": return "OCR & Searchable PDF"
-        case "pdfa": return "PDF/A & Archiving"
-        case "redact": return "Permanent Redaction"
-        case "compare": return "Compare PDF Documents"
-        case "forms": return "PDF Forms (AcroForm)"
-        case "inspectSecurity": return "PDF Inspector & Security"
+        case "pageStudio": return String(localized: "PDF Page Studio")
+        case "normalizePageSizes": return String(localized: "Normalize PDF Page Sizes")
+        case "annotate": return String(localized: "Annotate & Edit PDF")
+        case "merge": return String(localized: "Merge PDFs")
+        case "separatePages": return String(localized: "Split Pages")
+        case "splitEveryPage": return String(localized: "Split Every Page")
+        case "splitRanges": return String(localized: "Split by Page Ranges")
+        case "extract": return String(localized: "Extract Pages")
+        case "delete": return String(localized: "Delete Pages")
+        case "reorder": return String(localized: "Reorder Pages")
+        case "rotate": return String(localized: "Rotate Pages")
+        case "compress": return String(localized: "Compress PDF")
+        case "pdfToImages": return String(localized: "PDF to Images")
+        case "imagesToPDF": return String(localized: "Images to PDF")
+        case "ocr": return String(localized: "OCR & Searchable PDF")
+        case "pdfa": return String(localized: "PDF/A & Archiving")
+        case "redact": return String(localized: "Permanent Redaction")
+        case "compare": return String(localized: "Compare PDF Documents")
+        case "forms": return String(localized: "PDF Forms (AcroForm)")
+        case "inspectSecurity": return String(localized: "PDF Inspector & Security")
         default: return op.capitalized
         }
     }
     
     private func operationDescription(for op: String) -> String {
         switch op {
-        case "pageStudio": return "Visually organize, reorder, move, duplicate, delete, rotate, crop, resize, insert, and split pages."
-        case "normalizePageSizes": return "Fit every source page to a consistent target size while preserving source order."
-        case "annotate": return "Add and edit highlights, underlines, strikeouts, sticky notes, callout text, freehand ink, shapes, and arrows."
-        case "merge": return "Combine multiple PDF documents into a single sequential file."
-        case "separatePages": return "Automatically separates multi-up PDF pages into individual pages, skipping empty cells."
-        case "splitEveryPage": return "Split each page of the PDF into a separate document."
-        case "splitRanges": return "Extract custom page ranges into individual documents."
-        case "extract": return "Extract specific pages from the PDF document."
-        case "delete": return "Remove specified pages from the PDF document."
-        case "reorder": return "Reorder pages in the specified sequence."
-        case "rotate": return "Rotate all pages in the PDF document."
-        case "compress": return "Optimize and reduce the file size of the PDF with preset or custom quality profiles."
-        case "pdfToImages": return "Render PDF pages into high-resolution image files."
-        case "imagesToPDF": return "Combine image files into a single PDF document."
-        case "ocr": return "Recognize scanned text via Apple Vision and embed an invisible searchable text layer."
-        case "pdfa": return "Convert to archival ISO 19005 PDF/A profiles and verify compliance."
-        case "redact": return "Permanently purge selected text, rectangular areas, pages, and overlapping annotations."
-        case "compare": return "Inspect text differences, page size/rotation changes, and visual pixel diffs side-by-side."
-        case "forms": return "Inspect, edit, export/import, and flatten AcroForm widgets (detects read-only XFA)."
-        case "inspectSecurity": return "Inspect fonts, images, color spaces, XMP, encryption cipher, permissions, and signatures."
+        case "pageStudio": return String(localized: "Visually organize, reorder, move, duplicate, delete, rotate, crop, resize, insert, and split pages.")
+        case "normalizePageSizes": return String(localized: "Fit every source page to a consistent target size while preserving source order.")
+        case "annotate": return String(localized: "Add and edit highlights, underlines, strikeouts, sticky notes, callout text, freehand ink, shapes, and arrows.")
+        case "merge": return String(localized: "Combine multiple PDF documents into a single sequential file.")
+        case "separatePages": return String(localized: "Automatically separates multi-up PDF pages into individual pages, skipping empty cells.")
+        case "splitEveryPage": return String(localized: "Split each page of the PDF into a separate document.")
+        case "splitRanges": return String(localized: "Extract custom page ranges into individual documents.")
+        case "extract": return String(localized: "Extract specific pages from the PDF document.")
+        case "delete": return String(localized: "Remove specified pages from the PDF document.")
+        case "reorder": return String(localized: "Reorder pages in the specified sequence.")
+        case "rotate": return String(localized: "Rotate all pages in the PDF document.")
+        case "compress": return String(localized: "Optimize and reduce the file size of the PDF with preset or custom quality profiles.")
+        case "pdfToImages": return String(localized: "Render PDF pages into high-resolution image files.")
+        case "imagesToPDF": return String(localized: "Combine image files into a single PDF document.")
+        case "ocr": return String(localized: "Recognize scanned text via Apple Vision and embed an invisible searchable text layer.")
+        case "pdfa": return String(localized: "Convert to archival ISO 19005 PDF/A profiles and verify compliance.")
+        case "redact": return String(localized: "Permanently purge selected text, rectangular areas, pages, and overlapping annotations.")
+        case "compare": return String(localized: "Inspect text differences, page size/rotation changes, and visual pixel diffs side-by-side.")
+        case "forms": return String(localized: "Inspect, edit, export/import, and flatten AcroForm widgets (detects read-only XFA).")
+        case "inspectSecurity": return String(localized: "Inspect fonts, images, color spaces, XMP, encryption cipher, permissions, and signatures.")
         default: return ""
         }
     }
@@ -793,7 +793,7 @@ struct PDFToolboxView: View {
         panel.allowsMultipleSelection = true
         panel.canChooseDirectories = false
         panel.canChooseFiles = true
-        panel.prompt = "Select"
+        panel.prompt = String(localized: "Select")
         if panel.runModal() == .OK {
             appState.handleDroppedURLs(panel.urls)
         }

@@ -48,6 +48,7 @@ enum SmartSuggestionActionID: String, CaseIterable, Identifiable, Codable, Senda
     case compactMP4 = "compact_mp4"
     case iphoneRingtoneM4R = "iphone_ringtone_m4r"
     case trimMedia = "trim_media"
+    case transcribeSRT = "transcribe_srt"
 
     // Mixed Batch
     case applySavedPreset = "apply_saved_preset"
@@ -241,9 +242,24 @@ enum SmartSuggestionEngine: Sendable {
 
     static func suggest(for files: [DroppedFile]) -> SmartSuggestionPlan {
         var plan = suggest(for: files.map(\.detectedFormat))
-        if plan.category == .mixed {
+        if plan.category == .audioVideo {
+            var updatedActions = plan.actions
+            updatedActions.append(
+                ContextualSmartAction(
+                    id: .transcribeSRT,
+                    title: "Transcribe (.srt)",
+                    systemImage: "captions.bubble",
+                    helpText: "Transcribe speech offline on-device to SubRip subtitles (.srt)",
+                    isEnabled: !files.isEmpty
+                )
+            )
+            plan = SmartSuggestionPlan(category: .audioVideo, actions: updatedActions)
+        } else if plan.category == .mixed {
             let canConvert = files.contains { $0.detectedFormat != nil && $0.selectedOutputFormat != nil }
-            let updatedActions = plan.actions.map { action in
+            let hasAudioOrVideo = files.contains {
+                $0.detectedFormat?.category == .audio || $0.detectedFormat?.category == .video
+            }
+            var updatedActions = plan.actions.map { action in
                 if action.id == .convertAll {
                     return ContextualSmartAction(
                         id: action.id,
@@ -255,6 +271,20 @@ enum SmartSuggestionEngine: Sendable {
                     )
                 }
                 return action
+            }
+            if hasAudioOrVideo {
+                let transcribeAction = ContextualSmartAction(
+                    id: .transcribeSRT,
+                    title: "Transcribe (.srt)",
+                    systemImage: "captions.bubble",
+                    helpText: "Transcribe staged audio/video files offline on-device to SubRip subtitles (.srt)",
+                    isEnabled: true
+                )
+                if let convertAllIdx = updatedActions.firstIndex(where: { $0.id == .convertAll }) {
+                    updatedActions.insert(transcribeAction, at: convertAllIdx)
+                } else {
+                    updatedActions.append(transcribeAction)
+                }
             }
             plan = SmartSuggestionPlan(category: .mixed, actions: updatedActions)
         }
@@ -529,6 +559,153 @@ enum SmartBarActionExecutor {
             appState.openAudioTools()
         }
     }
+
+    static func runTranscribeSRT(
+        appState: AppState,
+        engine: OfflineSpeechTranscriptionEngine = .shared,
+        coordinator: SmartBarTranscriptionCoordinator = .shared
+    ) {
+        coordinator.startTranscribeSRT(appState: appState, engine: engine)
+    }
+}
+
+@MainActor
+final class SmartBarTranscriptionCoordinator: ObservableObject {
+    static let shared = SmartBarTranscriptionCoordinator()
+
+    @Published private(set) var isTranscribing = false
+    private var activeTask: Task<Void, Never>?
+
+    func startTranscribeSRT(
+        appState: AppState,
+        engine: OfflineSpeechTranscriptionEngine = .shared
+    ) {
+        guard !isTranscribing else { return }
+
+        let mediaFiles = appState.droppedFiles.filter {
+            $0.detectedFormat?.category == .audio || $0.detectedFormat?.category == .video
+        }
+        guard !mediaFiles.isEmpty else { return }
+
+        let interactive = appState.resolveInteractiveOutputDirectoryIfNeeded()
+        if interactive.cancelled {
+            return
+        }
+
+        var targets: [(file: DroppedFile, outputDir: URL)] = []
+        var unwritableDirs: [String] = []
+        for file in mediaFiles {
+            let outDir = interactive.directory ?? OutputManager.resolveOutputDirectory(
+                for: file.url,
+                preference: appState.outputLocation,
+                customDirectory: appState.customOutputDirectory
+            )
+            if OutputManager.isOutputDirectoryValid(outDir) {
+                targets.append((file, outDir))
+            } else {
+                unwritableDirs.append("\(file.url.lastPathComponent) → \(outDir.path)")
+            }
+        }
+
+        if !unwritableDirs.isEmpty && targets.isEmpty {
+            appState.showError(
+                message: String(localized: "The destination folder is inaccessible or unwritable."),
+                details: unwritableDirs.joined(separator: "\n")
+            )
+            return
+        }
+
+        guard !targets.isEmpty else { return }
+
+        let snapshotTargets = targets
+        let targetCount = snapshotTargets.count
+
+        isTranscribing = true
+        appState.dropFeedbackText = targetCount == 1
+            ? "Transcribing \(snapshotTargets[0].file.url.lastPathComponent) to .srt..."
+            : "Transcribing \(targetCount) media files to .srt..."
+
+        let localeID = Locale.current.identifier
+        let resolveAppState: @MainActor @Sendable () -> AppState? = { [weak appState] in appState }
+        activeTask = Task { [weak self] in
+            var outputs: [URL] = []
+            var firstError: Error? = nil
+
+            for (idx, item) in snapshotTargets.enumerated() {
+                if Task.isCancelled { break }
+                do {
+                    let result = try await engine.transcribe(
+                        inputURL: item.file.url,
+                        to: .srt,
+                        outputDirectory: item.outputDir,
+                        localeIdentifier: localeID,
+                        existingFileHandling: .createUnique
+                    ) { progress in
+                        Task { @MainActor in
+                            guard let appState = resolveAppState() else { return }
+                            if targetCount > 1 {
+                                appState.dropFeedbackText = "Transcribing \(idx + 1)/\(targetCount): \(progress.statusMessage)"
+                            } else {
+                                appState.dropFeedbackText = progress.statusMessage
+                            }
+                        }
+                    }
+                    outputs.append(result.outputURL)
+
+                    if let appState = resolveAppState(), AppSettings.shared.saveConversionHistory {
+                        let inFmt = item.file.detectedFormat?.displayName ?? item.file.url.pathExtension.uppercased()
+                        let outSize = (try? FileManager.default.attributesOfItem(atPath: result.outputURL.path)[.size] as? Int64)
+                        appState.historyManager.addEntry(
+                            ConversionHistoryItem(
+                                inputFilename: item.file.url.lastPathComponent,
+                                inputFormatName: inFmt,
+                                outputFilename: result.outputURL.lastPathComponent,
+                                outputFormatName: FileFormat.srt.displayName,
+                                status: .completed,
+                                inputSizeBytes: item.file.fileSize,
+                                outputSizeBytes: outSize,
+                                presetName: "Offline Speech-to-Text",
+                                outputURLPath: result.outputURL.path,
+                                inputURLPath: item.file.url.path,
+                                duration: result.durationSeconds,
+                                source: .manual
+                            )
+                        )
+                    }
+                } catch {
+                    if firstError == nil {
+                        firstError = error
+                    }
+                    break
+                }
+            }
+
+            self?.isTranscribing = false
+            self?.activeTask = nil
+
+            guard let appState = resolveAppState() else { return }
+            if let firstError {
+                if let convErr = firstError as? ConversionError {
+                    if case .cancelled = convErr {
+                        appState.dropFeedbackText = "Transcription cancelled"
+                        return
+                    }
+                    appState.showError(
+                        title: ErrorDetailsFormatter.title(for: convErr),
+                        message: convErr.userFacingMessage,
+                        suggestion: ErrorDetailsFormatter.suggestedAction(for: convErr),
+                        details: convErr.technicalDetails
+                    )
+                } else {
+                    appState.showError(message: firstError.localizedDescription)
+                }
+            } else if !outputs.isEmpty {
+                appState.dropFeedbackText = outputs.count == 1
+                    ? "Saved subtitles: \(outputs[0].lastPathComponent)"
+                    : "Saved \(outputs.count) subtitle (.srt) files"
+            }
+        }
+    }
 }
 
 // MARK: - Contextual Smart Suggestion Bar View
@@ -536,6 +713,7 @@ enum SmartBarActionExecutor {
 struct ContextualSmartBarView: View {
     @EnvironmentObject private var appState: AppState
     @ObservedObject private var presetManager = PresetManager.shared
+    @ObservedObject private var transcriptionCoordinator = SmartBarTranscriptionCoordinator.shared
     @State private var trimSheetFile: DroppedFile?
 
     private var plan: SmartSuggestionPlan {
@@ -692,17 +870,21 @@ struct ContextualSmartBarView: View {
                 .accessibilityLabel(action.title)
                 .accessibilityIdentifier("smartbar.action.\(action.id.rawValue)")
             } else {
+                let isBusyTranscribing = (action.id == .transcribeSRT && transcriptionCoordinator.isTranscribing)
                 Button {
                     trigger(action.id)
                 } label: {
-                    Label(action.title, systemImage: action.systemImage)
-                        .font(AppTheme.Typography.caption)
-                        .lineLimit(1)
+                    Label(
+                        isBusyTranscribing ? "Transcribing..." : action.title,
+                        systemImage: action.systemImage
+                    )
+                    .font(AppTheme.Typography.caption)
+                    .lineLimit(1)
                 }
                 .controlSize(.small)
                 .buttonStyle(.bordered)
                 .fixedSize(horizontal: true, vertical: false)
-                .disabled(!action.isEnabled || appState.isConverting)
+                .disabled(!action.isEnabled || appState.isConverting || isBusyTranscribing)
                 .help(action.helpText)
                 .accessibilityLabel(action.title)
                 .accessibilityIdentifier("smartbar.action.\(action.id.rawValue)")
@@ -730,6 +912,8 @@ struct ContextualSmartBarView: View {
             SmartBarActionExecutor.runTrim(appState: appState) { videoFile in
                 trimSheetFile = videoFile
             }
+        case .transcribeSRT:
+            SmartBarActionExecutor.runTranscribeSRT(appState: appState)
         case .convertAll:
             appState.convertAll()
         case .resizeImages, .applySavedPreset:

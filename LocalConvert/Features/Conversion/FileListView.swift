@@ -4,6 +4,9 @@ import UniformTypeIdentifiers
 struct FileListView: View {
     @EnvironmentObject var appState: AppState
     @State private var isTargeted = false
+    @State private var selectedFileID: UUID? = nil
+    @State private var activeComparisonItem: BeforeAfterComparisonItem? = nil
+    @StateObject private var quickLookCoordinator = QuickLookPanelCoordinator()
     
     var body: some View {
         VStack(spacing: 0) {
@@ -41,11 +44,48 @@ struct FileListView: View {
             }
         }
         .background {
+            QuickLookKeyMonitorHost(
+                coordinator: quickLookCoordinator,
+                isBlocked: {
+                    appState.showError || activeComparisonItem != nil
+                },
+                onSpaceKey: {
+                    toggleQuickLookForSelectedFile()
+                },
+                onMoveSelection: { delta in
+                    moveSelection(by: delta)
+                }
+            )
+            .frame(width: 0, height: 0)
+            .allowsHitTesting(false)
+
             if isTargeted {
                 RoundedRectangle(cornerRadius: AppTheme.Radius.md)
                     .strokeBorder(AppTheme.Colors.accent, style: StrokeStyle(lineWidth: 2, dash: [8, 4]))
                     .padding(AppTheme.Spacing.xs)
             }
+        }
+        .sheet(item: $activeComparisonItem) { item in
+            QuickLookAndCompareView(
+                item: item,
+                onQuickLook: { url in
+                    quickLookCoordinator.togglePreviewPanel(urls: [url], selectedIndex: 0)
+                }
+            )
+        }
+        .onChange(of: appState.droppedFiles.map(\.id)) { _, newIDs in
+            if let current = selectedFileID, !newIDs.contains(current) {
+                selectedFileID = newIDs.first
+            } else if selectedFileID == nil {
+                selectedFileID = newIDs.first
+            }
+            syncQuickLookSelection()
+        }
+        .onChange(of: selectedFileID) { _, _ in
+            syncQuickLookSelection()
+        }
+        .onDisappear {
+            quickLookCoordinator.closeIfControlling()
         }
     }
     
@@ -55,18 +95,50 @@ struct FileListView: View {
     private var toolbarArea: some View {
         HStack(alignment: .center) {
             VStack(alignment: .leading, spacing: AppTheme.Spacing.xxs) {
-                Text("\(appState.droppedFiles.count) file\(appState.droppedFiles.count == 1 ? "" : "s") in queue")
+                Text(
+                    appState.droppedFiles.count == 1
+                        ? String(localized: "1 file in queue")
+                        : String(localized: "\(appState.droppedFiles.count) files in queue")
+                )
                     .font(AppTheme.Typography.sectionTitle)
                     .accessibilityIdentifier("filelist.countLabel")
                 
                 if appState.isConverting {
-                    Text("\(appState.activeJobCount) active • \(appState.completedJobCount) / \(appState.totalJobCount) completed")
+                    Text(String(localized: "\(appState.activeJobCount) active • \(appState.completedJobCount) / \(appState.totalJobCount) completed"))
                         .font(AppTheme.Typography.monoCaption)
                         .foregroundStyle(.secondary)
                 }
             }
             
             Spacer()
+
+            if let compareTarget = toolbarComparisonItem {
+                Button(action: {
+                    selectedFileID = compareTarget.id
+                    activeComparisonItem = compareTarget
+                }) {
+                    Label("Compare", systemImage: "square.split.2x1")
+                }
+                .buttonStyle(.bordered)
+                .controlSize(.small)
+                .fixedSize(horizontal: true, vertical: false)
+                .help(String(localized: "Compare before and after for \(compareTarget.fileName)"))
+                .accessibilityLabel("Compare before and after")
+                .accessibilityIdentifier("filelist.compareButton")
+            }
+
+            if !resolvedQueueQuickLookItems.urls.isEmpty {
+                Button(action: {
+                    _ = toggleQuickLookForSelectedFile()
+                }) {
+                    Image(systemName: "eye")
+                }
+                .buttonStyle(.borderless)
+                .fixedSize(horizontal: true, vertical: false)
+                .help("Quick Look selected file (Space)")
+                .accessibilityLabel("Quick Look selected file")
+                .accessibilityIdentifier("filelist.quickLookButton")
+            }
             
             Menu {
                 ForEach(PresetManager.shared.presets) { preset in
@@ -113,7 +185,7 @@ struct FileListView: View {
             style: .warning,
             message: notice,
             icon: "folder.badge.questionmark",
-            actionTitle: appState.pendingFolderURLs.isEmpty ? nil : "Import Files",
+            actionTitle: appState.pendingFolderURLs.isEmpty ? nil : String(localized: "Import Files"),
             onAction: appState.pendingFolderURLs.isEmpty ? nil : { appState.importFilesFromPendingFolders() },
             onDismiss: {
                 appState.folderRejectedNotice = nil
@@ -152,6 +224,17 @@ struct FileListView: View {
         .padding(.bottom, AppTheme.Spacing.sm)
     }
 
+    private var batchCompletionSummaryDetail: String {
+        var parts: [String] = [String(localized: "\(appState.completedJobCount) succeeded")]
+        if appState.failedJobCount > 0 {
+            parts.append(String(localized: "\(appState.failedJobCount) failed"))
+        }
+        if appState.cancelledJobCount > 0 {
+            parts.append(String(localized: "\(appState.cancelledJobCount) cancelled"))
+        }
+        return parts.joined(separator: ", ")
+    }
+
     @ViewBuilder
     private var batchCompletionSummaryContent: some View {
         HStack(spacing: AppTheme.Spacing.md) {
@@ -160,13 +243,13 @@ struct FileListView: View {
                 .foregroundStyle(appState.failedJobCount == 0 ? AppTheme.Colors.success : AppTheme.Colors.warning)
 
             VStack(alignment: .leading, spacing: AppTheme.Spacing.xxs) {
-                Text(appState.failedJobCount == 0 ? "Batch Conversion Complete" : "Batch Finished with Issues")
+                Text(appState.failedJobCount == 0 ? String(localized: "Batch Conversion Complete") : String(localized: "Batch Finished with Issues"))
                     .font(AppTheme.Typography.subheadline)
                     .fontWeight(.medium)
                     .lineLimit(1)
                     .accessibilityIdentifier("filelist.batchBannerTitle")
 
-                Text("\(appState.completedJobCount) succeeded\(appState.failedJobCount > 0 ? ", \(appState.failedJobCount) failed" : "")\(appState.cancelledJobCount > 0 ? ", \(appState.cancelledJobCount) cancelled" : "")")
+                Text(batchCompletionSummaryDetail)
                     .font(AppTheme.Typography.monoCaption)
                     .foregroundStyle(.secondary)
                     .lineLimit(1)
@@ -214,18 +297,18 @@ struct FileListView: View {
                         Button(action: {
                             appState.repeatLastConversion()
                         }) {
-                            Label("Repeat: \(last.summary)", systemImage: "arrow.clockwise")
+                            Label(String(localized: "Repeat: \(last.summary)"), systemImage: "arrow.clockwise")
                                 .font(.caption)
                         }
                         .controlSize(.small)
                         .buttonStyle(.borderedProminent)
                         .tint(.accentColor)
                         .keyboardShortcut("r", modifiers: [.command, .shift])
-                        .help("Repeat last conversion (\(last.summary)) (⌘⇧R)")
-                        .accessibilityLabel("Repeat last conversion: \(last.summary)")
+                        .help(String(localized: "Repeat last conversion (\(last.summary)) (⌘⇧R)"))
+                        .accessibilityLabel(String(localized: "Repeat last conversion: \(last.summary)"))
                         .accessibilityHint("Applies previous conversion settings and starts conversion.")
                     } else {
-                        Label("Repeat: \(last.summary)", systemImage: "arrow.clockwise")
+                        Label(String(localized: "Repeat: \(last.summary)"), systemImage: "arrow.clockwise")
                             .font(.caption)
                             .lineLimit(1)
                             .fixedSize(horizontal: true, vertical: false)
@@ -257,9 +340,9 @@ struct FileListView: View {
                             .controlSize(.small)
                             .buttonStyle(.bordered)
                             .font(.caption)
-                            .help("Convert all files to \(format.displayName)")
-                            .accessibilityLabel("Quick convert to \(format.displayName)")
-                            .accessibilityHint("Sets all files to \(format.displayName) and starts conversion.")
+                            .help(String(localized: "Convert all files to \(format.displayName)"))
+                            .accessibilityLabel(String(localized: "Quick convert to \(format.displayName)"))
+                            .accessibilityHint(String(localized: "Sets all files to \(format.displayName) and starts conversion."))
                         }
                     }
                 }
@@ -283,9 +366,9 @@ struct FileListView: View {
                             }
                             .controlSize(.small)
                             .buttonStyle(.bordered)
-                            .help("Apply preset: \(preset.name)")
-                            .accessibilityLabel("Apply preset \(preset.name)")
-                            .accessibilityHint("Applies the \(preset.name) preset to all files.")
+                            .help(String(localized: "Apply preset: \(preset.name)"))
+                            .accessibilityLabel(String(localized: "Apply preset \(preset.name)"))
+                            .accessibilityHint(String(localized: "Applies the \(preset.name) preset to all files."))
                         }
                     }
                 }
@@ -303,7 +386,21 @@ struct FileListView: View {
         ScrollView {
             LazyVStack(spacing: AppTheme.Spacing.sm) {
                 ForEach(appState.droppedFiles) { file in
-                    FileRowView(file: file)
+                    FileRowView(
+                        file: file,
+                        isSelected: file.id == effectiveSelectedFileID,
+                        onSelect: {
+                            selectedFileID = file.id
+                            syncQuickLookSelection()
+                        },
+                        onQuickLook: {
+                            triggerQuickLook(for: file)
+                        },
+                        onCompare: { item in
+                            selectedFileID = file.id
+                            activeComparisonItem = item
+                        }
+                    )
                 }
             }
             .padding(AppTheme.Spacing.lg)
@@ -337,7 +434,7 @@ struct FileListView: View {
             ProgressView(value: appState.batchProgress)
                 .progressViewStyle(.linear)
                 .accessibilityLabel("Overall conversion progress")
-                .accessibilityValue("\(Int(appState.batchProgress * 100)) percent")
+                .accessibilityValue(String(localized: "\(Int(appState.batchProgress * 100)) percent"))
         }
     }
     
@@ -371,7 +468,7 @@ struct FileListView: View {
 
             Picker("", selection: $appState.outputLocation) {
                 ForEach(OutputLocation.allCases) { location in
-                    Text(location.rawValue).tag(location)
+                    Text(LocalizedStringKey(location.rawValue)).tag(location)
                 }
             }
             .frame(minWidth: 150, maxWidth: 200)
@@ -383,13 +480,13 @@ struct FileListView: View {
                 HStack(spacing: AppTheme.Spacing.xs) {
                     Image(systemName: "folder")
                         .font(AppTheme.Typography.caption)
-                    Text(appState.customOutputDirectory?.lastPathComponent ?? "Choose Folder...")
+                    Text(appState.customOutputDirectory?.lastPathComponent ?? String(localized: "Choose Folder..."))
                         .lineLimit(1)
                         .truncationMode(.middle)
                 }
             }
             .controlSize(.small)
-            .help(appState.customOutputDirectory?.path ?? "Click to choose custom output directory")
+            .help(appState.customOutputDirectory?.path ?? String(localized: "Click to choose custom output directory"))
             .accessibilityLabel("Choose custom output folder")
         }
     }
@@ -421,6 +518,86 @@ struct FileListView: View {
     }
     
     // MARK: - Private Helpers
+
+    private var effectiveSelectedFileID: UUID? {
+        if let selectedFileID, appState.droppedFiles.contains(where: { $0.id == selectedFileID }) {
+            return selectedFileID
+        }
+        return appState.droppedFiles.first?.id
+    }
+
+    private var statusesByFileID: [UUID: ConversionJobStatus] {
+        var map: [UUID: ConversionJobStatus] = [:]
+        for file in appState.droppedFiles {
+            if let status = QueueQuickLookResolver.jobStatus(for: file, in: appState.conversionManager) {
+                map[file.id] = status
+            }
+        }
+        return map
+    }
+
+    private var resolvedQueueQuickLookItems: (urls: [URL], selectedIndex: Int) {
+        QueueQuickLookResolver.resolveQueueItems(
+            files: appState.droppedFiles,
+            statusesByFileID: statusesByFileID,
+            selectedFileID: effectiveSelectedFileID
+        )
+    }
+
+    private var toolbarComparisonItem: BeforeAfterComparisonItem? {
+        let statuses = statusesByFileID
+        if let selectedID = effectiveSelectedFileID,
+           let selectedFile = appState.droppedFiles.first(where: { $0.id == selectedID }),
+           let item = BeforeAfterComparisonSupport.makeComparisonItem(for: selectedFile, status: statuses[selectedFile.id]) {
+            return item
+        }
+        for file in appState.droppedFiles {
+            if let item = BeforeAfterComparisonSupport.makeComparisonItem(for: file, status: statuses[file.id]) {
+                return item
+            }
+        }
+        return nil
+    }
+
+    @discardableResult
+    private func toggleQuickLookForSelectedFile() -> Bool {
+        let resolved = resolvedQueueQuickLookItems
+        guard !resolved.urls.isEmpty else { return false }
+        if selectedFileID == nil {
+            selectedFileID = effectiveSelectedFileID
+        }
+        quickLookCoordinator.togglePreviewPanel(urls: resolved.urls, selectedIndex: resolved.selectedIndex)
+        return true
+    }
+
+    private func triggerQuickLook(for file: DroppedFile) {
+        selectedFileID = file.id
+        let resolved = QueueQuickLookResolver.resolveQueueItems(
+            files: appState.droppedFiles,
+            statusesByFileID: statusesByFileID,
+            selectedFileID: file.id
+        )
+        guard !resolved.urls.isEmpty else { return }
+        quickLookCoordinator.togglePreviewPanel(urls: resolved.urls, selectedIndex: resolved.selectedIndex)
+    }
+
+    private func syncQuickLookSelection() {
+        let resolved = resolvedQueueQuickLookItems
+        quickLookCoordinator.updateItems(resolved.urls, selectedIndex: resolved.selectedIndex)
+    }
+
+    private func moveSelection(by delta: Int) -> Bool {
+        let files = appState.droppedFiles
+        guard !files.isEmpty else { return false }
+        guard let currentID = effectiveSelectedFileID,
+              let currentIdx = files.firstIndex(where: { $0.id == currentID }) else {
+            selectedFileID = files.first?.id
+            return true
+        }
+        let nextIdx = min(max(currentIdx + delta, 0), files.count - 1)
+        selectedFileID = files[nextIdx].id
+        return true
+    }
     
     private var canConvert: Bool {
         appState.droppedFiles.contains { file in
@@ -442,7 +619,7 @@ struct FileListView: View {
         panel.allowsMultipleSelection = true
         panel.canChooseDirectories = false
         panel.canChooseFiles = true
-        panel.prompt = "Select"
+        panel.prompt = String(localized: "Select")
         
         if panel.runModal() == .OK {
             appState.handleDroppedURLs(panel.urls)
@@ -455,7 +632,7 @@ struct FileListView: View {
         panel.canChooseDirectories = true
         panel.canCreateDirectories = true
         panel.allowsMultipleSelection = false
-        panel.prompt = "Select Folder"
+        panel.prompt = String(localized: "Select Folder")
         
         if panel.runModal() == .OK, let selectedURL = panel.url {
             appState.customOutputDirectory = selectedURL

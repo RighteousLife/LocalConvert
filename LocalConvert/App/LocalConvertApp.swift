@@ -468,6 +468,22 @@ struct LocalConvertApp: App {
                 .keyboardShortcut(KeyboardShortcutDescriptor.swiftUIShortcut(forID: "editing_history"))
             }
 
+            CommandGroup(after: .pasteboard) {
+                Divider()
+
+                Button("Paste to Convert") {
+                    Task { @MainActor in
+                        _ = await Self.handlePasteToConvertCommand(appState: appState)
+                    }
+                }
+                .keyboardShortcut(
+                    isPasteToConvertShortcutEnabled
+                        ? KeyboardShortcut("v", modifiers: .command)
+                        : nil
+                )
+                .disabled(appState.isConverting)
+            }
+
             CommandGroup(replacing: .newItem) {
                 Button("Add Files...") {
                     openFilePicker()
@@ -567,6 +583,63 @@ struct LocalConvertApp: App {
             isErrorAlertPresented: appState.showError,
             isCommandPalettePresented: commandPalette.isPresented
         )
+    }
+
+    private var isPasteToConvertShortcutEnabled: Bool {
+        Self.shouldAllowPasteToConvertShortcut(
+            isConverting: appState.isConverting,
+            isEscapeBlocked: escapeMonitor.isEscapeBlocked,
+            isTextInputActive: undoMenu.isTextInputActive,
+            isEditingHistoryPresented: undoCoordinator.isEditingHistoryPresented,
+            isURLConfirmationPresented: urlSchemeCoordinator.isConfirmationPresented,
+            isErrorAlertPresented: appState.showError,
+            isCommandPalettePresented: commandPalette.isPresented,
+            firstResponder: NSApp?.keyWindow?.firstResponder
+        )
+    }
+
+    @MainActor
+    static func shouldAllowPasteToConvertShortcut(
+        isConverting: Bool,
+        isEscapeBlocked: Bool,
+        isTextInputActive: Bool,
+        isEditingHistoryPresented: Bool,
+        isURLConfirmationPresented: Bool,
+        isErrorAlertPresented: Bool,
+        isCommandPalettePresented: Bool,
+        firstResponder: NSResponder?
+    ) -> Bool {
+        guard !isConverting,
+              !isEscapeBlocked,
+              !isTextInputActive,
+              !isEditingHistoryPresented,
+              !isURLConfirmationPresented,
+              !isErrorAlertPresented,
+              !isCommandPalettePresented else {
+            return false
+        }
+        return UndoMenuController.activeEditableTextResponder(from: firstResponder) == nil
+    }
+
+    @MainActor
+    @discardableResult
+    static func handlePasteToConvertCommand(
+        appState: AppState,
+        firstResponder: NSResponder? = NSApp?.keyWindow?.firstResponder,
+        pasteboard: NSPasteboard = .general,
+        stagingDirectory: URL? = nil
+    ) async -> Bool {
+        if let textResponder = UndoMenuController.activeEditableTextResponder(from: firstResponder) {
+            _ = NSApp?.sendAction(#selector(NSText.paste(_:)), to: textResponder, from: nil)
+            return false
+        }
+        guard !appState.isConverting else { return false }
+        let result = await ClipboardIntakeService.pasteToConvert(
+            into: appState,
+            from: pasteboard,
+            stagingDirectory: stagingDirectory
+        )
+        return result != nil
     }
     
     @MainActor

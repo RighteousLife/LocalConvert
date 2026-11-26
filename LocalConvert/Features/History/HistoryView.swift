@@ -25,13 +25,19 @@ struct HistoryView: View {
         )
     }
     
+    private var recordCountSummary: String {
+        historyManager.items.count == 1
+            ? String(localized: "\(filteredItems.count) of 1 record")
+            : String(localized: "\(filteredItems.count) of \(historyManager.items.count) records")
+    }
+
     var body: some View {
         VStack(spacing: 0) {
             // Top Toolbar / Action Header
             VStack(alignment: .leading, spacing: AppTheme.Spacing.sm) {
                 ViewThatFits(in: .horizontal) {
                     HStack(alignment: .center, spacing: AppTheme.Spacing.sm) {
-                        Text("\(filteredItems.count) of \(historyManager.items.count) record\(historyManager.items.count == 1 ? "" : "s")")
+                        Text(recordCountSummary)
                             .font(AppTheme.Typography.monoCaption)
                             .foregroundStyle(.secondary)
                             .lineLimit(1)
@@ -54,7 +60,7 @@ struct HistoryView: View {
 
                     VStack(alignment: .leading, spacing: AppTheme.Spacing.xs) {
                         HStack(spacing: AppTheme.Spacing.sm) {
-                            Text("\(filteredItems.count) of \(historyManager.items.count) record\(historyManager.items.count == 1 ? "" : "s")")
+                            Text(recordCountSummary)
                                 .font(AppTheme.Typography.monoCaption)
                                 .foregroundStyle(.secondary)
                                 .lineLimit(1)
@@ -91,7 +97,7 @@ struct HistoryView: View {
                 if watchFolderRuleFilterID != nil {
                     HStack(spacing: AppTheme.Spacing.xs) {
                         AppStatusBadge(
-                            text: "Rule: \(watchFolderRuleFilterName ?? "Watch Folder")",
+                            text: String(localized: "Rule: \(watchFolderRuleFilterName ?? String(localized: "Watch Folder"))"),
                             tint: AppTheme.Colors.info,
                             style: .rounded
                         )
@@ -177,7 +183,7 @@ struct HistoryView: View {
     private var categoryFilterPicker: some View {
         Picker("Category", selection: $categoryFilter) {
             ForEach(HistoryCategoryFilter.allCases) { cat in
-                Text(cat.rawValue).tag(cat)
+                Text(LocalizedStringKey(cat.rawValue)).tag(cat)
             }
         }
         .pickerStyle(.segmented)
@@ -190,7 +196,7 @@ struct HistoryView: View {
     private var sourceFilterPicker: some View {
         Picker("Source", selection: $sourceFilter) {
             ForEach(HistorySourceFilter.allCases) { source in
-                Text(source.rawValue).tag(source)
+                Text(LocalizedStringKey(source.rawValue)).tag(source)
             }
         }
         .pickerStyle(.segmented)
@@ -273,9 +279,9 @@ struct HistoryView: View {
     private var emptyStateView: some View {
         AppEmptyStateView(
             icon: "clock.arrow.circlepath",
-            title: "No Conversion History",
-            subtitle: "Completed and previous conversion jobs will appear here once you convert files.",
-            primaryButtonTitle: "Go to Convert",
+            title: String(localized: "No Conversion History"),
+            subtitle: String(localized: "Completed and previous conversion jobs will appear here once you convert files."),
+            primaryButtonTitle: String(localized: "Go to Convert"),
             primaryButtonIcon: "arrow.triangle.2.circlepath",
             onPrimaryAction: {
                 appState.selectedTab = .convert
@@ -287,9 +293,9 @@ struct HistoryView: View {
     private var filteredEmptyStateView: some View {
         AppEmptyStateView(
             icon: "magnifyingglass",
-            title: "No Matching History Items",
-            subtitle: "Try adjusting your search query, category, or source filter.",
-            primaryButtonTitle: "Reset Filters",
+            title: String(localized: "No Matching History Items"),
+            subtitle: String(localized: "Try adjusting your search query, category, or source filter."),
+            primaryButtonTitle: String(localized: "Reset Filters"),
             onPrimaryAction: {
                 searchText = ""
                 categoryFilter = .all
@@ -466,7 +472,7 @@ struct HistoryRowView: View {
                     .buttonStyle(.bordered)
                     .fixedSize(horizontal: true, vertical: false)
                     .help("Load source file into queue to convert again")
-                    .accessibilityLabel("Repeat conversion for \(item.inputFilename)")
+                    .accessibilityLabel(String(localized: "Repeat conversion for \(item.inputFilename)"))
                 }
             }
             .fixedSize(horizontal: true, vertical: false)
@@ -522,6 +528,13 @@ struct HistoryRowView: View {
         }
     }
 
+    private var localizedSourceBadgeText: String {
+        if item.source == .watchFolder, let ruleName = item.watchFolderRuleName, !ruleName.isEmpty {
+            return String(localized: "Watch Folder · \(ruleName)")
+        }
+        return String(localized: String.LocalizationValue(item.source.displayName))
+    }
+
     @ViewBuilder
     private var historyFormatAndSourceBadges: some View {
         AppStatusBadge(
@@ -530,13 +543,14 @@ struct HistoryRowView: View {
             style: .rounded
         )
 
+        let sourceDescription = String(localized: String.LocalizationValue(item.source.accessibilityDescription))
         AppStatusBadge(
-            text: item.sourceDisplayLabel,
+            text: localizedSourceBadgeText,
             tint: sourceTint,
             style: .rounded
         )
-        .help(item.source == .unknown ? "Legacy history record created before source provenance was tracked." : item.source.accessibilityDescription)
-        .accessibilityHint(item.source.accessibilityDescription)
+        .help(item.source == .unknown ? String(localized: "Legacy history record created before source provenance was tracked.") : sourceDescription)
+        .accessibilityHint(sourceDescription)
         .accessibilityIdentifier("history.sourceBadge.\(item.source.rawValue)")
     }
 

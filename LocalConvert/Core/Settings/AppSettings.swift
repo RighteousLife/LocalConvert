@@ -475,6 +475,8 @@ final class AppSettings: ObservableObject {
         self._customOutputDirectoryPath = AppStorage(wrappedValue: "", "settings.customOutputDirectoryPath", store: defaults)
         self._afterConversionActionRaw = AppStorage(wrappedValue: AfterConversionAction.revealInFinder.rawValue, "settings.afterConversionAction", store: defaults)
         self._existingFileHandlingRaw = AppStorage(wrappedValue: ExistingFileHandling.createUnique.rawValue, "settings.existingFileHandling", store: defaults)
+        self._moveOriginalsToTrashAfterSuccess = AppStorage(wrappedValue: false, "settings.moveOriginalsToTrashAfterSuccess", store: defaults)
+        self._restoreUnfinishedQueueOnLaunch = AppStorage(wrappedValue: true, "settings.restoreUnfinishedQueueOnLaunch", store: defaults)
         self._defaultImageQuality = AppStorage(wrappedValue: 0.90, "settings.defaultImageQuality", store: defaults)
         self._preserveMetadataByDefault = AppStorage(wrappedValue: true, "settings.preserveMetadataByDefault", store: defaults)
         self._defaultPDFDPI = AppStorage(wrappedValue: 150.0, "settings.defaultPDFDPI", store: defaults)
@@ -670,6 +672,14 @@ final class AppSettings: ObservableObject {
         get { ExistingFileHandling(rawValue: existingFileHandlingRaw) ?? .createUnique }
         set { existingFileHandlingRaw = newValue.rawValue }
     }
+
+    /// Opt-in: move original input files to macOS Trash after verified conversion success (default false).
+    @AppStorage("settings.moveOriginalsToTrashAfterSuccess")
+    var moveOriginalsToTrashAfterSuccess: Bool = false
+
+    /// Restore unfinished conversion queue items on app launch (default true).
+    @AppStorage("settings.restoreUnfinishedQueueOnLaunch")
+    var restoreUnfinishedQueueOnLaunch: Bool = true
     
     // MARK: - Conversion
     
@@ -920,6 +930,8 @@ final class AppSettings: ObservableObject {
         customOutputDirectoryPath = ""
         afterConversionActionRaw = AfterConversionAction.revealInFinder.rawValue
         existingFileHandlingRaw = ExistingFileHandling.createUnique.rawValue
+        moveOriginalsToTrashAfterSuccess = false
+        restoreUnfinishedQueueOnLaunch = true
         defaultImageQuality = 0.90
         preserveMetadataByDefault = true
         defaultPDFDPI = 150.0

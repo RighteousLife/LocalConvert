@@ -28,6 +28,7 @@ targets:
         CFBundleShortVersionString: "1.0.0"
         CFBundleIconFile: AppIcon
         CFBundleIconName: AppIcon
+        NSSpeechRecognitionUsageDescription: "LocalConvert uses on-device speech recognition to transcribe audio and video files locally into text or subtitles without sending data off your Mac."
         CFBundleURLTypes:
           - CFBundleURLName: com.localconvert.url
             CFBundleURLSchemes:

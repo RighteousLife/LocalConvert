@@ -3,10 +3,15 @@ import SwiftUI
 struct FileRowView: View {
     @EnvironmentObject var appState: AppState
     let file: DroppedFile
+    var isSelected: Bool = false
+    var onSelect: (() -> Void)? = nil
+    var onQuickLook: (() -> Void)? = nil
+    var onCompare: ((BeforeAfterComparisonItem) -> Void)? = nil
     
     @State private var showOptionsSheet = false
     @State private var showTrimSheet = false
     @State private var showTechnicalDetails = false
+    @State private var localComparisonItem: BeforeAfterComparisonItem? = nil
     
     private var liveFile: DroppedFile {
         appState.file(for: file.id) ?? file
@@ -179,12 +184,29 @@ struct FileRowView: View {
         }
         .padding(.horizontal, AppTheme.Spacing.md)
         .padding(.vertical, AppTheme.Spacing.sm)
-        .background(AppTheme.Colors.cardBackground)
+        .background {
+            AppTheme.Colors.cardBackground
+            if isSelected {
+                AppTheme.Colors.accentTint.opacity(0.6)
+            }
+        }
         .clipShape(RoundedRectangle(cornerRadius: AppTheme.Radius.md))
         .overlay(
             RoundedRectangle(cornerRadius: AppTheme.Radius.md)
-                .strokeBorder(AppTheme.Colors.cardBorder, lineWidth: 1)
+                .strokeBorder(
+                    isSelected ? AppTheme.Colors.accent.opacity(0.65) : AppTheme.Colors.cardBorder,
+                    lineWidth: isSelected ? 1.5 : 1
+                )
         )
+        .contentShape(RoundedRectangle(cornerRadius: AppTheme.Radius.md))
+        .simultaneousGesture(
+            TapGesture().onEnded {
+                onSelect?()
+            }
+        )
+        .sheet(item: $localComparisonItem) { comparisonItem in
+            QuickLookAndCompareView(item: comparisonItem)
+        }
         .sheet(isPresented: $showTrimSheet) {
             let sheetFile = appState.file(for: file.id) ?? currentFile
             VideoTrimSheetView(file: sheetFile) { trimRange, preferredFormat in
@@ -227,12 +249,7 @@ struct FileRowView: View {
     }
     
     private func findJobStatus() -> ConversionJobStatus? {
-        for job in appState.conversionManager.activeJobs {
-            if job.inputURL == file.url {
-                return appState.conversionManager.jobStatuses[job.id]
-            }
-        }
-        return nil
+        QueueQuickLookResolver.jobStatus(for: liveFile, in: appState.conversionManager)
     }
     
     private func isJobInProgressOrDone(_ status: ConversionJobStatus) -> Bool {
@@ -290,6 +307,14 @@ struct FileRowView: View {
                 inputBytes: liveFile.fileSize,
                 outputBytes: effectiveOutputBytes
             )
+            let comparisonItem = BeforeAfterComparisonSupport.makeComparisonItem(
+                for: liveFile,
+                status: status
+            )
+            let previewURL = QueueQuickLookResolver.resolvePreviewURL(
+                for: liveFile,
+                status: status
+            )
             ViewThatFits(in: .horizontal) {
                 HStack(spacing: AppTheme.Spacing.xs + 2) {
                     completedStatusLabel(for: result)
@@ -297,13 +322,21 @@ struct FileRowView: View {
                         SizeSavingsBadge(summary: savingsSummary)
                             .accessibilityIdentifier("filerow.sizeSavingsBadge")
                     }
-                    revealOutputButton(for: result)
+                    completedQuickActionButtons(
+                        result: result,
+                        comparisonItem: comparisonItem,
+                        previewURL: previewURL
+                    )
                 }
 
                 VStack(alignment: .trailing, spacing: AppTheme.Spacing.xxs) {
                     HStack(spacing: AppTheme.Spacing.xs + 2) {
                         completedStatusLabel(for: result)
-                        revealOutputButton(for: result)
+                        completedQuickActionButtons(
+                            result: result,
+                            comparisonItem: comparisonItem,
+                            previewURL: previewURL
+                        )
                     }
                     if let savingsSummary {
                         SizeSavingsBadge(summary: savingsSummary)
@@ -382,6 +415,50 @@ struct FileRowView: View {
             .lineLimit(1)
             .fixedSize(horizontal: true, vertical: false)
             .accessibilityLabel("Conversion completed: \(result.outputURL.lastPathComponent)")
+    }
+
+    @ViewBuilder
+    private func completedQuickActionButtons(
+        result: ConversionResult,
+        comparisonItem: BeforeAfterComparisonItem?,
+        previewURL: URL?
+    ) -> some View {
+        HStack(spacing: AppTheme.Spacing.xs) {
+            if let comparisonItem {
+                Button(action: {
+                    onSelect?()
+                    if let onCompare {
+                        onCompare(comparisonItem)
+                    } else {
+                        localComparisonItem = comparisonItem
+                    }
+                }) {
+                    Image(systemName: "square.split.2x1")
+                        .font(AppTheme.Typography.caption)
+                        .foregroundStyle(AppTheme.Colors.accent)
+                }
+                .buttonStyle(.borderless)
+                .help("Compare before & after")
+                .accessibilityLabel("Compare before and after for \(liveFile.fileName)")
+                .accessibilityIdentifier("filerow.compareButton")
+            } else if previewURL != nil, let onQuickLook {
+                Button(action: {
+                    onSelect?()
+                    onQuickLook()
+                }) {
+                    Image(systemName: "eye")
+                        .font(AppTheme.Typography.caption)
+                        .foregroundStyle(AppTheme.Colors.accent)
+                }
+                .buttonStyle(.borderless)
+                .help("Quick Look preview (Space)")
+                .accessibilityLabel("Quick Look \(liveFile.fileName)")
+                .accessibilityIdentifier("filerow.quickLookButton")
+            }
+
+            revealOutputButton(for: result)
+        }
+        .fixedSize(horizontal: true, vertical: false)
     }
 
     @ViewBuilder

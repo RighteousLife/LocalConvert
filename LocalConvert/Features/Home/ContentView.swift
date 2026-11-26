@@ -31,9 +31,12 @@ struct ContentView: View {
         NavigationSplitView {
             SidebarView(initialTab: appState.selectedTab)
         } detail: {
-            detailView
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-                .appWorkspaceSurface()
+            VStack(spacing: 0) {
+                RestoredQueueBannerView(conversionManager: appState.conversionManager)
+                detailView
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+            }
+            .appWorkspaceSurface()
         }
         .appOpaqueWindowChrome(preferredColorScheme: preferredColorScheme)
         .navigationTitle(appState.selectedTab.localizedTitle)
@@ -174,5 +177,76 @@ struct SidebarView: View {
             ideal: AppTheme.Layout.mainSidebarIdeal,
             max: AppTheme.Layout.mainSidebarMax
         )
+    }
+}
+
+// MARK: - Restored Queue Banner
+
+private struct RestoredQueueBannerView: View {
+    @EnvironmentObject var appState: AppState
+    @ObservedObject var conversionManager: ConversionManager
+
+    private var bannerMessage: String {
+        let count = conversionManager.restoredQueueCount
+        let base = count == 1
+            ? String(localized: "1 unfinished conversion from your previous session was restored.")
+            : String(localized: "\(count) unfinished conversions from your previous session were restored.")
+        let skipped = conversionManager.restoredSkippedMissingCount
+        if skipped > 0 {
+            let skippedText = skipped == 1
+                ? String(localized: "1 missing file was skipped.")
+                : String(localized: "\(skipped) missing files were skipped.")
+            return "\(base) \(skippedText)"
+        }
+        return base
+    }
+
+    var body: some View {
+        if conversionManager.hasRestoredQueueBanner {
+            VStack(spacing: 0) {
+                AppInfoBanner(
+                    style: .info,
+                    message: bannerMessage,
+                    icon: "clock.arrow.circlepath",
+                    actionTitle: String(localized: "Go to Convert"),
+                    onAction: {
+                        restoreToConvertQueue()
+                    },
+                    onDismiss: {
+                        conversionManager.dismissRestoredQueueBanner(clearRestoredJobs: true)
+                    }
+                )
+                .lineLimit(2)
+                .truncationMode(.tail)
+                .help(bannerMessage)
+                .padding(.horizontal, AppTheme.Spacing.lg)
+                .padding(.vertical, AppTheme.Spacing.sm)
+                .accessibilityElement(children: .contain)
+                .accessibilityIdentifier("content.restoredQueueBanner")
+
+                AppDivider()
+            }
+        }
+    }
+
+    private func restoreToConvertQueue() {
+        let restoredJobs = conversionManager.consumeRestoredJobsForConvertTab()
+        let urls = restoredJobs.flatMap(\.inputURLs)
+        if !urls.isEmpty {
+            appState.handleDroppedURLs(urls)
+            for job in restoredJobs {
+                guard let firstURL = job.inputURL else { continue }
+                let resolvedTarget = firstURL.standardizedFileURL.resolvingSymlinksInPath()
+                if let idx = appState.droppedFiles.firstIndex(where: {
+                    $0.url.standardizedFileURL.resolvingSymlinksInPath() == resolvedTarget
+                }) {
+                    if appState.droppedFiles[idx].availableOutputFormats.contains(job.outputFormat) {
+                        appState.droppedFiles[idx].selectedOutputFormat = job.outputFormat
+                    }
+                    appState.droppedFiles[idx].options = job.options
+                }
+            }
+        }
+        appState.selectedTab = .convert
     }
 }

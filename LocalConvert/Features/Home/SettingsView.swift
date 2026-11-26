@@ -52,6 +52,9 @@ struct SettingsView: View {
 
             settingsTabForm {
                 OutputFilesSettingsSection()
+                Section("Output Filename Template") {
+                    FilenameTemplateBuilderView()
+                }
                 ConversionDefaultsSettingsSection()
             }
             .tabItem {

@@ -58,15 +58,28 @@ struct DropZoneView: View {
                             .foregroundStyle(.tertiary)
                     }
                     
-                    Button(action: selectFiles) {
-                        Label("Add Files", systemImage: "plus")
-                            .frame(minWidth: 120)
+                    VStack(spacing: AppTheme.Spacing.sm) {
+                        Button(action: selectFiles) {
+                            Label("Add Files", systemImage: "plus")
+                                .frame(minWidth: 120)
+                        }
+                        .controlSize(.large)
+                        .buttonStyle(.borderedProminent)
+                        .keyboardShortcut("o", modifiers: .command)
+                        .accessibilityLabel("Add files to convert")
+                        .accessibilityIdentifier("dropzone.addFiles")
+
+                        Button(action: pasteFromClipboard) {
+                            Label("Paste from Clipboard (⌘V)", systemImage: "doc.on.clipboard")
+                                .font(AppTheme.Typography.caption)
+                        }
+                        .buttonStyle(.bordered)
+                        .controlSize(.regular)
+                        .disabled(appState.isConverting)
+                        .accessibilityLabel("Paste from Clipboard")
+                        .accessibilityHint("Pastes copied files, images, or text from the clipboard into the conversion queue. Shortcut: Command-V.")
+                        .accessibilityIdentifier("dropzone.pasteFromClipboard")
                     }
-                    .controlSize(.large)
-                    .buttonStyle(.borderedProminent)
-                    .keyboardShortcut("o", modifiers: .command)
-                    .accessibilityLabel("Add files to convert")
-                    .accessibilityIdentifier("dropzone.addFiles")
                     
                     // Drop Feedback Indicator (e.g. "3 files added")
                     if let feedback = appState.dropFeedbackText {
@@ -117,7 +130,7 @@ struct DropZoneView: View {
             return true
         }
         .accessibilityLabel("File drop zone")
-        .accessibilityHint("Drop files here to convert them, or press Command-O to select files")
+        .accessibilityHint("Drop files here to convert them, press Command-O to select files, or press Command-V to paste from clipboard")
         .sheet(isPresented: $showingFormatsSheet) {
             SupportedFormatsView(isPresented: $showingFormatsSheet)
         }
@@ -135,6 +148,12 @@ struct DropZoneView: View {
         
         if panel.runModal() == .OK {
             appState.handleDroppedURLs(panel.urls)
+        }
+    }
+
+    private func pasteFromClipboard() {
+        Task { @MainActor in
+            _ = await ClipboardIntakeService.pasteToConvert(into: appState)
         }
     }
     

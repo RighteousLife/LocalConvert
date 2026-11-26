@@ -295,4 +295,183 @@ final class Milestone9ALocalizationTests: XCTestCase {
             "Dönüştürmek İçin Bırakın"
         )
     }
+
+    // MARK: - 6. Milestone 10B Sub-View Coverage (PDFToolbox, ImageToolbox, FileList, History)
+
+    func testMilestone10BSubViewKeysAreRegisteredAcrossPDFImageFileListAndHistory() throws {
+        let catalog = try loadCatalog()
+        XCTAssertEqual(catalog["sourceLanguage"] as? String, "en")
+
+        let strings = try loadStringsTable()
+        XCTAssertGreaterThanOrEqual(
+            strings.count,
+            480,
+            "Expected expanded catalog coverage including PDFToolboxView, ImageToolboxView, FileListView, and HistoryView"
+        )
+
+        let subViewKeys: [String] = [
+            // PDFToolboxView — sections, tools, headers, actions
+            "Organize",
+            "PDF Pro Tools",
+            "Page Studio",
+            "Merge PDFs",
+            "Split Pages",
+            "Split Every Page",
+            "Split by Ranges",
+            "Extract Pages",
+            "Delete Pages",
+            "Reorder Pages",
+            "Rotate Pages",
+            "PDF → Images",
+            "Images → PDF",
+            "Annotate & Edit",
+            "OCR & Searchable PDF",
+            "PDF/A & Archiving",
+            "Redact",
+            "Compress PDF",
+            "Forms",
+            "Inspect & Security",
+            "Normalize Page Sizes",
+            "No PDF Files Loaded",
+            "No Image Files Loaded",
+            "No File Selected",
+            "Page Ranges",
+            "Rotation Options",
+            "Split Grid Layout",
+            "Execute Operation",
+            "Select All",
+            "Deselect All",
+            "Merge %lld PDFs",
+            "Combine %lld Images",
+            "Batch Process (%lld Files)",
+
+            // ImageToolboxView — 14 sections, headers, actions
+            "Convert & Codec",
+            "Color & Light",
+            "Effects & Presets",
+            "RAW Develop",
+            "Crop & Geometry",
+            "Resize",
+            "Upscale",
+            "Optimize File Size",
+            "Compression",
+            "Metadata & Privacy",
+            "Watermark",
+            "Before / After",
+            "Color Management",
+            "Remove Background",
+            "No Images Loaded",
+            "Add Images...",
+            "Open Project (.lcimg)...",
+            "Save Project (.lcimg)...",
+            "Hide Preview",
+            "Show Preview",
+            "Refresh",
+            "Only First",
+            "Reset Pipeline",
+            "Save Preset...",
+            "Compare Output",
+            "Export Image",
+            "Process %lld Images",
+            "Export Multi-Size (%lld)",
+            "Overwrite",
+            "View Jobs",
+
+            // FileListView — headers, banners, quick actions, bottom bar
+            "1 file in queue",
+            "%lld files in queue",
+            "Compare",
+            "Apply Preset",
+            "Batch Conversion Complete",
+            "Batch Finished with Issues",
+            "View in Jobs",
+            "Open Destination",
+            "Quick Convert:",
+            "Quick Presets:",
+            "Converting %lld of %lld",
+            "Convert All",
+            "Choose output folder",
+            "Select Folder",
+
+            // HistoryView — headers, filters, actions, empty states, provenance
+            "Persistent archive of completed, failed, and cancelled conversions across sessions.",
+            "All",
+            "Conversions",
+            "PDF Tools",
+            "Failed",
+            "All Sources",
+            "Manual",
+            "Watch Folder",
+            "Not Recorded",
+            "Jobs Center",
+            "Clear Failed",
+            "Clear Completed",
+            "Clear All History",
+            "Clear Rule Filter",
+            "No Conversion History",
+            "No Matching History Items",
+            "Reset Filters",
+            "File Missing",
+            "Repeat",
+            "Copy Output Path",
+            "Copy Error Details",
+            "Reveal Source in Finder",
+            "Copy Source Path",
+            "Repeat Conversion",
+            "Watch Folder · %@"
+        ]
+
+        for key in subViewKeys {
+            let entry = try XCTUnwrap(strings[key], "Milestone 10B sub-view key '\(key)' is missing from Localizable.xcstrings")
+            let localizations = try XCTUnwrap(entry["localizations"] as? [String: Any])
+            for lang in ["en", "tr"] {
+                let unit = (localizations[lang] as? [String: Any])?["stringUnit"] as? [String: Any]
+                XCTAssertEqual(unit?["state"] as? String, "translated", "Key '\(key)' ('\(lang)') must be translated")
+                let value = unit?["value"] as? String ?? ""
+                XCTAssertFalse(value.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty, "Key '\(key)' ('\(lang)') has empty value")
+            }
+        }
+
+        func trValue(for key: String) -> String? {
+            let locs = strings[key]?["localizations"] as? [String: Any]
+            let tr = locs?["tr"] as? [String: Any]
+            let unit = tr?["stringUnit"] as? [String: Any]
+            return unit?["value"] as? String
+        }
+
+        XCTAssertEqual(trValue(for: "Merge PDFs"), "PDF Birleştir")
+        XCTAssertEqual(trValue(for: "Export Image"), "Görseli Dışa Aktar")
+        XCTAssertEqual(trValue(for: "Convert All"), "Tümünü Dönüştür")
+        XCTAssertEqual(trValue(for: "All Sources"), "Tüm Kaynaklar")
+        XCTAssertEqual(trValue(for: "Not Recorded"), "Kayıtlı Değil")
+    }
+
+    @MainActor
+    func testCompiledBundleResolvesMilestone10BSubViewLocalizations() throws {
+        let appBundle = Bundle(for: AppState.self)
+        let bundle = appBundle.bundleURL.pathExtension == "app" ? appBundle : Bundle.main
+
+        if let loctableURL = bundle.url(forResource: "Localizable", withExtension: "loctable") {
+            let plist = try XCTUnwrap(NSDictionary(contentsOf: loctableURL) as? [String: Any])
+            let enMap = try XCTUnwrap(plist["en"] as? [String: Any])
+            let trMap = try XCTUnwrap(plist["tr"] as? [String: Any])
+            XCTAssertEqual(enMap["Convert All"] as? String, "Convert All")
+            XCTAssertEqual(trMap["Convert All"] as? String, "Tümünü Dönüştür")
+            XCTAssertEqual(trMap["Merge PDFs"] as? String, "PDF Birleştir")
+            XCTAssertEqual(trMap["Export Image"] as? String, "Görseli Dışa Aktar")
+            XCTAssertEqual(trMap["No Conversion History"] as? String, "Dönüşüm Geçmişi Yok")
+            return
+        }
+
+        let enPath = try XCTUnwrap(bundle.path(forResource: "en", ofType: "lproj"))
+        let trPath = try XCTUnwrap(bundle.path(forResource: "tr", ofType: "lproj"))
+        let enBundle = try XCTUnwrap(Bundle(path: enPath))
+        let trBundle = try XCTUnwrap(Bundle(path: trPath))
+
+        XCTAssertEqual(enBundle.localizedString(forKey: "Convert All", value: nil, table: "Localizable"), "Convert All")
+        XCTAssertEqual(trBundle.localizedString(forKey: "Convert All", value: nil, table: "Localizable"), "Tümünü Dönüştür")
+        XCTAssertEqual(trBundle.localizedString(forKey: "Merge PDFs", value: nil, table: "Localizable"), "PDF Birleştir")
+        XCTAssertEqual(trBundle.localizedString(forKey: "Export Image", value: nil, table: "Localizable"), "Görseli Dışa Aktar")
+        XCTAssertEqual(trBundle.localizedString(forKey: "No Conversion History", value: nil, table: "Localizable"), "Dönüşüm Geçmişi Yok")
+    }
 }

@@ -99,7 +99,7 @@ struct ImageToolboxView: View {
             // Left Sidebar
             List(ImageToolboxSection.allCases, selection: $selectedSection) { section in
                 AppToolboxSidebarRow(
-                    section.rawValue,
+                    String(localized: String.LocalizationValue(section.rawValue)),
                     systemImage: section.iconName,
                     isSelected: selectedSection == section
                 ) {
@@ -170,10 +170,10 @@ struct ImageToolboxView: View {
     private var emptyDropView: some View {
         AppEmptyStateView(
             icon: "photo.stack",
-            title: "No Images Loaded",
-            subtitle: "Drop PNG, JPG, JPEG XL (.jxl), WebP, HEIC, AVIF, TIFF, GIF, RAW images, or a .lcimg project anywhere.",
+            title: String(localized: "No Images Loaded"),
+            subtitle: String(localized: "Drop PNG, JPG, JPEG XL (.jxl), WebP, HEIC, AVIF, TIFF, GIF, RAW images, or a .lcimg project anywhere."),
             isDropTargeted: isDropTargeted,
-            primaryButtonTitle: "Add Images...",
+            primaryButtonTitle: String(localized: "Add Images..."),
             primaryButtonIcon: "plus",
             onPrimaryAction: openImagePicker
         ) {
@@ -194,7 +194,7 @@ struct ImageToolboxView: View {
     private var workspaceContent: some View {
         let dimsMetadataText: String? = primaryDims.map { dims in
             let sizeStr = ByteCountFormatter.string(fromByteCount: dims.bytes, countStyle: .file)
-            let rawProf = colorInfo?.profileName ?? "Unknown"
+            let rawProf = colorInfo?.profileName ?? String(localized: "Unknown")
             let profStr: String
             if rawProf.hasPrefix("sRGB") {
                 profStr = "sRGB"
@@ -209,13 +209,13 @@ struct ImageToolboxView: View {
 
         VStack(spacing: 0) {
             AppToolboxHeader(
-                title: selectedSection.rawValue,
-                subtitle: selectedSection.summary,
+                title: String(localized: String.LocalizationValue(selectedSection.rawValue)),
+                subtitle: String(localized: String.LocalizationValue(selectedSection.summary)),
                 metadataText: dimsMetadataText
             ) {
                 HStack(spacing: AppTheme.Spacing.xs) {
                     if let jxl = jxlInfo, jxl.isJPEGReconstructable {
-                        AppStatusBadge(text: "JPEG Bitstream Embedded", tint: AppTheme.Colors.success)
+                        AppStatusBadge(text: String(localized: "JPEG Bitstream Embedded"), tint: AppTheme.Colors.success)
                     }
                     Menu {
                         Button("Save Project (.lcimg)...") {
@@ -239,8 +239,11 @@ struct ImageToolboxView: View {
                                 scheduleLivePreview(immediate: true)
                             }
                         } label: {
-                            Label(showLivePreview ? "Hide Preview" : "Show Preview", systemImage: showLivePreview ? "eye.slash" : "eye")
-                                .lineLimit(1)
+                            Label(
+                                showLivePreview ? String(localized: "Hide Preview") : String(localized: "Show Preview"),
+                                systemImage: showLivePreview ? "eye.slash" : "eye"
+                            )
+                            .lineLimit(1)
                         }
                         .controlSize(.small)
                         .buttonStyle(.bordered)
@@ -271,6 +274,7 @@ struct ImageToolboxView: View {
                 ScrollView {
                     VStack(alignment: .leading, spacing: AppTheme.Spacing.lg) {
                         if showLivePreview && sectionSupportsLivePreview(selectedSection) {
+                            let localizedSectionName = String(localized: String.LocalizationValue(selectedSection.rawValue)).lowercased()
                             ImageLivePreviewCanvas(
                                 beforeImage: primaryPreviewImage,
                                 afterImage: liveAfterImage ?? primaryPreviewImage,
@@ -278,10 +282,10 @@ struct ImageToolboxView: View {
                                 afterFormat: targetFormat.shortExtensionLabel,
                                 telemetry: liveTelemetry,
                                 isLoading: isUpdatingLivePreview,
-                                statusText: "Rendering \(selectedSection.rawValue.lowercased()) preview...",
+                                statusText: String(localized: "Rendering \(localizedSectionName) preview..."),
                                 minCanvasHeight: 240,
                                 showFullRenderButton: true,
-                                fullRenderButtonTitle: "Refresh",
+                                fullRenderButtonTitle: String(localized: "Refresh"),
                                 onRenderFull: { scheduleLivePreview(immediate: true) },
                                 onCancel: {
                                     livePreviewTask?.cancel()
@@ -301,7 +305,7 @@ struct ImageToolboxView: View {
                             } else {
                                 AppInfoBanner(
                                     style: .info,
-                                    message: "Animated input detected (\(primaryFrameCount) frames). All frames and frame timings will be preserved in \(targetFormat.displayName) output."
+                                    message: String(localized: "Animated input detected (\(primaryFrameCount) frames). All frames and frame timings will be preserved in \(targetFormat.displayName) output.")
                                 )
                             }
                         }
@@ -317,7 +321,7 @@ struct ImageToolboxView: View {
                 AppInfoBanner(
                     style: banner.isError ? .warning : .success,
                     message: banner.text,
-                    actionTitle: banner.isError ? nil : "View Jobs",
+                    actionTitle: banner.isError ? nil : String(localized: "View Jobs"),
                     onAction: banner.isError ? nil : { appState.selectedTab = .jobs },
                     onDismiss: { bannerMessage = nil }
                 )
@@ -344,7 +348,7 @@ struct ImageToolboxView: View {
         }
 
         AppFileSelectionStrip(
-            title: "Source Images (\(selectedFiles.count) of \(candidateFiles.count) selected)",
+            title: String(localized: "Source Images (\(selectedFiles.count) of \(candidateFiles.count) selected)"),
             items: items,
             onToggleItem: { id in
                 if selectedFileIds.contains(id) && selectedFileIds.count > 1 {
@@ -503,8 +507,8 @@ struct ImageToolboxView: View {
     private var bottomActionBar: some View {
         let selectedCount = selectedFiles.count
         let exportButtonLabel = config.exportMultipleSizes && !config.multiSizePresets.isEmpty
-            ? "Export Multi-Size (\(selectedCount * config.multiSizePresets.count))"
-            : (selectedCount > 1 ? "Process \(selectedCount) Images" : "Export Image")
+            ? String(localized: "Export Multi-Size (\(selectedCount * config.multiSizePresets.count))")
+            : (selectedCount > 1 ? String(localized: "Process \(selectedCount) Images") : String(localized: "Export Image"))
 
         let formatAndOverwrite = HStack(spacing: AppTheme.Spacing.md) {
             HStack(spacing: AppTheme.Spacing.xs + 2) {
@@ -542,7 +546,7 @@ struct ImageToolboxView: View {
         .fixedSize()
 
         let savePresetButton = Button("Save Preset...") {
-            presetNameInput = "Image Toolbox (\(targetFormat.shortExtensionLabel))"
+            presetNameInput = String(localized: "Image Toolbox (\(targetFormat.shortExtensionLabel))")
             presetDescInput = ""
             showingSavePresetPopover = true
         }
@@ -570,7 +574,7 @@ struct ImageToolboxView: View {
                             config: config
                         )
                         showingSavePresetPopover = false
-                        bannerMessage = ("Saved preset \"\(trimmed)\" to Presets.", false)
+                        bannerMessage = (String(localized: "Saved preset \"\(trimmed)\" to Presets."), false)
                     }
                     .buttonStyle(.borderedProminent)
                 }
@@ -744,7 +748,7 @@ struct ImageToolboxView: View {
         guard let url = primaryURL else { return }
         previewTask?.cancel()
         isGeneratingPreview = true
-        previewStatusText = "Running real encoding pipeline for comparison..."
+        previewStatusText = String(localized: "Running real encoding pipeline for comparison...")
         let activeConfig = config
         let outFmt = targetFormat
 
@@ -769,7 +773,7 @@ struct ImageToolboxView: View {
             } catch {
                 await MainActor.run {
                     self.isGeneratingPreview = false
-                    self.bannerMessage = ("Comparison failed: \(error.localizedDescription)", true)
+                    self.bannerMessage = (String(localized: "Comparison failed: \(error.localizedDescription)"), true)
                 }
             }
         }
@@ -799,7 +803,7 @@ struct ImageToolboxView: View {
             } catch {
                 await MainActor.run {
                     self.isGeneratingPreview = false
-                    self.bannerMessage = ("Size test failed: \(error.localizedDescription)", true)
+                    self.bannerMessage = (String(localized: "Size test failed: \(error.localizedDescription)"), true)
                 }
             }
         }
@@ -890,7 +894,7 @@ struct ImageToolboxView: View {
             )
             await ImagePreviewProxyCache.shared.invalidate(url: finalURL)
             let cmd = ImageFileWriteUndoCommand(
-                title: "Save Metadata (\(finalURL.lastPathComponent))",
+                title: String(localized: "Save Metadata (\(finalURL.lastPathComponent))"),
                 destinationURL: finalURL,
                 protectedSourceURLs: protectedSources,
                 previousArtifactID: previousArtifactID
@@ -902,7 +906,7 @@ struct ImageToolboxView: View {
             }
         } catch {
             await MainActor.run {
-                bannerMessage = ("Metadata write failed: \(error.localizedDescription)", true)
+                bannerMessage = (String(localized: "Metadata write failed: \(error.localizedDescription)"), true)
             }
         }
     }
@@ -917,7 +921,7 @@ struct ImageToolboxView: View {
             overwriteExisting: overwriteExisting
         )
         if enqueued {
-            bannerMessage = ("Enqueued \(urls.count) image job(s) -> \(targetFormat.shortExtensionLabel).", false)
+            bannerMessage = (String(localized: "Enqueued \(urls.count) image job(s) -> \(targetFormat.shortExtensionLabel)."), false)
         }
     }
 
@@ -967,7 +971,7 @@ struct ImageToolboxView: View {
         let panel = NSSavePanel()
         panel.allowedContentTypes = [UTType(filenameExtension: ImagePresetCatalog.projectFileExtension) ?? .json]
         panel.nameFieldStringValue = sourceURL.deletingPathExtension().lastPathComponent + ".\(ImagePresetCatalog.projectFileExtension)"
-        panel.title = "Save Non-Destructive Image Project"
+        panel.title = String(localized: "Save Non-Destructive Image Project")
         guard panel.runModal() == .OK, let destURL = panel.url else { return }
 
         do {
@@ -981,9 +985,9 @@ struct ImageToolboxView: View {
                 to: destURL,
                 protectedSourceURLs: candidateFiles.map(\.url)
             )
-            bannerMessage = ("Saved project to \(destURL.lastPathComponent).", false)
+            bannerMessage = (String(localized: "Saved project to \(destURL.lastPathComponent)."), false)
         } catch {
-            bannerMessage = ("Project save failed: \(error.localizedDescription)", true)
+            bannerMessage = (String(localized: "Project save failed: \(error.localizedDescription)"), true)
         }
     }
 
@@ -995,7 +999,7 @@ struct ImageToolboxView: View {
         if let lcimgType = UTType(filenameExtension: ImagePresetCatalog.projectFileExtension) {
             panel.allowedContentTypes = [lcimgType, .json]
         }
-        panel.title = "Open Non-Destructive Image Project (.lcimg)"
+        panel.title = String(localized: "Open Non-Destructive Image Project (.lcimg)")
         guard panel.runModal() == .OK, let projURL = panel.url else { return }
         loadProjectFile(from: projURL)
     }
@@ -1010,7 +1014,7 @@ struct ImageToolboxView: View {
                 applyLoadedProject(loaded.document, sourceURL: resolved)
             }
         } catch {
-            bannerMessage = ("Could not open project: \(error.localizedDescription)", true)
+            bannerMessage = (String(localized: "Could not open project: \(error.localizedDescription)"), true)
         }
     }
 
@@ -1020,7 +1024,7 @@ struct ImageToolboxView: View {
         panel.canChooseDirectories = false
         panel.canChooseFiles = true
         panel.allowedContentTypes = [.image, .rawImage]
-        panel.title = "Relink Source Image for Project"
+        panel.title = String(localized: "Relink Source Image for Project")
         guard panel.runModal() == .OK, let relinkedURL = panel.url else {
             pendingMissingProject = nil
             return
@@ -1041,10 +1045,10 @@ struct ImageToolboxView: View {
         appState.imageToolboxStore.applyLoadedConfig(
             doc.config,
             for: sourceURL,
-            title: "Open Image Project (\(sourceURL.lastPathComponent))"
+            title: String(localized: "Open Image Project (\(sourceURL.lastPathComponent))")
         )
         loadPrimaryDetails()
         scheduleLivePreview(immediate: true)
-        bannerMessage = ("Opened project for \(sourceURL.lastPathComponent).", false)
+        bannerMessage = (String(localized: "Opened project for \(sourceURL.lastPathComponent)."), false)
     }
 }

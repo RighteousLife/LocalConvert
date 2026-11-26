@@ -1,5 +1,6 @@
 import SwiftUI
 import AppKit
+import UniformTypeIdentifiers
 
 struct AudioWorkspaceRootView<AudioToolsContent: View>: View {
     @ObservedObject var coordinator: AudioWorkspaceCoordinator
@@ -11,6 +12,7 @@ struct AudioWorkspaceRootView<AudioToolsContent: View>: View {
     @State private var localMode: AudioWorkspaceMode = .library
     @State private var searchFocusRequestToken: UInt64 = 0
     @State private var editorInspectorToggleToken: UInt64 = 0
+    @State private var isTranscriptionSheetPresented = false
 
     init(
         coordinator: AudioWorkspaceCoordinator,
@@ -82,8 +84,13 @@ struct AudioWorkspaceRootView<AudioToolsContent: View>: View {
                     )
 
                 case .audioTools:
-                    audioToolsContent()
-                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    VStack(spacing: 0) {
+                        audioToolsTranscribeCard
+                        Divider()
+                        audioToolsContent()
+                            .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    }
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
                 }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -128,6 +135,70 @@ struct AudioWorkspaceRootView<AudioToolsContent: View>: View {
         .task {
             await coordinator.ensureInitialized()
         }
+        .sheet(isPresented: $isTranscriptionSheetPresented) {
+            OfflineTranscriptionSheetView(coordinator: coordinator)
+        }
+    }
+
+    private var audioToolsTranscribeCard: some View {
+        AppCard(padding: AppTheme.Spacing.sm + 2) {
+            ViewThatFits(in: .horizontal) {
+                HStack(spacing: AppTheme.Spacing.md) {
+                    transcribeCardDescription
+                    Spacer(minLength: AppTheme.Spacing.xs)
+                    transcribeOpenButton
+                }
+
+                VStack(alignment: .leading, spacing: AppTheme.Spacing.xs + 2) {
+                    transcribeCardDescription
+                    HStack {
+                        Spacer(minLength: 0)
+                        transcribeOpenButton
+                    }
+                }
+            }
+        }
+        .padding(.horizontal, AppTheme.Spacing.lg)
+        .padding(.vertical, AppTheme.Spacing.sm)
+        .background(AppTheme.Colors.subtleSurface)
+        .accessibilityElement(children: .contain)
+        .accessibilityIdentifier("audioworkspace.tools.transcribe_card")
+    }
+
+    private var transcribeCardDescription: some View {
+        HStack(spacing: AppTheme.Spacing.sm) {
+            Image(systemName: "captions.bubble")
+                .font(AppTheme.Typography.cardTitle)
+                .foregroundStyle(AppTheme.Colors.accent)
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text("Transcribe / Subtitles")
+                    .font(AppTheme.Typography.cardTitle)
+                    .lineLimit(1)
+                    .fixedSize(horizontal: true, vertical: false)
+
+                Text("Offline on-device Speech-to-Text (.srt / .txt)")
+                    .font(AppTheme.Typography.caption)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+                    .truncationMode(.tail)
+            }
+        }
+    }
+
+    private var transcribeOpenButton: some View {
+        Button {
+            isTranscriptionSheetPresented = true
+        } label: {
+            Label("Transcribe / Subtitles...", systemImage: "waveform.and.mic")
+                .font(AppTheme.Typography.caption.weight(.semibold))
+                .lineLimit(1)
+                .fixedSize(horizontal: true, vertical: false)
+        }
+        .buttonStyle(.borderedProminent)
+        .controlSize(.small)
+        .accessibilityLabel("Transcribe / Subtitles")
+        .accessibilityIdentifier("audioworkspace.tools.transcribe_button")
     }
 
     private var workspaceHeaderBar: some View {
@@ -346,5 +417,466 @@ struct AudioWorkspaceKeyMonitor: NSViewRepresentable {
             if let monitor { NSEvent.removeMonitor(monitor) }
             monitor = nil
         }
+    }
+}
+
+// MARK: - Offline Speech Transcription & Subtitle Export Sheet
+
+@MainActor
+private final class OfflineTranscriptionViewModel: ObservableObject {
+    @Published var candidateURLs: [URL] = []
+    @Published var selectedInputURL: URL?
+    @Published var exportFormat: TranscriptionExportFormat = .srt
+    @Published var localeChoices: [SpeechLocaleChoice] = []
+    @Published var selectedLocaleIdentifier: String = Locale.current.identifier
+    @Published var useCustomOutputDirectory = false
+    @Published var customOutputDirectory: URL?
+
+    @Published var isTranscribing = false
+    @Published var progressFraction: Double? = nil
+    @Published var progressMessage: String = ""
+    @Published var errorMessage: String? = nil
+    @Published var transcriptionResult: TranscriptionResult? = nil
+    @Published var previewOutputText: String = ""
+
+    private var activeTask: Task<Void, Never>? = nil
+
+    var selectedLocaleChoice: SpeechLocaleChoice? {
+        localeChoices.first { $0.identifier == selectedLocaleIdentifier }
+    }
+
+    var resolvedOutputDirectory: URL? {
+        if useCustomOutputDirectory, let customOutputDirectory {
+            return customOutputDirectory
+        }
+        if let appState = AppState.shared {
+            if appState.outputLocation == .customFolder,
+               let dir = appState.customOutputDirectory,
+               OutputManager.isOutputDirectoryValid(dir) {
+                return dir
+            }
+            if appState.outputLocation == .lastUsedFolder,
+               let dir = OutputManager.lastUsedDirectory,
+               OutputManager.isOutputDirectoryValid(dir) {
+                return dir
+            }
+        }
+        return selectedInputURL?.deletingLastPathComponent()
+    }
+
+    func loadInitialCandidatesAndLocales(coordinator: AudioWorkspaceCoordinator) {
+        var seenPaths: Set<String> = []
+        var urls: [URL] = []
+
+        if let appState = AppState.shared {
+            for file in appState.droppedFiles {
+                guard let fmt = file.detectedFormat,
+                      fmt.category == .audio || fmt.category == .video else { continue }
+                let path = file.url.standardizedFileURL.path
+                if seenPaths.insert(path).inserted {
+                    urls.append(file.url)
+                }
+            }
+        }
+
+        for record in coordinator.libraryStore.displayedRecords {
+            let resolved = coordinator.resolveAssetURL(for: record)
+            let path = resolved.standardizedFileURL.path
+            if seenPaths.insert(path).inserted {
+                urls.append(resolved)
+            }
+        }
+
+        candidateURLs = urls
+        if selectedInputURL == nil {
+            if let primary = coordinator.libraryStore.primaryInspectedRecord {
+                selectedInputURL = coordinator.resolveAssetURL(for: primary)
+            } else {
+                selectedInputURL = urls.first
+            }
+        }
+
+        let choices = OfflineSpeechTranscriptionEngine.shared.supportedLocaleChoices()
+        localeChoices = choices
+        if !choices.isEmpty, !choices.contains(where: { $0.identifier == selectedLocaleIdentifier }) {
+            if let enUS = choices.first(where: { $0.identifier == "en-US" && $0.supportsOnDeviceRecognition }) {
+                selectedLocaleIdentifier = enUS.identifier
+            } else if let firstOnDevice = choices.first(where: { $0.supportsOnDeviceRecognition }) {
+                selectedLocaleIdentifier = firstOnDevice.identifier
+            } else if let first = choices.first {
+                selectedLocaleIdentifier = first.identifier
+            }
+        }
+    }
+
+    func chooseMediaFile() {
+        let panel = NSOpenPanel()
+        panel.canChooseFiles = true
+        panel.canChooseDirectories = false
+        panel.allowsMultipleSelection = false
+        panel.allowedContentTypes = [.audio, .movie, .mpeg4Movie, .quickTimeMovie]
+        if panel.runModal() == .OK, let url = panel.url {
+            if !candidateURLs.contains(where: { $0.standardizedFileURL == url.standardizedFileURL }) {
+                candidateURLs.insert(url, at: 0)
+            }
+            selectedInputURL = url
+            errorMessage = nil
+        }
+    }
+
+    func chooseOutputFolder() {
+        let panel = NSOpenPanel()
+        panel.canChooseFiles = false
+        panel.canChooseDirectories = true
+        panel.canCreateDirectories = true
+        panel.allowsMultipleSelection = false
+        if panel.runModal() == .OK, let url = panel.url {
+            customOutputDirectory = url
+            useCustomOutputDirectory = true
+        }
+    }
+
+    func cancelTranscription() {
+        activeTask?.cancel()
+        activeTask = nil
+    }
+
+    func startTranscription() {
+        guard let inputURL = selectedInputURL,
+              let outputDir = resolvedOutputDirectory else {
+            errorMessage = "Please select a source audio or video file and a writable output folder."
+            return
+        }
+
+        activeTask?.cancel()
+        errorMessage = nil
+        transcriptionResult = nil
+        previewOutputText = ""
+        isTranscribing = true
+        progressFraction = 0.05
+        progressMessage = "Preparing offline speech recognizer..."
+
+        let targetFormat = exportFormat
+        let localeID = selectedLocaleIdentifier
+
+        let resolveModel: @MainActor @Sendable () -> OfflineTranscriptionViewModel? = { [weak self] in self }
+        activeTask = Task {
+            do {
+                let result = try await OfflineSpeechTranscriptionEngine.shared.transcribe(
+                    inputURL: inputURL,
+                    to: targetFormat,
+                    outputDirectory: outputDir,
+                    localeIdentifier: localeID,
+                    existingFileHandling: .createUnique
+                ) { progress in
+                    Task { @MainActor in
+                        guard let model = resolveModel() else { return }
+                        model.progressFraction = progress.fractionCompleted
+                        model.progressMessage = progress.statusMessage
+                    }
+                }
+                guard let model = resolveModel() else { return }
+                let filePreview = (try? String(contentsOf: result.outputURL, encoding: .utf8)) ?? result.transcriptText
+                model.isTranscribing = false
+                model.transcriptionResult = result
+                model.previewOutputText = filePreview
+                if AppSettings.shared.saveConversionHistory {
+                    let inFmt = FileDetector.detectFormat(url: inputURL)?.displayName ?? inputURL.pathExtension.uppercased()
+                    let inSize = (try? FileManager.default.attributesOfItem(atPath: inputURL.path)[.size] as? Int64)
+                    let outSize = (try? FileManager.default.attributesOfItem(atPath: result.outputURL.path)[.size] as? Int64)
+                    AppState.shared?.historyManager.addEntry(
+                        ConversionHistoryItem(
+                            inputFilename: inputURL.lastPathComponent,
+                            inputFormatName: inFmt,
+                            outputFilename: result.outputURL.lastPathComponent,
+                            outputFormatName: targetFormat.fileFormat.displayName,
+                            status: .completed,
+                            inputSizeBytes: inSize,
+                            outputSizeBytes: outSize,
+                            presetName: "Offline Speech-to-Text",
+                            outputURLPath: result.outputURL.path,
+                            inputURLPath: inputURL.path,
+                            duration: result.durationSeconds,
+                            source: .manual
+                        )
+                    )
+                }
+            } catch is CancellationError {
+                guard let model = resolveModel() else { return }
+                model.isTranscribing = false
+                model.progressFraction = nil
+                model.progressMessage = "Cancelled"
+            } catch let convErr as ConversionError {
+                guard let model = resolveModel() else { return }
+                model.isTranscribing = false
+                model.errorMessage = convErr.userFacingMessage
+            } catch {
+                guard let model = resolveModel() else { return }
+                model.isTranscribing = false
+                model.errorMessage = error.localizedDescription
+            }
+        }
+    }
+}
+
+@MainActor
+private struct OfflineTranscriptionSheetView: View {
+    @Environment(\.dismiss) private var dismiss
+    let coordinator: AudioWorkspaceCoordinator
+    @StateObject private var model = OfflineTranscriptionViewModel()
+
+    var body: some View {
+        VStack(spacing: 0) {
+            headerBar
+            Divider()
+
+            ScrollView {
+                VStack(alignment: .leading, spacing: AppTheme.Spacing.md) {
+                    AppInfoBanner(
+                        style: .info,
+                        message: "Strictly offline: uses Apple on-device Speech Recognition (requiresOnDeviceRecognition = true) with zero network uploads. Source media is never modified."
+                    )
+
+                    sourceSelectionCard
+                    optionsCard
+
+                    if model.isTranscribing {
+                        progressCard
+                    }
+
+                    if let errorMessage = model.errorMessage {
+                        AppInfoBanner(
+                            style: .error,
+                            message: errorMessage,
+                            onDismiss: { model.errorMessage = nil }
+                        )
+                    }
+
+                    if let result = model.transcriptionResult {
+                        resultCard(result)
+                    }
+                }
+                .padding(AppTheme.Spacing.lg)
+            }
+
+            Divider()
+            footerBar
+        }
+        .frame(minWidth: 500, idealWidth: 560, minHeight: 420, idealHeight: 500)
+        .background(AppTheme.Colors.workspaceBackground)
+        .accessibilityIdentifier("audioworkspace.transcribe.sheet")
+        .task {
+            model.loadInitialCandidatesAndLocales(coordinator: coordinator)
+        }
+        .onDisappear {
+            model.cancelTranscription()
+        }
+    }
+
+    private var headerBar: some View {
+        HStack(spacing: AppTheme.Spacing.sm) {
+            Image(systemName: "captions.bubble")
+                .font(AppTheme.Typography.sectionTitle)
+                .foregroundStyle(AppTheme.Colors.accent)
+            VStack(alignment: .leading, spacing: 2) {
+                Text("Offline Speech-to-Text & Subtitles")
+                    .font(AppTheme.Typography.sectionTitle)
+                    .lineLimit(1)
+                Text("Transcribe audio or video tracks to .srt subtitles or .txt plain text")
+                    .font(AppTheme.Typography.caption)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+            }
+            Spacer()
+            Button("Close") {
+                model.cancelTranscription()
+                dismiss()
+            }
+            .keyboardShortcut(.cancelAction)
+            .accessibilityIdentifier("audioworkspace.transcribe.close")
+        }
+        .padding(.horizontal, AppTheme.Spacing.lg)
+        .padding(.vertical, AppTheme.Spacing.md)
+        .background(AppTheme.Colors.cardBackground)
+    }
+
+    private var sourceSelectionCard: some View {
+        AppCard(title: "Source Audio / Video", icon: "waveform") {
+            VStack(alignment: .leading, spacing: AppTheme.Spacing.sm) {
+                if !model.candidateURLs.isEmpty {
+                    Picker("Track:", selection: $model.selectedInputURL) {
+                        ForEach(model.candidateURLs, id: \.self) { url in
+                            Text(url.lastPathComponent).tag(Optional(url))
+                        }
+                    }
+                    .disabled(model.isTranscribing)
+                }
+
+                HStack(spacing: AppTheme.Spacing.sm) {
+                    if let url = model.selectedInputURL {
+                        Text(url.lastPathComponent)
+                            .font(AppTheme.Typography.subheadline.weight(.medium))
+                            .lineLimit(1)
+                            .truncationMode(.middle)
+                    } else {
+                        Text("No audio or video file selected")
+                            .font(AppTheme.Typography.caption)
+                            .foregroundStyle(.secondary)
+                    }
+
+                    Spacer(minLength: AppTheme.Spacing.xs)
+
+                    Button("Choose File...") {
+                        model.chooseMediaFile()
+                    }
+                    .controlSize(.small)
+                    .disabled(model.isTranscribing)
+                    .accessibilityIdentifier("audioworkspace.transcribe.choose_file")
+                }
+            }
+        }
+    }
+
+    private var optionsCard: some View {
+        AppCard(title: "Transcription Options", icon: "slider.horizontal.3") {
+            VStack(alignment: .leading, spacing: AppTheme.Spacing.sm + 2) {
+                HStack {
+                    Text("Export Format:")
+                        .font(AppTheme.Typography.caption)
+                        .frame(width: 110, alignment: .leading)
+                    Picker("Export Format", selection: $model.exportFormat) {
+                        ForEach(TranscriptionExportFormat.allCases) { format in
+                            Text(format.displayName).tag(format)
+                        }
+                    }
+                    .labelsHidden()
+                    .pickerStyle(.segmented)
+                    .disabled(model.isTranscribing)
+                    .accessibilityIdentifier("audioworkspace.transcribe.format_picker")
+                }
+
+                HStack {
+                    Text("Language:")
+                        .font(AppTheme.Typography.caption)
+                        .frame(width: 110, alignment: .leading)
+                    if model.localeChoices.isEmpty {
+                        Text(model.selectedLocaleIdentifier)
+                            .font(AppTheme.Typography.caption)
+                            .foregroundStyle(.secondary)
+                    } else {
+                        Picker("Language", selection: $model.selectedLocaleIdentifier) {
+                            ForEach(model.localeChoices) { choice in
+                                let suffix = choice.supportsOnDeviceRecognition ? "" : " (On-device unavailable)"
+                                Text("\(choice.displayName)\(suffix)").tag(choice.identifier)
+                            }
+                        }
+                        .labelsHidden()
+                        .disabled(model.isTranscribing)
+                        .accessibilityIdentifier("audioworkspace.transcribe.locale_picker")
+                    }
+                }
+
+                if let choice = model.selectedLocaleChoice, !choice.supportsOnDeviceRecognition {
+                    AppInfoBanner(
+                        style: .warning,
+                        message: "Offline on-device speech recognition is not installed for \(choice.displayName) on this Mac."
+                    )
+                }
+
+                HStack {
+                    Text("Output Folder:")
+                        .font(AppTheme.Typography.caption)
+                        .frame(width: 110, alignment: .leading)
+                    Text(model.resolvedOutputDirectory?.path ?? "Same folder as source")
+                        .font(AppTheme.Typography.caption)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                        .truncationMode(.middle)
+                    Spacer(minLength: AppTheme.Spacing.xs)
+                    Button("Choose...") {
+                        model.chooseOutputFolder()
+                    }
+                    .controlSize(.small)
+                    .disabled(model.isTranscribing)
+                }
+            }
+        }
+    }
+
+    private var progressCard: some View {
+        AppCard {
+            VStack(alignment: .leading, spacing: AppTheme.Spacing.xs + 2) {
+                HStack {
+                    if let progressFraction = model.progressFraction {
+                        ProgressView(value: progressFraction)
+                    } else {
+                        ProgressView()
+                            .controlSize(.small)
+                    }
+                    Button("Cancel", role: .cancel) {
+                        model.cancelTranscription()
+                    }
+                    .controlSize(.small)
+                }
+                Text(model.progressMessage.isEmpty ? "Transcribing on-device..." : model.progressMessage)
+                    .font(AppTheme.Typography.caption)
+                    .foregroundStyle(.secondary)
+            }
+        }
+    }
+
+    private func resultCard(_ result: TranscriptionResult) -> some View {
+        AppCard(title: "Exported \(result.exportFormat.shortLabel.uppercased())", icon: "checkmark.circle.fill") {
+            VStack(alignment: .leading, spacing: AppTheme.Spacing.sm) {
+                AppInfoBanner(
+                    style: .success,
+                    message: "Saved \(result.outputURL.lastPathComponent) (\(result.segments.count) speech segments)"
+                )
+
+                ScrollView {
+                    Text(model.previewOutputText)
+                        .font(AppTheme.Typography.monoCaption)
+                        .textSelection(.enabled)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(AppTheme.Spacing.sm)
+                }
+                .frame(height: 120)
+                .background(AppTheme.Colors.subtleSurface)
+                .clipShape(RoundedRectangle(cornerRadius: AppTheme.Radius.sm))
+
+                HStack(spacing: AppTheme.Spacing.sm) {
+                    Button("Copy Text") {
+                        NSPasteboard.general.clearContents()
+                        NSPasteboard.general.setString(model.previewOutputText, forType: .string)
+                    }
+                    .controlSize(.small)
+
+                    Button("Reveal in Finder") {
+                        NSWorkspace.shared.activateFileViewerSelecting([result.outputURL])
+                    }
+                    .controlSize(.small)
+                }
+            }
+        }
+    }
+
+    private var footerBar: some View {
+        HStack {
+            Spacer()
+            Button {
+                model.startTranscription()
+            } label: {
+                Label(
+                    model.isTranscribing ? "Transcribing..." : "Transcribe to \(model.exportFormat.shortLabel)",
+                    systemImage: "waveform.and.mic"
+                )
+            }
+            .buttonStyle(.borderedProminent)
+            .disabled(model.isTranscribing || model.selectedInputURL == nil)
+            .accessibilityIdentifier("audioworkspace.transcribe.start_button")
+        }
+        .padding(.horizontal, AppTheme.Spacing.lg)
+        .padding(.vertical, AppTheme.Spacing.sm + 2)
+        .background(AppTheme.Colors.cardBackground)
     }
 }
