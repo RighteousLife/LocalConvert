@@ -116,7 +116,51 @@ final class FinderHandoffHandler: Sendable {
     
     private static let logger = Logger(subsystem: "com.localconvert.app", category: "FinderIntegration")
     
-    /// Validates, checks permissions, and categorizes input URLs
+    /// Validates a single local file URL using the exact same security rules as `LC-002` URL scheme paths:
+    /// rejects non-file URLs, null bytes, path traversal, symlinks (target or ancestors except genuine macOS root symlinks),
+    /// directories, non-regular files (FIFOs/sockets/devices), missing files, and unreadable files.
+    static func validateInputFileURL(_ url: URL) -> Result<URL, FinderHandoffError> {
+        guard url.isFileURL else {
+            return .failure(.malformedURL(url.absoluteString))
+        }
+
+        if url.absoluteString.lowercased().contains("%00") || url.absoluteString.contains("\0") {
+            return .failure(.malformedURL("URL contains null byte"))
+        }
+
+        if let decodedAbsolute = url.absoluteString.removingPercentEncoding,
+           decodedAbsolute.split(separator: "/").contains("..") {
+            return .failure(.pathTraversalRejected(url.path))
+        }
+
+        let nsURL = url as NSURL
+        let pathURL = nsURL.isFileReferenceURL() ? (nsURL.filePathURL ?? url) : url
+        return validateSchemeFilePath(pathURL.path)
+    }
+
+    /// Validates and deduplicates a batch of local file URLs using `validateInputFileURL(_:)`.
+    static func validateInputFileURLs(_ urls: [URL]) -> (validURLs: [URL], rejectedEntries: [RejectedSchemePath]) {
+        var validURLs: [URL] = []
+        var seenStandardizedPaths = Set<String>()
+        var rejectedEntries: [RejectedSchemePath] = []
+
+        for url in urls {
+            switch validateInputFileURL(url) {
+            case .success(let safeURL):
+                let dedupKey = safeURL.standardizedFileURL.path
+                if seenStandardizedPaths.insert(dedupKey).inserted {
+                    validURLs.append(safeURL)
+                }
+            case .failure(let error):
+                logger.warning("Rejected input file '\(url.lastPathComponent, privacy: .private)': \(error.localizedDescription, privacy: .private)")
+                rejectedEntries.append(RejectedSchemePath(rawInput: url.path.isEmpty ? url.absoluteString : url.path, error: error))
+            }
+        }
+
+        return (validURLs, rejectedEntries)
+    }
+
+    /// Validates, checks permissions, and categorizes input URLs using shared `LC-002` safe file rules.
     static func validateAndSanitize(
         urls: [URL],
         registry: ConversionRegistry = ConversionRegistry.shared,
@@ -124,48 +168,49 @@ final class FinderHandoffHandler: Sendable {
     ) -> FinderValidationResult {
         var result = FinderValidationResult()
         let fileManager = FileManager.default
-        
+
         for rawURL in urls {
-            // Standardize and resolve symlinks
-            let resolvedURL = rawURL.resolvingSymlinksInPath().standardizedFileURL
-            
-            // Check existence and directory status
-            var isDir: ObjCBool = false
-            guard fileManager.fileExists(atPath: resolvedURL.path, isDirectory: &isDir) else {
-                logger.warning("Inaccessible or missing item: \(resolvedURL.path, privacy: .private)")
-                result.inaccessibleURLs.append(resolvedURL)
+            let candidateURL: URL
+            switch validateInputFileURL(rawURL) {
+            case .success(let safeURL):
+                candidateURL = safeURL
+            case .failure(.folderRejected(let path)):
+                let folderURL = URL(fileURLWithPath: path, isDirectory: true).standardizedFileURL
+                var dirStat = Darwin.stat()
+                let isRealDirectory = Darwin.lstat(folderURL.path, &dirStat) == 0 && (dirStat.st_mode & S_IFMT) == S_IFDIR
+                if isRealDirectory,
+                   validateAncestorComponentsHaveNoSymlinks(for: folderURL.path) == nil,
+                   FileDetector.isIWorkPackageBundle(url: folderURL),
+                   fileManager.isReadableFile(atPath: folderURL.path),
+                   Darwin.access(folderURL.path, R_OK) == 0 {
+                    candidateURL = folderURL
+                } else {
+                    logger.warning("Rejected folder from selection: \(folderURL.lastPathComponent, privacy: .private)")
+                    result.rejectedFolders.append(folderURL)
+                    continue
+                }
+            case .failure(let error):
+                logger.warning("Rejected inaccessible or unsafe item '\(rawURL.lastPathComponent, privacy: .private)': \(error.localizedDescription, privacy: .private)")
+                result.inaccessibleURLs.append(rawURL.standardizedFileURL)
                 continue
             }
-            
-            if isDir.boolValue && !FileDetector.isIWorkPackageBundle(url: resolvedURL) {
-                logger.warning("Rejected folder from selection: \(resolvedURL.lastPathComponent, privacy: .private)")
-                result.rejectedFolders.append(resolvedURL)
-                continue
-            }
-            
-            // Check readability
-            guard fileManager.isReadableFile(atPath: resolvedURL.path) else {
-                logger.warning("Unreadable file: \(resolvedURL.path, privacy: .private)")
-                result.inaccessibleURLs.append(resolvedURL)
-                continue
-            }
-            
+
             // Check format support
-            let detection = fileDetector.detect(url: resolvedURL)
+            let detection = fileDetector.detect(url: candidateURL)
             if let format = detection.bestFormat {
                 let availableTargets = registry.supportedOutputFormats(for: format)
                 if availableTargets.isEmpty {
                     logger.info("Unsupported format for conversion: \(format.rawValue, privacy: .public)")
-                    result.unsupportedURLs.append(resolvedURL)
+                    result.unsupportedURLs.append(candidateURL)
                 } else {
-                    result.validURLs.append(resolvedURL)
+                    result.validURLs.append(candidateURL)
                 }
             } else {
-                logger.info("Unknown format for item: \(resolvedURL.lastPathComponent, privacy: .private)")
-                result.unsupportedURLs.append(resolvedURL)
+                logger.info("Unknown format for item: \(candidateURL.lastPathComponent, privacy: .private)")
+                result.unsupportedURLs.append(candidateURL)
             }
         }
-        
+
         return result
     }
     
@@ -529,6 +574,10 @@ final class FinderHandoffHandler: Sendable {
         processService(pboard, action: "compress_pdf")
     }
     
+    static func validateQuickActionURLs(_ urls: [URL]) -> (validURLs: [URL], rejectedEntries: [RejectedSchemePath]) {
+        FinderHandoffHandler.validateInputFileURLs(urls)
+    }
+
     private func processService(_ pboard: NSPasteboard, action: String) {
         logger.info("Service invoked for action: \(action, privacy: .public)")
         let urls = FinderHandoffHandler.extractPasteboardURLs(pboard)
@@ -536,15 +585,33 @@ final class FinderHandoffHandler: Sendable {
             logger.warning("No URLs extracted from Service pasteboard")
             return
         }
-        
-        NSApp.activate(ignoringOtherApps: true)
-        if let callbackWithAction = self.onFilesReceivedWithAction {
-            callbackWithAction(urls, action)
-        } else if let callback = self.onFilesReceived {
-            callback(urls) // Fallback for old behavior
-        } else {
-            AppState.shared?.handleQuickAction(urls: urls, action: action)
+
+        _ = handleQuickActionURLs(urls, action: action, activateApplication: true)
+    }
+
+    @discardableResult
+    func handleQuickActionURLs(
+        _ urls: [URL],
+        action: String,
+        activateApplication: Bool = true
+    ) -> (accepted: [URL], rejected: [RejectedSchemePath]) {
+        let validation = Self.validateQuickActionURLs(urls)
+        guard !validation.validURLs.isEmpty else {
+            logger.warning("All Quick Action inputs were rejected by safe file validation (\(validation.rejectedEntries.count, privacy: .public) rejected)")
+            return ([], validation.rejectedEntries)
         }
+
+        if activateApplication {
+            NSApp.activate(ignoringOtherApps: true)
+        }
+        if let callbackWithAction = self.onFilesReceivedWithAction {
+            callbackWithAction(validation.validURLs, action)
+        } else if let callback = self.onFilesReceived {
+            callback(validation.validURLs) // Fallback for old behavior
+        } else {
+            AppState.shared?.handleQuickAction(urls: validation.validURLs, action: action)
+        }
+        return (validation.validURLs, validation.rejectedEntries)
     }
 }
 

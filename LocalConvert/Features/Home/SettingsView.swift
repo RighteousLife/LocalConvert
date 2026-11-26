@@ -10,6 +10,16 @@ private enum SettingsTab: String, CaseIterable, Hashable, Identifiable {
 
     var id: Self { self }
 
+    var localizedTitle: String {
+        switch self {
+        case .general: return String(localized: "General")
+        case .output: return String(localized: "Output")
+        case .automation: return String(localized: "Automation")
+        case .shortcuts: return String(localized: "Shortcuts")
+        case .advanced: return String(localized: "Advanced")
+        }
+    }
+
     var systemImage: String {
         switch self {
         case .general: return "gearshape"
@@ -36,7 +46,7 @@ struct SettingsView: View {
                 )
             }
             .tabItem {
-                Label(SettingsTab.general.rawValue, systemImage: SettingsTab.general.systemImage)
+                Label(SettingsTab.general.localizedTitle, systemImage: SettingsTab.general.systemImage)
             }
             .tag(SettingsTab.general)
 
@@ -45,7 +55,7 @@ struct SettingsView: View {
                 ConversionDefaultsSettingsSection()
             }
             .tabItem {
-                Label(SettingsTab.output.rawValue, systemImage: SettingsTab.output.systemImage)
+                Label(SettingsTab.output.localizedTitle, systemImage: SettingsTab.output.systemImage)
             }
             .tag(SettingsTab.output)
 
@@ -54,7 +64,7 @@ struct SettingsView: View {
                 JobsHistorySettingsSection()
             }
             .tabItem {
-                Label(SettingsTab.automation.rawValue, systemImage: SettingsTab.automation.systemImage)
+                Label(SettingsTab.automation.localizedTitle, systemImage: SettingsTab.automation.systemImage)
             }
             .tag(SettingsTab.automation)
 
@@ -62,7 +72,7 @@ struct SettingsView: View {
                 KeyboardShortcutsSettingsSection()
             }
             .tabItem {
-                Label(SettingsTab.shortcuts.rawValue, systemImage: SettingsTab.shortcuts.systemImage)
+                Label(SettingsTab.shortcuts.localizedTitle, systemImage: SettingsTab.shortcuts.systemImage)
             }
             .tag(SettingsTab.shortcuts)
 
@@ -73,7 +83,7 @@ struct SettingsView: View {
                 ResetDefaultsSettingsSection()
             }
             .tabItem {
-                Label(SettingsTab.advanced.rawValue, systemImage: SettingsTab.advanced.systemImage)
+                Label(SettingsTab.advanced.localizedTitle, systemImage: SettingsTab.advanced.systemImage)
             }
             .tag(SettingsTab.advanced)
         }
@@ -137,7 +147,7 @@ private struct GeneralSettingsSection: View {
         Section("General") {
             Picker("Appearance Theme", selection: appearanceModeBinding) {
                 ForEach(AppearanceMode.allCases, id: \.self) { mode in
-                    Text(mode.rawValue).tag(mode)
+                    Text(LocalizedStringKey(mode.rawValue)).tag(mode)
                 }
             }
             .accessibilityLabel("Appearance Theme")
@@ -146,13 +156,14 @@ private struct GeneralSettingsSection: View {
                 ApplicationVisibilitySelector(selection: visibilityModeBinding)
 
                 if visibilityModeBinding.wrappedValue == .neither {
+                    let guidance = String(localized: String.LocalizationValue(AppLifecycleManager.bothIconsHiddenGuidance))
                     AppInfoBanner(
                         style: .info,
-                        message: AppLifecycleManager.bothIconsHiddenGuidance,
+                        message: guidance,
                         icon: "eye.slash.fill"
                     )
                     .padding(.top, AppTheme.Spacing.xxs)
-                    .accessibilityLabel("Both Dock and Menu Bar icons hidden notice. \(AppLifecycleManager.bothIconsHiddenGuidance)")
+                    .accessibilityLabel(String(localized: "Both Dock and Menu Bar icons hidden notice. \(guidance)"))
                 }
             }
 
@@ -216,7 +227,7 @@ private struct OutputFilesSettingsSection: View {
         Section("Output & Files") {
             Picker("Default Output Location", selection: defaultOutputLocationBinding) {
                 ForEach(DefaultOutputLocation.allCases, id: \.self) { loc in
-                    Text(loc.rawValue).tag(loc)
+                    Text(LocalizedStringKey(loc.rawValue)).tag(loc)
                 }
             }
             .accessibilityLabel("Default Output Location")
@@ -224,7 +235,7 @@ private struct OutputFilesSettingsSection: View {
             if defaultOutputLocationBinding.wrappedValue == .custom {
                 HStack {
                     VStack(alignment: .leading, spacing: 2) {
-                        Text(customOutputDirectoryPath.isEmpty ? "No custom folder selected" : customOutputDirectoryPath)
+                        Text(customOutputDirectoryPath.isEmpty ? String(localized: "No custom folder selected") : customOutputDirectoryPath)
                             .font(.caption)
                             .foregroundStyle(customOutputDirectoryPath.isEmpty ? .secondary : .primary)
                             .lineLimit(1)
@@ -243,14 +254,14 @@ private struct OutputFilesSettingsSection: View {
 
             Picker("Existing File Name Collision", selection: existingFileHandlingBinding) {
                 ForEach(ExistingFileHandling.allCases, id: \.self) { handling in
-                    Text(handling.rawValue).tag(handling)
+                    Text(LocalizedStringKey(handling.rawValue)).tag(handling)
                 }
             }
             .accessibilityLabel("Existing File Name Collision")
 
             Picker("After Conversion Action", selection: afterConversionActionBinding) {
                 ForEach(AfterConversionAction.allCases, id: \.self) { action in
-                    Text(action.rawValue).tag(action)
+                    Text(LocalizedStringKey(action.rawValue)).tag(action)
                 }
             }
             .accessibilityLabel("After Conversion Action")
@@ -262,8 +273,8 @@ private struct OutputFilesSettingsSection: View {
         panel.canChooseFiles = false
         panel.canChooseDirectories = true
         panel.allowsMultipleSelection = false
-        panel.prompt = "Choose"
-        panel.message = "Select default destination folder for converted files"
+        panel.prompt = String(localized: "Choose")
+        panel.message = String(localized: "Select default destination folder for converted files")
 
         if panel.runModal() == .OK, let selectedURL = panel.url {
             let settings = AppSettings.shared
@@ -339,11 +350,12 @@ private struct ConversionDefaultsSettingsSection: View {
     var body: some View {
         Section("Conversion Defaults") {
             VStack(alignment: .leading, spacing: 6) {
+                let qualityPercent = Int((defaultImageQuality * 100).rounded())
                 Slider(value: $defaultImageQuality, in: 0.1...1.0, step: 0.05) {
-                    Text("Default Image Quality: \(Int((defaultImageQuality * 100).rounded()))%")
+                    Text("Default Image Quality: \(qualityPercent)%")
                 }
                 .accessibilityLabel("Default Image Quality")
-                .accessibilityValue("\(Int((defaultImageQuality * 100).rounded())) percent")
+                .accessibilityValue("\(qualityPercent) percent")
 
                 Text("Applied when exporting JPEG, WebP, and lossy image formats.")
                     .font(.caption2)
@@ -383,7 +395,7 @@ private struct PerformanceSettingsSection: View {
         Section("Performance") {
             Picker("Maximum Concurrent Conversions", selection: concurrentConversionsBinding) {
                 ForEach(ConcurrentConversionLimit.allCases, id: \.self) { limit in
-                    Text(limit.rawValue).tag(limit)
+                    Text(LocalizedStringKey(limit.rawValue)).tag(limit)
                 }
             }
             .accessibilityLabel("Maximum Concurrent Conversions")
@@ -435,14 +447,14 @@ private struct JobsHistorySettingsSection: View {
         Section("Jobs & History") {
             Picker("Keep Completed Jobs", selection: jobsRetentionBinding) {
                 ForEach(JobsRetentionPolicy.allCases, id: \.self) { policy in
-                    Text(policy.rawValue).tag(policy)
+                    Text(LocalizedStringKey(policy.rawValue)).tag(policy)
                 }
             }
             .accessibilityLabel("Keep Completed Jobs")
 
             Picker("Keep Failed Jobs", selection: failedJobsRetentionBinding) {
                 ForEach(FailedJobsRetentionPolicy.allCases, id: \.self) { policy in
-                    Text(policy.rawValue).tag(policy)
+                    Text(LocalizedStringKey(policy.rawValue)).tag(policy)
                 }
             }
             .accessibilityLabel("Keep Failed Jobs")
@@ -453,7 +465,7 @@ private struct JobsHistorySettingsSection: View {
             if saveConversionHistory {
                 Picker("Auto-remove History Records", selection: historyAutoRemoveBinding) {
                     ForEach(HistoryAutoRemoveDuration.allCases, id: \.self) { duration in
-                        Text(duration.rawValue).tag(duration)
+                        Text(LocalizedStringKey(duration.rawValue)).tag(duration)
                     }
                 }
                 .accessibilityLabel("Auto-remove History Records")
@@ -526,7 +538,9 @@ private struct UndoEditingHistorySettingsSection: View {
         Section("Undo & Editing History") {
             Picker("Maximum Editing History Entries", selection: maxEntriesBinding) {
                 ForEach(entryOptions, id: \.self) { count in
-                    Text(count == EditingHistoryLimitDefaults.defaultMaxEntries ? "\(count) entries (Default)" : "\(count) entries")
+                    Text(count == EditingHistoryLimitDefaults.defaultMaxEntries
+                        ? String(localized: "\(count) entries (Default)")
+                        : String(localized: "\(count) entries"))
                         .tag(count)
                 }
             }
@@ -544,7 +558,9 @@ private struct UndoEditingHistorySettingsSection: View {
                 VStack(alignment: .leading, spacing: 2) {
                     Text("Recovery Storage Usage")
                         .font(AppTheme.Typography.body)
-                    Text("\(ByteCountFormatter.string(fromByteCount: recoveryUsageBytes, countStyle: .file)) of \(Self.formattedStorageLabel(mb: storageLimitBinding.wrappedValue))")
+                    let usageFormatted = ByteCountFormatter.string(fromByteCount: recoveryUsageBytes, countStyle: .file)
+                    let limitFormatted = Self.formattedStorageLabel(mb: storageLimitBinding.wrappedValue)
+                    Text("\(usageFormatted) of \(limitFormatted)")
                         .font(AppTheme.Typography.monoCaption)
                         .foregroundStyle(.secondary)
                 }
@@ -592,9 +608,13 @@ private struct UndoEditingHistorySettingsSection: View {
     private static func formattedStorageLabel(mb: Int) -> String {
         if mb >= 1024 && mb % 1024 == 0 {
             let gb = mb / 1024
-            return mb == EditingHistoryLimitDefaults.defaultRecoveryStorageLimitMB ? "\(gb) GB (Default)" : "\(gb) GB"
+            return mb == EditingHistoryLimitDefaults.defaultRecoveryStorageLimitMB
+                ? String(localized: "\(gb) GB (Default)")
+                : String(localized: "\(gb) GB")
         }
-        return mb == EditingHistoryLimitDefaults.defaultRecoveryStorageLimitMB ? "\(mb) MB (Default)" : "\(mb) MB"
+        return mb == EditingHistoryLimitDefaults.defaultRecoveryStorageLimitMB
+            ? String(localized: "\(mb) MB (Default)")
+            : String(localized: "\(mb) MB")
     }
 }
 
@@ -634,7 +654,7 @@ private struct KeyboardShortcutsSettingsSection: View {
             VStack(spacing: AppTheme.Spacing.xs + 2) {
                 ForEach(KeyboardShortcutDescriptor.defaultShortcuts) { shortcut in
                     HStack {
-                        Text(shortcut.action)
+                        Text(LocalizedStringKey(shortcut.action))
                             .font(AppTheme.Typography.caption)
                         Spacer()
                         Text(shortcut.shortcut)
@@ -664,7 +684,7 @@ private struct AboutSettingsSection: View {
     private static let versionLine: String = {
         let version = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "1.0.0"
         let build = Bundle.main.infoDictionary?["CFBundleVersion"] as? String ?? "1"
-        return "Version \(version) (Build \(build)) · Apple Silicon (arm64)"
+        return String(localized: "Version \(version) (Build \(build)) · Apple Silicon (arm64)")
     }()
 
     var body: some View {
@@ -755,7 +775,7 @@ struct ApplicationVisibilitySelector: View {
         HStack(alignment: .center, spacing: AppTheme.Spacing.md) {
             VStack(alignment: .leading, spacing: AppTheme.Spacing.xxs) {
                 Text("Application Visibility")
-                Text(selection.popoverSubtitle)
+                Text(LocalizedStringKey(selection.popoverSubtitle))
                     .font(AppTheme.Typography.caption)
                     .foregroundStyle(.secondary)
                     .lineLimit(1)
@@ -770,7 +790,7 @@ struct ApplicationVisibilitySelector: View {
                     Image(systemName: selection.systemImage)
                         .font(AppTheme.Typography.caption)
                         .foregroundStyle(AppTheme.Colors.accent)
-                    Text(selection.displayName)
+                    Text(LocalizedStringKey(selection.displayName))
                         .font(AppTheme.Typography.subheadline)
                         .foregroundStyle(.primary)
                         .lineLimit(1)
@@ -795,8 +815,8 @@ struct ApplicationVisibilitySelector: View {
                 isTriggerHovered = hovering
             }
             .accessibilityLabel("Application Visibility")
-            .accessibilityValue(selection.displayName)
-            .accessibilityHint("Opens visibility mode selector. Current: \(selection.popoverSubtitle)")
+            .accessibilityValue(LocalizedStringKey(selection.displayName))
+            .accessibilityHint(String(localized: "Opens visibility mode selector. Current: \(String(localized: String.LocalizationValue(selection.popoverSubtitle)))"))
             .popover(isPresented: $isPopoverPresented, arrowEdge: .bottom) {
                 ApplicationVisibilityPopoverContent(
                     selection: $selection,
@@ -885,12 +905,12 @@ private struct ApplicationVisibilityOptionRow: View {
                     .frame(width: 20, alignment: .center)
 
                 VStack(alignment: .leading, spacing: 1) {
-                    Text(mode.displayName)
+                    Text(LocalizedStringKey(mode.displayName))
                         .font(AppTheme.Typography.subheadline.weight(isSelected ? .semibold : .medium))
                         .foregroundStyle(.primary)
                         .lineLimit(1)
 
-                    Text(mode.popoverSubtitle)
+                    Text(LocalizedStringKey(mode.popoverSubtitle))
                         .font(AppTheme.Typography.caption)
                         .foregroundStyle(.secondary)
                         .lineLimit(1)
@@ -922,9 +942,9 @@ private struct ApplicationVisibilityOptionRow: View {
         .onHover { hovering in
             isHovered = hovering
         }
-        .accessibilityLabel(mode.displayName)
-        .accessibilityValue(isSelected ? "Selected" : "Not selected")
-        .accessibilityHint(mode.popoverSubtitle)
+        .accessibilityLabel(LocalizedStringKey(mode.displayName))
+        .accessibilityValue(isSelected ? String(localized: "Selected") : String(localized: "Not selected"))
+        .accessibilityHint(LocalizedStringKey(mode.popoverSubtitle))
         .accessibilityAddTraits(isSelected ? .isSelected : [])
     }
 

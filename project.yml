@@ -110,6 +110,7 @@ targets:
           - "**/Info.plist"
           - "Frameworks/**"
           - "Resources/**"
+      - path: LocalConvert/Resources/Localizable.xcstrings
     postBuildScripts:
       - name: Copy Bundled Binaries and Runtime
         basedOnDependencyAnalysis: true

@@ -43,7 +43,7 @@ struct DroppedFile: Identifiable, Sendable {
     }
     
     var formattedEstimatedSize: String {
-        guard let est = estimatedOutputSize else { return "Unknown size" }
+        guard let est = estimatedOutputSize else { return String(localized: "Unknown size") }
         return "~" + ByteCountFormatter.string(fromByteCount: est, countStyle: .file)
     }
     
@@ -123,6 +123,46 @@ enum AppNavigationTab: String, Hashable, CaseIterable, Identifiable {
     ]
     
     var id: String { rawValue }
+
+    var localizedTitle: String {
+        switch self {
+        case .convert: return String(localized: "Convert")
+        case .jobs: return String(localized: "Jobs")
+        case .pdfToolbox: return String(localized: "PDF Toolbox")
+        case .audioToolbox: return String(localized: "Audio Toolbox")
+        case .audioWorkspace: return String(localized: "Audio Workspace")
+        case .imageToolbox: return String(localized: "Image Toolbox")
+        case .metadata: return String(localized: "Metadata")
+        case .presets: return String(localized: "Presets")
+        case .history: return String(localized: "History")
+        case .settings: return String(localized: "Settings")
+        }
+    }
+
+    var localizedDescription: String {
+        switch self {
+        case .convert:
+            return String(localized: "Drop files and convert between formats locally")
+        case .jobs:
+            return String(localized: "Monitor active, completed, and failed conversion jobs")
+        case .pdfToolbox:
+            return String(localized: "Merge, split, compress, OCR, and annotate PDFs")
+        case .audioToolbox:
+            return String(localized: "Convert, normalize, and inspect audio files")
+        case .audioWorkspace:
+            return String(localized: "Organize audio library, edit waveforms, and run audio tools")
+        case .imageToolbox:
+            return String(localized: "Resize, optimize, adjust colors, and edit images")
+        case .metadata:
+            return String(localized: "Inspect, edit, and strip file metadata and EXIF tags")
+        case .presets:
+            return String(localized: "Manage conversion presets and automated watch folders")
+        case .history:
+            return String(localized: "Browse past conversions and output file provenance")
+        case .settings:
+            return String(localized: "Configure appearance, output defaults, shortcuts, and privacy")
+        }
+    }
     
     var iconName: String {
         switch self {
@@ -151,10 +191,11 @@ struct LastConversionConfig: Sendable, Equatable {
     var summary: String {
         var details: [String] = []
         if let q = options.imageQuality, q < 0.95 {
-            details.append("Quality \(Int(q * 100))%")
+            let qualityPercent = Int(q * 100)
+            details.append(String(localized: "Quality \(qualityPercent)%"))
         }
         if options.resizeMode != .none, let w = options.resizeWidth {
-            details.append("Resize \(w)px")
+            details.append(String(localized: "Resize \(w)px"))
         }
         let detailsStr = details.isEmpty ? "" : " (\(details.joined(separator: ", ")))"
         return "\(inputFormat.displayName) → \(outputFormat.displayName)\(detailsStr)"
@@ -207,7 +248,7 @@ final class AppState: ObservableObject {
         }
     }
     @Published var showError = false
-    @Published var errorTitle = "Conversion Notice"
+    @Published var errorTitle = String(localized: "Conversion Notice")
     @Published var errorMessage = ""
     @Published var errorSuggestion: String?
     @Published var errorDetails: String?
@@ -380,7 +421,10 @@ final class AppState: ObservableObject {
             self?.lastAnnouncedProgressMilestone = 0
             let count = self?.conversionQueue.totalCount ?? 0
             if count > 0 {
-                AccessibilityAnnouncer.announce("Started converting \(count) file\(count == 1 ? "" : "s").", priority: .medium)
+                let announcement = count == 1
+                    ? String(localized: "Started converting 1 file.")
+                    : String(localized: "Started converting \(count) files.")
+                AccessibilityAnnouncer.announce(announcement, priority: .medium)
             }
         }
         queue.onQueueCompleted = { [weak self] in
@@ -393,7 +437,7 @@ final class AppState: ObservableObject {
             let pct = Int((self.conversionQueue.progress * 100.0).rounded(.down))
             for milestone in [25, 50, 75] where pct >= milestone && self.lastAnnouncedProgressMilestone < milestone {
                 self.lastAnnouncedProgressMilestone = milestone
-                AccessibilityAnnouncer.announce("Conversion \(milestone) percent complete.", priority: .low)
+                AccessibilityAnnouncer.announce(String(localized: "Conversion \(milestone) percent complete."), priority: .low)
             }
         }
         
@@ -600,7 +644,7 @@ final class AppState: ObservableObject {
         NSApp.activate(ignoringOtherApps: true)
         
         if !validation.rejectedFolders.isEmpty {
-            folderRejectedNotice = "Folders can't be converted directly."
+            folderRejectedNotice = String(localized: "Folders can't be converted directly.")
             pendingFolderURLs = validation.rejectedFolders
         }
         
@@ -653,7 +697,7 @@ final class AppState: ObservableObject {
             let coordinator = undoCoordinator
             let cmd = DroppedFilesUndoCommand(
                 operationType: .queueAddFiles,
-                title: "Add \(addedCount) File(s)",
+                title: String(localized: "Add \(addedCount) File(s)"),
                 beforeFiles: before,
                 afterFiles: after,
                 applyFiles: { [weak self] restored in self?.droppedFiles = restored }
@@ -662,13 +706,17 @@ final class AppState: ObservableObject {
         }
         
         if !validation.rejectedFolders.isEmpty {
-            folderRejectedNotice = "Folders can't be converted directly."
+            folderRejectedNotice = String(localized: "Folders can't be converted directly.")
             pendingFolderURLs = validation.rejectedFolders
         }
         
         if newValidAdded > 0 {
-            let dupSuffix = duplicateCount > 0 ? " (\(duplicateCount) duplicate skipped)" : ""
-            let feedback = "\(newValidAdded) file\(newValidAdded == 1 ? "" : "s") added\(dupSuffix)"
+            let baseFeedback = newValidAdded == 1
+                ? String(localized: "1 file added")
+                : String(localized: "\(newValidAdded) files added")
+            let feedback = duplicateCount > 0
+                ? String(localized: "\(baseFeedback) (\(duplicateCount) duplicate skipped)")
+                : baseFeedback
             dropFeedbackText = feedback
             Task { @MainActor in
                 try? await Task.sleep(nanoseconds: 3_000_000_000)
@@ -677,7 +725,9 @@ final class AppState: ObservableObject {
                 }
             }
         } else if newUnsupportedAdded > 0 {
-            let feedback = "\(newUnsupportedAdded) unsupported file\(newUnsupportedAdded == 1 ? "" : "s") added"
+            let feedback = newUnsupportedAdded == 1
+                ? String(localized: "1 unsupported file added")
+                : String(localized: "\(newUnsupportedAdded) unsupported files added")
             dropFeedbackText = feedback
             Task { @MainActor in
                 try? await Task.sleep(nanoseconds: 3_000_000_000)
@@ -686,7 +736,9 @@ final class AppState: ObservableObject {
                 }
             }
         } else if duplicateCount > 0 {
-            let feedback = duplicateCount == 1 ? "File is already in the queue" : "\(duplicateCount) duplicate files skipped"
+            let feedback = duplicateCount == 1
+                ? String(localized: "File is already in the queue")
+                : String(localized: "\(duplicateCount) duplicate files skipped")
             dropFeedbackText = feedback
             Task { @MainActor in
                 try? await Task.sleep(nanoseconds: 3_000_000_000)
@@ -708,7 +760,7 @@ final class AppState: ObservableObject {
         let coordinator = undoCoordinator
         let cmd = DroppedFilesUndoCommand(
             operationType: .queueAddFiles,
-            title: "Reorder Queue Files",
+            title: String(localized: "Reorder Queue Files"),
             beforeFiles: before,
             afterFiles: after,
             applyFiles: { [weak self] restored in self?.droppedFiles = restored }
@@ -753,7 +805,7 @@ final class AppState: ObservableObject {
         let coordinator = undoCoordinator
         let cmd = DroppedFilesUndoCommand(
             operationType: .queueRemoveFiles,
-            title: "Remove \(removedCount) File(s)",
+            title: String(localized: "Remove \(removedCount) File(s)"),
             beforeFiles: before,
             afterFiles: after,
             applyFiles: { [weak self] restored in self?.droppedFiles = restored }
@@ -823,14 +875,14 @@ final class AppState: ObservableObject {
     
     func repeatLastConversion() {
         guard let config = lastConversionConfig else {
-            showError(message: "No previous conversion to repeat.")
+            showError(message: String(localized: "No previous conversion to repeat."))
             return
         }
         
         guard isRepeatConversionCompatible else {
             showError(
-                message: "Your last conversion isn't compatible with the selected files.",
-                details: "The previous conversion was to \(config.outputFormat.displayName), which cannot be applied to all currently loaded files."
+                message: String(localized: "Your last conversion isn't compatible with the selected files."),
+                details: String(localized: "The previous conversion was to \(config.outputFormat.displayName), which cannot be applied to all currently loaded files.")
             )
             return
         }
@@ -859,8 +911,8 @@ final class AppState: ObservableObject {
         panel.canChooseDirectories = true
         panel.canCreateDirectories = true
         panel.allowsMultipleSelection = false
-        panel.prompt = "Choose Output Folder"
-        panel.message = "Select where LocalConvert should save the converted file(s)."
+        panel.prompt = String(localized: "Choose Output Folder")
+        panel.message = String(localized: "Select where LocalConvert should save the converted file(s).")
         if let seed = customOutputDirectory ?? OutputManager.lastUsedDirectory {
             panel.directoryURL = seed
         }
@@ -914,8 +966,8 @@ final class AppState: ObservableObject {
         if !unwritableDirs.isEmpty {
             showError(
                 message: jobs.isEmpty
-                    ? "The destination folder is inaccessible or unwritable."
-                    : "Some files were skipped because their destination folders are not writable.",
+                    ? String(localized: "The destination folder is inaccessible or unwritable.")
+                    : String(localized: "Some files were skipped because their destination folders are not writable."),
                 details: unwritableDirs.joined(separator: "\n")
             )
         }
@@ -959,8 +1011,8 @@ final class AppState: ObservableObject {
         
         guard OutputManager.isOutputDirectoryValid(outputDir) else {
             showError(
-                message: "The destination folder is inaccessible or unwritable.",
-                details: "Directory path: \(outputDir.path)"
+                message: String(localized: "The destination folder is inaccessible or unwritable."),
+                details: String(localized: "Directory path: \(outputDir.path)")
             )
             return
         }
@@ -1015,7 +1067,7 @@ final class AppState: ObservableObject {
     // MARK: - Error Handling
     
     func showError(
-        title: String = "Conversion Notice",
+        title: String = String(localized: "Conversion Notice"),
         message: String,
         suggestion: String? = nil,
         details: String? = nil
@@ -1025,6 +1077,6 @@ final class AppState: ObservableObject {
         errorSuggestion = suggestion
         errorDetails = details.map { ErrorDetailsFormatter.sanitize($0) }
         showError = true
-        AccessibilityAnnouncer.announce("Error: \(errorMessage)", priority: .high)
+        AccessibilityAnnouncer.announce(String(localized: "Error: \(errorMessage)"), priority: .high)
     }
 }

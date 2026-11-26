@@ -14,7 +14,7 @@ struct DropZoneView: View {
                     style: .warning,
                     message: notice,
                     icon: "folder.badge.questionmark",
-                    actionTitle: appState.pendingFolderURLs.isEmpty ? nil : "Import Files",
+                    actionTitle: appState.pendingFolderURLs.isEmpty ? nil : String(localized: "Import Files"),
                     onAction: appState.pendingFolderURLs.isEmpty ? nil : { appState.importFilesFromPendingFolders() },
                     onDismiss: {
                         appState.folderRejectedNotice = nil
@@ -34,7 +34,7 @@ struct DropZoneView: View {
                         .symbolEffect(.bounce, value: isTargeted)
                     
                     VStack(spacing: AppTheme.Spacing.xs + 2) {
-                        Text(isTargeted ? "Release to add files" : "Drop files here")
+                        Text(isTargeted ? String(localized: "Release to add files") : String(localized: "Drop files here"))
                             .font(.title2)
                             .fontWeight(.medium)
                             .foregroundStyle(isTargeted ? AppTheme.Colors.accent : .primary)
@@ -130,8 +130,8 @@ struct DropZoneView: View {
         panel.allowsMultipleSelection = true
         panel.canChooseDirectories = false
         panel.canChooseFiles = true
-        panel.message = "Select files to convert"
-        panel.prompt = "Select"
+        panel.message = String(localized: "Select files to convert")
+        panel.prompt = String(localized: "Select")
         
         if panel.runModal() == .OK {
             appState.handleDroppedURLs(panel.urls)

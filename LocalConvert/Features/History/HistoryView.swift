@@ -351,12 +351,22 @@ struct HistoryRowView: View {
                     .lineLimit(1)
                     .truncationMode(.middle)
                 
+                let sizeSavings = item.status == .completed
+                    ? SizeSavingsFormatter.format(inputBytes: item.inputSizeBytes, outputBytes: item.outputSizeBytes)
+                    : nil
+
                 ViewThatFits(in: .horizontal) {
                     HStack(spacing: AppTheme.Spacing.xs + 2) {
                         historyFormatAndSourceBadges
                         Text("•")
                             .foregroundStyle(.tertiary)
-                        historyDateAndSizeMetadata
+                        historyPresetAndDateMetadata
+                        if let sizeSavings {
+                            Text("•")
+                                .foregroundStyle(.tertiary)
+                            SizeSavingsBadge(summary: sizeSavings)
+                                .accessibilityIdentifier("history.sizeSavingsBadge")
+                        }
                     }
 
                     VStack(alignment: .leading, spacing: AppTheme.Spacing.xxs + 1) {
@@ -364,7 +374,26 @@ struct HistoryRowView: View {
                             historyFormatAndSourceBadges
                         }
                         HStack(spacing: AppTheme.Spacing.xs + 2) {
-                            historyDateAndSizeMetadata
+                            historyPresetAndDateMetadata
+                            if let sizeSavings {
+                                Text("•")
+                                    .foregroundStyle(.tertiary)
+                                SizeSavingsBadge(summary: sizeSavings)
+                                    .accessibilityIdentifier("history.sizeSavingsBadge")
+                            }
+                        }
+                    }
+
+                    VStack(alignment: .leading, spacing: AppTheme.Spacing.xxs + 1) {
+                        HStack(spacing: AppTheme.Spacing.xs + 2) {
+                            historyFormatAndSourceBadges
+                        }
+                        HStack(spacing: AppTheme.Spacing.xs + 2) {
+                            historyPresetAndDateMetadata
+                        }
+                        if let sizeSavings {
+                            SizeSavingsBadge(summary: sizeSavings)
+                                .accessibilityIdentifier("history.sizeSavingsBadge")
                         }
                     }
                 }
@@ -512,7 +541,7 @@ struct HistoryRowView: View {
     }
 
     @ViewBuilder
-    private var historyDateAndSizeMetadata: some View {
+    private var historyPresetAndDateMetadata: some View {
         if let preset = item.presetName {
             AppStatusBadge(text: preset, tint: AppTheme.Colors.accent, style: .rounded)
             Text("•")
@@ -522,26 +551,5 @@ struct HistoryRowView: View {
         Text(item.date.formatted(date: .abbreviated, time: .shortened))
             .lineLimit(1)
             .fixedSize(horizontal: true, vertical: false)
-
-        if let inBytes = item.inputSizeBytes, let outBytes = item.outputSizeBytes, inBytes > 0, outBytes > 0 {
-            Text("•")
-                .foregroundStyle(.tertiary)
-            let inFormatted = ByteCountFormatter.string(fromByteCount: inBytes, countStyle: .file)
-            let outFormatted = ByteCountFormatter.string(fromByteCount: outBytes, countStyle: .file)
-            let diff = inBytes - outBytes
-            if diff > 0 {
-                let reduction = Int(round(Double(diff) / Double(inBytes) * 100.0))
-                Text("\(inFormatted) → \(outFormatted) (-\(reduction)%)")
-                    .monospacedDigit()
-                    .foregroundStyle(.secondary)
-                    .lineLimit(1)
-                    .fixedSize(horizontal: true, vertical: false)
-            } else {
-                Text("\(inFormatted) → \(outFormatted)")
-                    .monospacedDigit()
-                    .lineLimit(1)
-                    .fixedSize(horizontal: true, vertical: false)
-            }
-        }
     }
 }

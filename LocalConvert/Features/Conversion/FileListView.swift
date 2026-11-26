@@ -18,6 +18,8 @@ struct FileListView: View {
             }
             
             if !appState.isConverting && !appState.droppedFiles.isEmpty {
+                AppDivider()
+                ContextualSmartBarView()
                 quickActionsStrip
             }
             

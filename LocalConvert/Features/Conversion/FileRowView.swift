@@ -283,25 +283,33 @@ struct FileRowView: View {
             .help(progress.statusMessage)
         
         case .completed(let result):
-            HStack(spacing: AppTheme.Spacing.xs + 2) {
-                Label("Completed", systemImage: "checkmark.circle.fill")
-                    .font(.caption2)
-                    .fontWeight(.medium)
-                    .foregroundStyle(AppTheme.Colors.success)
-                    .lineLimit(1)
-                    .fixedSize(horizontal: true, vertical: false)
-                    .accessibilityLabel("Conversion completed: \(result.outputURL.lastPathComponent)")
-                
-                Button(action: {
-                    NSWorkspace.shared.activateFileViewerSelecting([result.outputURL])
-                }) {
-                    Image(systemName: "arrow.right.circle")
-                        .font(AppTheme.Typography.caption)
-                        .foregroundStyle(AppTheme.Colors.accent)
+            let effectiveOutputBytes: Int64 = result.fileSize > 0
+                ? result.fileSize
+                : ((try? FileManager.default.attributesOfItem(atPath: result.outputURL.path)[.size] as? NSNumber)?.int64Value ?? 0)
+            let savingsSummary = SizeSavingsFormatter.format(
+                inputBytes: liveFile.fileSize,
+                outputBytes: effectiveOutputBytes
+            )
+            ViewThatFits(in: .horizontal) {
+                HStack(spacing: AppTheme.Spacing.xs + 2) {
+                    completedStatusLabel(for: result)
+                    if let savingsSummary {
+                        SizeSavingsBadge(summary: savingsSummary)
+                            .accessibilityIdentifier("filerow.sizeSavingsBadge")
+                    }
+                    revealOutputButton(for: result)
                 }
-                .buttonStyle(.borderless)
-                .help("Show \(result.outputURL.lastPathComponent) in Finder")
-                .accessibilityLabel("Show output in Finder")
+
+                VStack(alignment: .trailing, spacing: AppTheme.Spacing.xxs) {
+                    HStack(spacing: AppTheme.Spacing.xs + 2) {
+                        completedStatusLabel(for: result)
+                        revealOutputButton(for: result)
+                    }
+                    if let savingsSummary {
+                        SizeSavingsBadge(summary: savingsSummary)
+                            .accessibilityIdentifier("filerow.sizeSavingsBadge")
+                    }
+                }
             }
         
         case .failed(let error):
@@ -363,6 +371,120 @@ struct FileRowView: View {
             AppStatusBadge(text: "Cancelled", tint: .secondary)
                 .accessibilityLabel("Conversion cancelled")
         }
+    }
+
+    @ViewBuilder
+    private func completedStatusLabel(for result: ConversionResult) -> some View {
+        Label("Completed", systemImage: "checkmark.circle.fill")
+            .font(.caption2)
+            .fontWeight(.medium)
+            .foregroundStyle(AppTheme.Colors.success)
+            .lineLimit(1)
+            .fixedSize(horizontal: true, vertical: false)
+            .accessibilityLabel("Conversion completed: \(result.outputURL.lastPathComponent)")
+    }
+
+    @ViewBuilder
+    private func revealOutputButton(for result: ConversionResult) -> some View {
+        Button(action: {
+            NSWorkspace.shared.activateFileViewerSelecting([result.outputURL])
+        }) {
+            Image(systemName: "arrow.right.circle")
+                .font(AppTheme.Typography.caption)
+                .foregroundStyle(AppTheme.Colors.accent)
+        }
+        .buttonStyle(.borderless)
+        .help("Show \(result.outputURL.lastPathComponent) in Finder")
+        .accessibilityLabel("Show output in Finder")
+    }
+}
+
+// MARK: - Size-Delta / Savings Formatter & Badge
+
+enum SizeDeltaDirection: Equatable, Sendable {
+    case smaller(percent: Int)
+    case larger(percent: Int)
+    case same
+
+    var isSavings: Bool {
+        if case .smaller = self { return true }
+        return false
+    }
+}
+
+struct SizeSavingsSummary: Equatable, Sendable {
+    let inputBytes: Int64
+    let outputBytes: Int64
+    let beforeFormatted: String
+    let afterFormatted: String
+    let direction: SizeDeltaDirection
+    let deltaText: String
+    let badgeText: String
+
+    var accessibilityDescription: String {
+        "Size changed from \(beforeFormatted) to \(afterFormatted), \(deltaText)"
+    }
+}
+
+enum SizeSavingsFormatter: Sendable {
+    static func format(inputBytes: Int64?, outputBytes: Int64?) -> SizeSavingsSummary? {
+        guard let inputBytes, let outputBytes, inputBytes > 0, outputBytes > 0 else {
+            return nil
+        }
+
+        let beforeFormatted = ByteCountFormatter.string(fromByteCount: inputBytes, countStyle: .file)
+        let afterFormatted = ByteCountFormatter.string(fromByteCount: outputBytes, countStyle: .file)
+
+        let direction: SizeDeltaDirection
+        let deltaText: String
+
+        if outputBytes < inputBytes {
+            let pct = Int(((Double(inputBytes - outputBytes) / Double(inputBytes)) * 100.0).rounded())
+            direction = .smaller(percent: pct)
+            deltaText = pct > 0 ? "\(pct)% smaller" : "<1% smaller"
+        } else if outputBytes > inputBytes {
+            let pct = Int(((Double(outputBytes - inputBytes) / Double(inputBytes)) * 100.0).rounded())
+            direction = .larger(percent: pct)
+            deltaText = pct > 0 ? "+\(pct)% larger" : "+<1% larger"
+        } else {
+            direction = .same
+            deltaText = "0% same"
+        }
+
+        return SizeSavingsSummary(
+            inputBytes: inputBytes,
+            outputBytes: outputBytes,
+            beforeFormatted: beforeFormatted,
+            afterFormatted: afterFormatted,
+            direction: direction,
+            deltaText: deltaText,
+            badgeText: "\(beforeFormatted) → \(afterFormatted) · \(deltaText)"
+        )
+    }
+}
+
+struct SizeSavingsBadge: View {
+    let summary: SizeSavingsSummary
+
+    private var tint: Color {
+        summary.direction.isSavings ? AppTheme.Colors.success : .secondary
+    }
+
+    var body: some View {
+        Text(summary.badgeText)
+            .font(AppTheme.Typography.badge.monospacedDigit())
+            .lineLimit(1)
+            .fixedSize(horizontal: true, vertical: false)
+            .padding(.horizontal, 7)
+            .padding(.vertical, 2)
+            .background(
+                summary.direction.isSavings
+                    ? AppTheme.Colors.successTint
+                    : AppTheme.Colors.neutralTint
+            )
+            .foregroundStyle(tint)
+            .clipShape(RoundedRectangle(cornerRadius: AppTheme.Radius.xs))
+            .accessibilityLabel(summary.accessibilityDescription)
     }
 }
 

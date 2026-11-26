@@ -36,7 +36,7 @@ struct ContentView: View {
                 .appWorkspaceSurface()
         }
         .appOpaqueWindowChrome(preferredColorScheme: preferredColorScheme)
-        .navigationTitle(appState.selectedTab.rawValue)
+        .navigationTitle(appState.selectedTab.localizedTitle)
         .toolbar {
             ToolbarItemGroup(placement: .primaryAction) {
                 Button {
@@ -146,7 +146,7 @@ struct SidebarView: View {
     
     var body: some View {
         List(AppNavigationTab.allCases, id: \.self, selection: $selection) { tab in
-            Label(tab.rawValue, systemImage: tab.iconName)
+            Label(tab.localizedTitle, systemImage: tab.iconName)
                 .badge(tab == .jobs && activeJobCount > 0 ? activeJobCount : 0)
                 .tag(tab)
                 .accessibilityIdentifier("sidebar.tab.\(tab.rawValue.lowercased().replacingOccurrences(of: " ", with: "_"))")

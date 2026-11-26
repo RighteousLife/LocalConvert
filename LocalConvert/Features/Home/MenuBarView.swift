@@ -81,7 +81,7 @@ final class MenuBarDropSession: ObservableObject {
                     MenuBarRejectedDropEntry(
                         url: rawURL,
                         filename: rawURL.absoluteString,
-                        reason: "Only local files can be dropped."
+                        reason: String(localized: "Only local files can be dropped.")
                     )
                 )
                 continue
@@ -116,21 +116,21 @@ final class MenuBarDropSession: ObservableObject {
                     rejectedEntries.append(
                         MenuBarRejectedDropEntry(
                             url: safeURL,
-                            reason: "Folder input is not supported: \(safeURL.lastPathComponent)"
+                            reason: String(localized: "Folder input is not supported: \(safeURL.lastPathComponent)")
                         )
                     )
                 } else if !sanitized.inaccessibleURLs.isEmpty {
                     rejectedEntries.append(
                         MenuBarRejectedDropEntry(
                             url: safeURL,
-                            reason: "File is not readable: \(safeURL.lastPathComponent)"
+                            reason: String(localized: "File is not readable: \(safeURL.lastPathComponent)")
                         )
                     )
                 } else {
                     rejectedEntries.append(
                         MenuBarRejectedDropEntry(
                             url: safeURL,
-                            reason: "Unsupported or unrecognized file format: \(safeURL.lastPathComponent)"
+                            reason: String(localized: "Unsupported or unrecognized file format: \(safeURL.lastPathComponent)")
                         )
                     )
                 }
@@ -288,12 +288,15 @@ struct MenuBarDropPopoverView: View {
                     .font(.headline)
                     .foregroundStyle(session.hasStagedFiles ? AppTheme.Colors.accent : AppTheme.Colors.warning)
 
-                Text(session.hasStagedFiles ? "Drop to Convert" : "Drop Rejected")
+                Text(session.hasStagedFiles ? String(localized: "Drop to Convert") : String(localized: "Drop Rejected"))
                     .font(AppTheme.Typography.sectionTitle)
 
                 if session.hasStagedFiles {
+                    let countText = session.stagedFileURLs.count == 1
+                        ? String(localized: "1 file")
+                        : String(localized: "\(session.stagedFileURLs.count) files")
                     AppStatusBadge(
-                        text: "\(session.stagedFileURLs.count) \(session.stagedFileURLs.count == 1 ? "file" : "files")",
+                        text: countText,
                         tint: AppTheme.Colors.accent
                     )
                 }
@@ -344,12 +347,14 @@ struct MenuBarDropPopoverView: View {
 
             if !session.rejectedEntries.isEmpty {
                 VStack(alignment: .leading, spacing: AppTheme.Spacing.xs) {
-                    Text(session.rejectedEntries.count == 1 ? "1 item skipped" : "\(session.rejectedEntries.count) items skipped")
+                    Text(session.rejectedEntries.count == 1
+                        ? String(localized: "1 item skipped")
+                        : String(localized: "\(session.rejectedEntries.count) items skipped"))
                         .font(AppTheme.Typography.caption.weight(.semibold))
                         .foregroundStyle(AppTheme.Colors.warning)
 
                     ForEach(session.rejectedEntries.prefix(3)) { entry in
-                        Text("• \(entry.filename): \(entry.reason)")
+                        Text(verbatim: "• \(entry.filename): \(entry.reason)")
                             .font(AppTheme.Typography.caption)
                             .foregroundStyle(.secondary)
                             .lineLimit(2)
@@ -399,7 +404,7 @@ struct MenuBarDropPopoverView: View {
                                             Spacer(minLength: AppTheme.Spacing.xs)
 
                                             if !item.isFullyCompatible {
-                                                Text("\(item.compatibleCount)/\(item.totalCount)")
+                                                Text(verbatim: "\(item.compatibleCount)/\(item.totalCount)")
                                                     .font(AppTheme.Typography.monoCaption)
                                                     .foregroundStyle(.secondary)
                                             }
@@ -420,7 +425,7 @@ struct MenuBarDropPopoverView: View {
                                         )
                                     }
                                     .buttonStyle(.plain)
-                                    .accessibilityLabel("Run preset \(item.preset.name)")
+                                    .accessibilityLabel(String(localized: "Run preset \(item.preset.name)"))
                                     .accessibilityIdentifier("menubar.drop.preset.\(item.preset.id.uuidString)")
                                 }
                             }
@@ -480,7 +485,8 @@ struct MenuBarView: View {
             Text("LocalConvert")
             
             if appState.isConverting {
-                Text("\(appState.activeJobCount) conversions running · \(Int(appState.batchProgress * 100))%")
+                let progressPercent = Int(appState.batchProgress * 100)
+                Text("\(appState.activeJobCount) conversions running · \(progressPercent)%")
             } else if appState.isBatchCompleted {
                 Text("All conversions completed")
             } else {
@@ -494,13 +500,13 @@ struct MenuBarView: View {
             if dropSession.hasStagedFiles || !dropSession.rejectedEntries.isEmpty {
                 Divider()
 
-                Section("Dropped Files (\(dropSession.stagedFileURLs.count))") {
+                Section(String(localized: "Dropped Files (\(dropSession.stagedFileURLs.count))")) {
                     ForEach(dropSession.stagedFileURLs, id: \.standardizedFileURL) { url in
                         Text(url.lastPathComponent)
                     }
 
                     ForEach(dropSession.compatiblePresets) { item in
-                        Button("Convert with \(item.preset.name) (→ \(item.preset.targetFormat.displayName))") {
+                        Button(String(localized: "Convert with \(item.preset.name) (→ \(item.preset.targetFormat.displayName))")) {
                             _ = dropSession.executePreset(item.preset, appState: appState)
                         }
                     }
@@ -538,7 +544,7 @@ struct MenuBarView: View {
             }
 
             if !appState.watchFolderManager.rules.isEmpty {
-                Button(appState.watchFolderManager.isGloballyPaused ? "Resume Watch Folders" : "Pause Watch Folders") {
+                Button(appState.watchFolderManager.isGloballyPaused ? String(localized: "Resume Watch Folders") : String(localized: "Pause Watch Folders")) {
                     if appState.watchFolderManager.isGloballyPaused {
                         appState.watchFolderManager.resumeAll()
                     } else {
@@ -696,23 +702,24 @@ final class MenuBarManager: NSObject, NSPopoverDelegate {
     static func watchFolderStatusSummary(for appState: AppState) -> String {
         let manager = appState.watchFolderManager
         if manager.isGloballyPaused {
-            return "Watch Folders: Paused (\(manager.rules.count))"
+            return String(localized: "Watch Folders: Paused (\(manager.rules.count))")
         }
         let activeCount = manager.rules.filter { $0.isEnabled && !$0.isPaused && !$0.lastStatus.isError }.count
         let errorCount = manager.rules.filter { $0.lastStatus.isError }.count
         if errorCount > 0 {
-            return "Watch Folders: \(activeCount) active · \(errorCount) attention"
+            return String(localized: "Watch Folders: \(activeCount) active · \(errorCount) attention")
         }
-        return "Watch Folders: \(activeCount) active"
+        return String(localized: "Watch Folders: \(activeCount) active")
     }
 
     private func computeStatusString(for appState: AppState) -> String {
         if appState.isConverting {
-            return "\(appState.activeJobCount) conversions running · \(Int(appState.batchProgress * 100))%"
+            let progressPercent = Int(appState.batchProgress * 100)
+            return String(localized: "\(appState.activeJobCount) conversions running · \(progressPercent)%")
         } else if appState.isBatchCompleted {
-            return "All conversions completed"
+            return String(localized: "All conversions completed")
         } else {
-            return "Ready"
+            return String(localized: "Ready")
         }
     }
     
@@ -891,7 +898,7 @@ final class MenuBarManager: NSObject, NSPopoverDelegate {
         let converting = appState?.isConverting ?? false
         guard lastAppliedIconIsConverting != converting || button.image == nil else { return }
         if converting {
-            button.image = NSImage(systemSymbolName: "arrow.triangle.2.circlepath.circle.fill", accessibilityDescription: "LocalConvert - Converting")
+            button.image = NSImage(systemSymbolName: "arrow.triangle.2.circlepath.circle.fill", accessibilityDescription: String(localized: "LocalConvert - Converting"))
         } else {
             button.image = NSImage(systemSymbolName: "arrow.triangle.2.circlepath", accessibilityDescription: "LocalConvert")
         }
@@ -929,38 +936,40 @@ final class MenuBarManager: NSObject, NSPopoverDelegate {
         
         menu.addItem(NSMenuItem.separator())
         
-        let openItem = NSMenuItem(title: "Open LocalConvert", action: #selector(openMainApp), keyEquivalent: "")
+        let openItem = NSMenuItem(title: String(localized: "Open LocalConvert"), action: #selector(openMainApp), keyEquivalent: "")
         openItem.target = self
         menu.addItem(openItem)
         
-        let addFilesItem = NSMenuItem(title: "Add Files to Convert...", action: #selector(openFilePicker), keyEquivalent: "")
+        let addFilesItem = NSMenuItem(title: String(localized: "Add Files to Convert..."), action: #selector(openFilePicker), keyEquivalent: "")
         addFilesItem.target = self
         menu.addItem(addFilesItem)
         
         menu.addItem(NSMenuItem.separator())
         
-        let jobsItem = NSMenuItem(title: "Open Jobs Center", action: #selector(openJobsCenter), keyEquivalent: "")
+        let jobsItem = NSMenuItem(title: String(localized: "Open Jobs Center"), action: #selector(openJobsCenter), keyEquivalent: "")
         jobsItem.target = self
         menu.addItem(jobsItem)
         
-        let presetsItem = NSMenuItem(title: "Open Presets", action: #selector(openPresets), keyEquivalent: "")
+        let presetsItem = NSMenuItem(title: String(localized: "Open Presets"), action: #selector(openPresets), keyEquivalent: "")
         presetsItem.target = self
         menu.addItem(presetsItem)
 
         if !watchRules.isEmpty {
-            let watchToggleTitle = isWatchPaused ? "Resume Watch Folders" : "Pause Watch Folders"
+            let watchToggleTitle = isWatchPaused
+                ? String(localized: "Resume Watch Folders")
+                : String(localized: "Pause Watch Folders")
             let watchToggleItem = NSMenuItem(title: watchToggleTitle, action: #selector(togglePauseWatchFolders), keyEquivalent: "")
             watchToggleItem.target = self
             menu.addItem(watchToggleItem)
         }
         
-        let settingsItem = NSMenuItem(title: "Settings...", action: #selector(openSettings), keyEquivalent: ",")
+        let settingsItem = NSMenuItem(title: String(localized: "Settings..."), action: #selector(openSettings), keyEquivalent: ",")
         settingsItem.target = self
         menu.addItem(settingsItem)
         
         menu.addItem(NSMenuItem.separator())
         
-        let quitItem = NSMenuItem(title: "Quit LocalConvert", action: #selector(quitApp), keyEquivalent: "q")
+        let quitItem = NSMenuItem(title: String(localized: "Quit LocalConvert"), action: #selector(quitApp), keyEquivalent: "q")
         quitItem.target = self
         menu.addItem(quitItem)
         
