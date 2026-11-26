@@ -138,7 +138,7 @@ enum AudioCodecRegistry {
     static let allSpecs: [AudioCodecID: AudioCodecSpec] = [
         .aac: AudioCodecSpec(
             codec: .aac,
-            supportedOutputContainers: [.m4a, .m4b, .aac, .mka],
+            supportedOutputContainers: [.m4a, .m4b, .m4r, .aac, .mka],
             supportsCBR: true,
             supportsVBR: false,
             bitrateOptionsKbps: [64, 96, 128, 160, 192, 256, 320],
@@ -156,7 +156,7 @@ enum AudioCodecRegistry {
         ),
         .aacAT: AudioCodecSpec(
             codec: .aacAT,
-            supportedOutputContainers: [.m4a, .m4b, .aac, .mka],
+            supportedOutputContainers: [.m4a, .m4b, .m4r, .aac, .mka],
             supportsCBR: true,
             supportsVBR: true,
             bitrateOptionsKbps: [64, 96, 128, 160, 192, 256, 320],
@@ -524,7 +524,7 @@ enum AudioCodecRegistry {
         case .mp3: return .mp3
         case .wav: return .pcmS16LE
         case .flac: return .flac
-        case .m4a, .m4b, .aac: return .aac
+        case .m4a, .m4b, .m4r, .aac: return .aac
         case .alac: return .alac
         case .ogg, .opus: return .opus
         case .aiff, .au: return .pcmS16BE
@@ -546,6 +546,8 @@ enum AudioCodecRegistry {
             return [.mp3, .streamCopy]
         case .m4a, .m4b:
             return [.aac, .aacAT, .alac, .streamCopy]
+        case .m4r:
+            return [.aac, .aacAT, .streamCopy]
         case .aac:
             return [.aac, .aacAT, .streamCopy]
         case .alac:
@@ -587,6 +589,8 @@ enum AudioCodecRegistry {
             return raw == "mp3"
         case .m4a, .m4b:
             return raw == "aac" || raw == "alac"
+        case .m4r:
+            return raw == "aac"
         case .aac:
             return raw == "aac"
         case .alac:

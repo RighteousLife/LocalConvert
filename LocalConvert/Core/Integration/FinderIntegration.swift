@@ -137,7 +137,7 @@ final class FinderHandoffHandler: Sendable {
                 continue
             }
             
-            if isDir.boolValue {
+            if isDir.boolValue && !FileDetector.isIWorkPackageBundle(url: resolvedURL) {
                 logger.warning("Rejected folder from selection: \(resolvedURL.lastPathComponent, privacy: .private)")
                 result.rejectedFolders.append(resolvedURL)
                 continue

@@ -458,8 +458,8 @@ struct HistoryRowView: View {
                         NSPasteboard.general.setString(url.path, forType: .string)
                     }
                 } else {
-                    Button("Output file is no longer available.") { }
-                        .disabled(true)
+                    Label("Output file is no longer available.", systemImage: "exclamationmark.triangle")
+                        .foregroundStyle(.secondary)
                 }
             }
             if item.status == .failed {

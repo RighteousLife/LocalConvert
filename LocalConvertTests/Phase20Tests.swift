@@ -215,20 +215,22 @@ struct Phase20Tests {
     
     // MARK: - 5. AppNavigationTab & AppSettings
     
-    @Test("AppNavigationTab covers all 10 primary app sections")
+    @Test("AppNavigationTab covers all 9 primary app sections")
     func testAppNavigationTabCases() {
         let allTabs = AppNavigationTab.allCases
-        #expect(allTabs.count == 10)
-        #expect(allTabs.contains(.convert))
-        #expect(allTabs.contains(.jobs))
-        #expect(allTabs.contains(.pdfToolbox))
-        #expect(allTabs.contains(.audioToolbox))
-        #expect(allTabs.contains(.audioWorkspace))
-        #expect(allTabs.contains(.imageToolbox))
-        #expect(allTabs.contains(.metadata))
-        #expect(allTabs.contains(.presets))
-        #expect(allTabs.contains(.history))
-        #expect(allTabs.contains(.settings))
+        #expect(allTabs.count == 9)
+        #expect(allTabs == [
+            .convert,
+            .jobs,
+            .pdfToolbox,
+            .audioWorkspace,
+            .imageToolbox,
+            .metadata,
+            .presets,
+            .history,
+            .settings
+        ])
+        #expect(!allTabs.contains(.audioToolbox))
     }
     
     @Test("AppSettings showMenuBarExtra default is true and resets properly")

@@ -223,18 +223,18 @@ struct FileListView: View {
                         .accessibilityLabel("Repeat last conversion: \(last.summary)")
                         .accessibilityHint("Applies previous conversion settings and starts conversion.")
                     } else {
-                        Button(action: {
-                            appState.repeatLastConversion()
-                        }) {
-                            Label("Repeat: \(last.summary)", systemImage: "arrow.clockwise")
-                                .font(.caption)
-                        }
-                        .controlSize(.small)
-                        .buttonStyle(.bordered)
-                        .disabled(true)
-                        .help("Your last conversion isn't compatible with the selected files.")
-                        .accessibilityLabel("Repeat last conversion — unavailable for the selected files")
-                        .accessibilityHint("Last conversion is not compatible with the selected files.")
+                        Label("Repeat: \(last.summary)", systemImage: "arrow.clockwise")
+                            .font(.caption)
+                            .lineLimit(1)
+                            .fixedSize(horizontal: true, vertical: false)
+                            .foregroundStyle(.secondary)
+                            .padding(.horizontal, AppTheme.Spacing.sm)
+                            .padding(.vertical, 3)
+                            .background(AppTheme.Colors.neutralTint)
+                            .clipShape(RoundedRectangle(cornerRadius: AppTheme.Radius.sm))
+                            .help("Your last conversion isn't compatible with the selected files.")
+                            .accessibilityLabel("Repeat last conversion — unavailable for the selected files")
+                            .accessibilityHint("Last conversion is not compatible with the selected files.")
                     }
                     
                     Divider()

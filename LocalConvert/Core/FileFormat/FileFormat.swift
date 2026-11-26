@@ -94,12 +94,23 @@ enum FileFormat: String, CaseIterable, Codable, Hashable, Identifiable, Sendable
     case md
     case html
     case epub
+    case pages
+    case numbers
+    case key
+    case plist
+    case ics
+    case vcf
+    case webloc
+    case json
+    case xml
     
     // Image & Camera RAW
     case jpg
     case png
     case webp
     case heic
+    case heics
+    case heifs
     case tiff
     case bmp
     case gif
@@ -138,6 +149,7 @@ enum FileFormat: String, CaseIterable, Codable, Hashable, Identifiable, Sendable
     case flac
     case m4a
     case m4b
+    case m4r
     case aac
     case ogg
     case opus
@@ -246,10 +258,21 @@ enum FileFormat: String, CaseIterable, Codable, Hashable, Identifiable, Sendable
         case .md: return "Markdown (MD)"
         case .html: return "HTML"
         case .epub: return "EPUB (eBook)"
+        case .pages: return "Pages (Apple)"
+        case .numbers: return "Numbers (Apple)"
+        case .key: return "Keynote (Apple)"
+        case .plist: return "PLIST (Property List)"
+        case .ics: return "ICS (iCalendar)"
+        case .vcf: return "VCF (vCard)"
+        case .webloc: return "WEBLOC (Web Shortcut)"
+        case .json: return "JSON"
+        case .xml: return "XML"
         case .jpg: return "JPEG"
         case .png: return "PNG"
         case .webp: return "WebP"
         case .heic: return "HEIC"
+        case .heics: return "HEICS (HEIC Sequence)"
+        case .heifs: return "HEIFS (HEIF Sequence)"
         case .tiff: return "TIFF"
         case .bmp: return "BMP"
         case .gif: return "GIF"
@@ -286,6 +309,7 @@ enum FileFormat: String, CaseIterable, Codable, Hashable, Identifiable, Sendable
         case .flac: return "FLAC"
         case .m4a: return "M4A (AAC)"
         case .m4b: return "M4B (Audiobook)"
+        case .m4r: return "M4R (iPhone Ringtone)"
         case .aac: return "AAC"
         case .ogg: return "OGG"
         case .opus: return "Opus"
@@ -344,14 +368,15 @@ enum FileFormat: String, CaseIterable, Codable, Hashable, Identifiable, Sendable
         case .pdf, .docx, .doc, .dotx, .docm,
              .xlsx, .xls, .xltx, .xlsm, .xlsb,
              .pptx, .ppt, .potx, .pptm, .ppsx, .pps,
-             .odt, .ods, .odp, .rtf, .csv, .tsv, .txt, .md, .html, .epub:
+             .odt, .ods, .odp, .rtf, .csv, .tsv, .txt, .md, .html, .epub,
+             .pages, .numbers, .key, .plist, .ics, .vcf, .webloc, .json, .xml:
             return .document
-        case .jpg, .png, .webp, .heic, .tiff, .bmp, .gif, .apng, .avif,
+        case .jpg, .png, .webp, .heic, .heics, .heifs, .tiff, .bmp, .gif, .apng, .avif,
              .jp2, .psd, .exr, .ppm, .hdr, .jxl, .qoi, .pcx, .wbmp, .sgi, .xpm,
              .svg, .ico, .icns, .tga,
              .dng, .cr2, .cr3, .nef, .nrw, .arw, .raf, .rw2, .orf, .pef, .srw:
             return .image
-        case .mp3, .wav, .flac, .m4a, .m4b, .aac, .ogg, .opus, .aiff, .caf, .alac,
+        case .mp3, .wav, .flac, .m4a, .m4b, .m4r, .aac, .ogg, .opus, .aiff, .caf, .alac,
              .ac3, .eac3, .dts, .wma, .au, .wv, .mka, .amr, .ape:
             return .audio
         case .mp4, .mov, .mkv, .webm, .avi, .wmv, .asf, .m4v, .threeGP, .threeG2,
@@ -368,18 +393,19 @@ enum FileFormat: String, CaseIterable, Codable, Hashable, Identifiable, Sendable
         switch self {
         case .pdf:
             return .pdf
-        case .docx, .doc, .dotx, .docm, .odt, .rtf, .txt, .md, .html, .epub:
+        case .docx, .doc, .dotx, .docm, .odt, .rtf, .txt, .md, .html, .epub,
+             .pages, .plist, .ics, .vcf, .webloc, .json, .xml:
             return .documents
-        case .xlsx, .xls, .xltx, .xlsm, .xlsb, .ods, .csv, .tsv:
+        case .xlsx, .xls, .xltx, .xlsm, .xlsb, .ods, .csv, .tsv, .numbers:
             return .spreadsheets
-        case .pptx, .ppt, .potx, .pptm, .ppsx, .pps, .odp:
+        case .pptx, .ppt, .potx, .pptm, .ppsx, .pps, .odp, .key:
             return .presentations
-        case .jpg, .png, .webp, .heic, .tiff, .bmp, .gif, .apng, .avif,
+        case .jpg, .png, .webp, .heic, .heics, .heifs, .tiff, .bmp, .gif, .apng, .avif,
              .jp2, .psd, .exr, .ppm, .hdr, .jxl, .qoi, .pcx, .wbmp, .sgi, .xpm,
              .svg, .ico, .icns, .tga,
              .dng, .cr2, .cr3, .nef, .nrw, .arw, .raf, .rw2, .orf, .pef, .srw:
             return .images
-        case .mp3, .wav, .flac, .m4a, .m4b, .aac, .ogg, .opus, .aiff, .caf, .alac,
+        case .mp3, .wav, .flac, .m4a, .m4b, .m4r, .aac, .ogg, .opus, .aiff, .caf, .alac,
              .ac3, .eac3, .dts, .wma, .au, .wv, .mka, .amr, .ape:
             return .audio
         case .mp4, .mov, .mkv, .webm, .avi, .wmv, .asf, .m4v, .threeGP, .threeG2,
@@ -420,10 +446,21 @@ enum FileFormat: String, CaseIterable, Codable, Hashable, Identifiable, Sendable
         case .md: return "text/markdown"
         case .html: return "text/html"
         case .epub: return "application/epub+zip"
+        case .pages: return "application/vnd.apple.pages"
+        case .numbers: return "application/vnd.apple.numbers"
+        case .key: return "application/vnd.apple.keynote"
+        case .plist: return "application/x-plist"
+        case .ics: return "text/calendar"
+        case .vcf: return "text/vcard"
+        case .webloc: return "application/x-apple-webloc"
+        case .json: return "application/json"
+        case .xml: return "application/xml"
         case .jpg: return "image/jpeg"
         case .png: return "image/png"
         case .webp: return "image/webp"
         case .heic: return "image/heic"
+        case .heics: return "image/heic-sequence"
+        case .heifs: return "image/heif-sequence"
         case .tiff: return "image/tiff"
         case .bmp: return "image/bmp"
         case .gif: return "image/gif"
@@ -458,6 +495,7 @@ enum FileFormat: String, CaseIterable, Codable, Hashable, Identifiable, Sendable
         case .flac: return "audio/flac"
         case .m4a: return "audio/mp4"
         case .m4b: return "audio/mp4"
+        case .m4r: return "audio/mp4"
         case .aac: return "audio/aac"
         case .ogg: return "audio/ogg"
         case .opus: return "audio/opus"
@@ -519,10 +557,21 @@ enum FileFormat: String, CaseIterable, Codable, Hashable, Identifiable, Sendable
         case .txt: return .plainText
         case .html: return .html
         case .epub: return .epub
+        case .pages: return UTType("com.apple.iwork.pages.sffpages") ?? UTType("com.apple.iwork.pages.pages") ?? UTType(filenameExtension: "pages")
+        case .numbers: return UTType("com.apple.iwork.numbers.sffnumbers") ?? UTType("com.apple.iwork.numbers.numbers") ?? UTType(filenameExtension: "numbers")
+        case .key: return UTType("com.apple.iwork.keynote.sffkey") ?? UTType("com.apple.iwork.keynote.key") ?? UTType(filenameExtension: "key")
+        case .plist: return .propertyList
+        case .ics: return UTType("com.apple.ical.ics") ?? UTType(filenameExtension: "ics")
+        case .vcf: return .vCard
+        case .webloc: return UTType("com.apple.web-internet-location") ?? UTType(filenameExtension: "webloc")
+        case .json: return .json
+        case .xml: return .xml
         case .jpg: return .jpeg
         case .png, .apng: return .png
         case .webp: return .webP
         case .heic: return .heic
+        case .heics: return UTType("public.heics") ?? UTType(filenameExtension: "heics")
+        case .heifs: return UTType("public.heifs") ?? UTType(filenameExtension: "heifs")
         case .tiff: return .tiff
         case .bmp: return .bmp
         case .gif: return .gif
@@ -552,6 +601,7 @@ enum FileFormat: String, CaseIterable, Codable, Hashable, Identifiable, Sendable
         case .mp3: return .mp3
         case .wav: return .wav
         case .aiff: return .aiff
+        case .m4r: return UTType("com.apple.mpeg-4-ringtone") ?? UTType(filenameExtension: "m4r")
         case .mp4: return .mpeg4Movie
         case .mov: return .quickTimeMovie
         case .avi: return .avi
@@ -622,6 +672,8 @@ enum FileFormat: String, CaseIterable, Codable, Hashable, Identifiable, Sendable
             return .dng
         case "markdown": return .md
         case "htm", "xhtml": return .html
+        case "ical": return .ics
+        case "vcard": return .vcf
         case "fodt": return .odt
         case "fods": return .ods
         case "fodp": return .odp
@@ -646,6 +698,11 @@ enum FileFormat: String, CaseIterable, Codable, Hashable, Identifiable, Sendable
     }
     
     static func from(utType: UTType) -> FileFormat? {
+        for format in FileFormat.allCases {
+            if let formatUTType = format.utType, formatUTType == utType {
+                return format
+            }
+        }
         for format in FileFormat.allCases {
             if let formatUTType = format.utType, utType.conforms(to: formatUTType) {
                 return format

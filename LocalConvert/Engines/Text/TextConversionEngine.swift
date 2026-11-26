@@ -1,7 +1,7 @@
 import Foundation
 import os.log
 
-// MARK: - Text / CSV Conversion Engine
+// MARK: - Text / Apple Data Format Conversion Engine
 
 final class TextConversionEngine: ConversionEngine, @unchecked Sendable {
     
@@ -10,25 +10,42 @@ final class TextConversionEngine: ConversionEngine, @unchecked Sendable {
     private let logger = Logger(subsystem: "com.localconvert.app", category: "TextEngine")
     
     var supportedInputFormats: Set<FileFormat> {
-        [.csv, .tsv]
+        [.csv, .tsv, .plist, .json, .xml, .webloc, .ics, .vcf]
     }
     
     var supportedOutputFormats: Set<FileFormat> {
-        [.csv, .tsv]
+        [.csv, .tsv, .plist, .json, .xml, .txt, .md]
     }
     
     func canConvert(from input: FileFormat, to output: FileFormat) -> Bool {
-        return (input == .csv && output == .tsv) || (input == .tsv && output == .csv)
+        availableOutputFormats(for: input).contains(output)
     }
     
     func availableOutputFormats(for input: FileFormat) -> Set<FileFormat> {
-        if input == .csv { return [.tsv] }
-        if input == .tsv { return [.csv] }
-        return []
+        switch input {
+        case .csv:
+            return [.tsv]
+        case .tsv:
+            return [.csv]
+        case .plist:
+            return [.json, .xml]
+        case .json:
+            return [.plist, .xml]
+        case .xml:
+            return [.plist, .json]
+        case .webloc:
+            return [.json, .txt, .md, .csv]
+        case .ics:
+            return [.json, .csv, .txt]
+        case .vcf:
+            return [.json, .csv, .txt]
+        default:
+            return []
+        }
     }
     
     func optionDescriptors(from input: FileFormat, to output: FileFormat) -> [ConversionOptionDescriptor] {
-        return [] // No special options needed for pure CSV/TSV swap
+        return []
     }
     
     func isAvailable() async -> Bool {
@@ -47,47 +64,130 @@ final class TextConversionEngine: ConversionEngine, @unchecked Sendable {
         
         try Task.checkCancellation()
         
-        guard FileManager.default.fileExists(atPath: input.path) else {
+        var isDir: ObjCBool = false
+        guard FileManager.default.fileExists(atPath: input.path, isDirectory: &isDir) else {
             throw ConversionError.inputFileNotFound(input)
         }
-        
-        guard FileManager.default.isWritableFile(atPath: outputDirectory.path) else {
-            throw ConversionError.outputDirectoryNotWritable(outputDirectory)
+        guard !isDir.boolValue else {
+            throw ConversionError.invalidInput("Expected a file, not a directory: \(input.lastPathComponent)")
         }
         
-        progress(.determinate(0.1, message: "Reading text file..."))
-        
-        let text = try String(contentsOf: input, encoding: .utf8)
-        
+        try OutputReservationCoordinator.validateWritableDirectory(outputDirectory)
+
+        if let fileSize = (try? FileManager.default.attributesOfItem(atPath: input.path)[.size] as? NSNumber)?.int64Value,
+           fileSize > AppleDataFormatConverter.maxInputFileBytes {
+            throw ConversionError.invalidInput("Input file '\(input.lastPathComponent)' exceeds the \(AppleDataFormatConverter.maxInputFileBytes / (1024 * 1024)) MB limit.")
+        }
+
+        guard let inputFormat = resolveInputFormat(for: input, options: options) else {
+            throw ConversionError.invalidInput("Unable to recognize text/data format for '\(input.lastPathComponent)'.")
+        }
+        guard canConvert(from: inputFormat, to: outputFormat) else {
+            throw ConversionError.unsupportedConversion(from: inputFormat, to: outputFormat)
+        }
+
+        progress(.determinate(0.1, message: "Reading \(inputFormat.shortExtensionLabel) file..."))
+
+        let inputData = try Data(contentsOf: input)
+
         try Task.checkCancellation()
-        
-        progress(.determinate(0.4, message: "Parsing content..."))
-        
-        let isCSVInput = input.pathExtension.lowercased() == "csv"
-        let sourceSeparator: Character = isCSVInput ? "," : "\t"
-        let targetSeparator: Character = isCSVInput ? "\t" : ","
-        
-        // Robust CSV/TSV parser (handles quotes and newlines inside quotes)
-        let rows = parseCSV(text: text, separator: sourceSeparator)
-        
-        progress(.determinate(0.7, message: "Writing output..."))
-        
-        let outputText = generateCSV(rows: rows, separator: targetSeparator)
-        
-        let outputURL = try ConversionManager.reserveOutputURL(
+
+        progress(.determinate(0.4, message: "Parsing \(inputFormat.shortExtensionLabel) content..."))
+
+        let plistOutputFormat: PropertyListSerialization.PropertyListFormat =
+            options.customOptions["plist_format"]?.lowercased() == "binary" ? .binary : .xml
+
+        let outputData: Data
+        switch (inputFormat, outputFormat) {
+        case (.csv, .tsv), (.tsv, .csv):
+            guard let text = String(data: inputData, encoding: .utf8) else {
+                throw ConversionError.invalidInput("Unable to decode \(input.lastPathComponent) as UTF-8 text.")
+            }
+            let sourceSeparator: Character = (inputFormat == .csv) ? "," : "\t"
+            let targetSeparator: Character = (outputFormat == .csv) ? "," : "\t"
+            let rows = parseCSV(text: text, separator: sourceSeparator)
+            let outputText = generateCSV(rows: rows, separator: targetSeparator)
+            guard let encoded = outputText.data(using: .utf8) else {
+                throw ConversionError.engineExecutionFailed("Failed to encode \(outputFormat.shortExtensionLabel) output as UTF-8.", underlyingError: nil)
+            }
+            outputData = encoded
+
+        case (.plist, _):
+            outputData = try AppleDataFormatConverter.convertPlist(
+                data: inputData,
+                to: outputFormat,
+                plistOutputFormat: plistOutputFormat
+            )
+
+        case (.json, _):
+            outputData = try AppleDataFormatConverter.convertJSON(
+                data: inputData,
+                to: outputFormat,
+                plistOutputFormat: plistOutputFormat
+            )
+
+        case (.xml, _):
+            outputData = try AppleDataFormatConverter.convertXML(
+                data: inputData,
+                to: outputFormat,
+                plistOutputFormat: plistOutputFormat
+            )
+
+        case (.webloc, _):
+            let doc = try AppleDataFormatConverter.parseWebloc(data: inputData, sourceURL: input)
+            outputData = try AppleDataFormatConverter.exportWebloc(
+                doc,
+                sourceFilename: input.lastPathComponent,
+                to: outputFormat
+            )
+
+        case (.ics, _):
+            let doc = try AppleDataFormatConverter.parseICalendar(data: inputData)
+            outputData = try AppleDataFormatConverter.exportICalendar(doc, to: outputFormat)
+
+        case (.vcf, _):
+            let contacts = try AppleDataFormatConverter.parseVCard(data: inputData)
+            outputData = try AppleDataFormatConverter.exportVCards(contacts, to: outputFormat)
+
+        default:
+            throw ConversionError.unsupportedConversion(from: inputFormat, to: outputFormat)
+        }
+
+        try Task.checkCancellation()
+
+        progress(.determinate(0.75, message: "Writing \(outputFormat.shortExtensionLabel) output..."))
+
+        let tempURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent("LocalConvert-Text-\(UUID().uuidString).\(outputFormat.fileExtension)")
+        defer {
+            if FileManager.default.fileExists(atPath: tempURL.path) {
+                try? FileManager.default.removeItem(at: tempURL)
+            }
+        }
+
+        try outputData.write(to: tempURL, options: .atomic)
+
+        try Task.checkCancellation()
+
+        let reservedURL = try OutputReservationCoordinator.reserveOutputURL(
             for: input,
             format: outputFormat,
             in: outputDirectory,
             options: options
         )
-        defer { ConversionManager.releaseReservedOutputURL(outputURL) }
-        try outputText.write(to: outputURL, atomically: true, encoding: .utf8)
-        
+        defer { OutputReservationCoordinator.releaseReservedOutputURL(reservedURL) }
+
+        let outputURL = try OutputReservationCoordinator.moveOrReplaceTempFile(
+            tempURL,
+            to: reservedURL,
+            policy: options.resolvedExistingFileHandling
+        )
+
         let duration = CFAbsoluteTimeGetCurrent() - startTime
         let fileSize = (try? FileManager.default.attributesOfItem(atPath: outputURL.path)[.size] as? Int64) ?? 0
-        
+
         logger.info("Text conversion succeeded: \(input.lastPathComponent) -> \(outputURL.lastPathComponent)")
-        
+
         return ConversionResult(
             outputURL: outputURL,
             outputFormat: outputFormat,
@@ -95,6 +195,23 @@ final class TextConversionEngine: ConversionEngine, @unchecked Sendable {
             duration: duration,
             engineName: name
         )
+    }
+
+    private func resolveInputFormat(for input: URL, options: ConversionOptions) -> FileFormat? {
+        if let explicitRaw = options.customOptions["input_format"],
+           let explicit = FileFormat.from(extension: explicitRaw),
+           supportedInputFormats.contains(explicit) {
+            return explicit
+        }
+        if let extFormat = FileFormat.from(extension: input.pathExtension),
+           supportedInputFormats.contains(extFormat) {
+            return extFormat
+        }
+        if let detected = FileDetector.detectFormat(url: input),
+           supportedInputFormats.contains(detected) {
+            return detected
+        }
+        return nil
     }
     
     // MARK: - Robust Parsing

@@ -523,36 +523,36 @@ struct LocalConvertApp: App {
                     AppLifecycleManager.shared.restoreOrActivateMainWindow(selectTab: .pdfToolbox, appState: appState)
                 }
                 .keyboardShortcut(KeyboardShortcutDescriptor.swiftUIShortcut(forID: "nav_pdf"))
-                
-                Button("Audio Toolbox") {
-                    AppLifecycleManager.shared.restoreOrActivateMainWindow(selectTab: .audioToolbox, appState: appState)
-                }
-                .keyboardShortcut(KeyboardShortcutDescriptor.swiftUIShortcut(forID: "nav_audio"))
-                
-                Button("Image Toolbox") {
-                    AppLifecycleManager.shared.restoreOrActivateMainWindow(selectTab: .imageToolbox, appState: appState)
-                }
-                .keyboardShortcut(KeyboardShortcutDescriptor.swiftUIShortcut(forID: "nav_image"))
 
                 Button("Audio Workspace") {
                     AppLifecycleManager.shared.restoreOrActivateMainWindow(selectTab: .audioWorkspace, appState: appState)
                 }
                 .keyboardShortcut(KeyboardShortcutDescriptor.swiftUIShortcut(forID: "nav_audio_workspace"))
-                
+
+                Button("Image Toolbox") {
+                    AppLifecycleManager.shared.restoreOrActivateMainWindow(selectTab: .imageToolbox, appState: appState)
+                }
+                .keyboardShortcut(KeyboardShortcutDescriptor.swiftUIShortcut(forID: "nav_image"))
+
                 Button("Metadata") {
                     AppLifecycleManager.shared.restoreOrActivateMainWindow(selectTab: .metadata, appState: appState)
                 }
                 .keyboardShortcut(KeyboardShortcutDescriptor.swiftUIShortcut(forID: "nav_metadata"))
-                
+
                 Button("Presets") {
                     AppLifecycleManager.shared.restoreOrActivateMainWindow(selectTab: .presets, appState: appState)
                 }
                 .keyboardShortcut(KeyboardShortcutDescriptor.swiftUIShortcut(forID: "nav_presets"))
-                
+
                 Button("History") {
                     AppLifecycleManager.shared.restoreOrActivateMainWindow(selectTab: .history, appState: appState)
                 }
                 .keyboardShortcut(KeyboardShortcutDescriptor.swiftUIShortcut(forID: "nav_history"))
+
+                Button("Settings") {
+                    AppLifecycleManager.shared.restoreOrActivateMainWindow(selectTab: .settings, appState: appState)
+                }
+                .keyboardShortcut(KeyboardShortcutDescriptor.swiftUIShortcut(forID: "nav_settings"))
             }
         }
     }

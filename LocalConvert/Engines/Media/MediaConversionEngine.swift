@@ -17,12 +17,12 @@ final class MediaConversionEngine: ConversionEngine, @unchecked Sendable {
     // MARK: - Supported Formats
     
     private static let audioInputs: Set<FileFormat> = [
-        .mp3, .wav, .flac, .aac, .m4a, .m4b, .ogg, .opus, .aiff, .caf, .alac,
+        .mp3, .wav, .flac, .aac, .m4a, .m4b, .m4r, .ogg, .opus, .aiff, .caf, .alac,
         .ac3, .eac3, .dts, .wma, .au, .wv, .mka, .amr, .ape
     ]
     
     private static let audioOutputs: Set<FileFormat> = [
-        .mp3, .wav, .flac, .aac, .m4a, .m4b, .ogg, .opus, .aiff, .caf, .alac,
+        .mp3, .wav, .flac, .aac, .m4a, .m4b, .m4r, .ogg, .opus, .aiff, .caf, .alac,
         .ac3, .eac3, .dts, .wma, .au, .wv, .mka
     ]
     
@@ -199,6 +199,25 @@ final class MediaConversionEngine: ConversionEngine, @unchecked Sendable {
                         title: "Apple Lossless (ALAC)",
                         description: "Encode lossless ALAC audio inside M4A container instead of AAC",
                         kind: .toggle(title: "Encode as Apple Lossless (ALAC)", defaultValue: false)
+                    )
+                )
+            } else if output == .m4r {
+                descriptors.append(
+                    ConversionOptionDescriptor(
+                        id: "ringtone_duration",
+                        title: "Max Ringtone Duration",
+                        description: "iPhone ringtones are trimmed to 30 seconds by default unless a shorter duration is chosen",
+                        kind: .picker(
+                            choices: [
+                                OptionChoice(value: "", label: "Auto (Max 30s)"),
+                                OptionChoice(value: "10", label: "10 seconds"),
+                                OptionChoice(value: "15", label: "15 seconds"),
+                                OptionChoice(value: "20", label: "20 seconds"),
+                                OptionChoice(value: "25", label: "25 seconds"),
+                                OptionChoice(value: "30", label: "30 seconds (Max)")
+                            ],
+                            defaultValue: ""
+                        )
                     )
                 )
             }

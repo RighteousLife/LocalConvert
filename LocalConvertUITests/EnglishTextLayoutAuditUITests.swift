@@ -383,11 +383,17 @@ final class EnglishTextLayoutAuditUITests: XCTestCase {
         assertNoVerticalLetterStacking(in: window, screen: "PDFToolbox_820x580")
         try captureScreenshot(window: window, name: "07_pdf_toolbox_820x580")
 
-        // 6. Audio Toolbox
-        clickSidebarTab(app, title: "Audio Toolbox")
+        // Verify legacy Audio Toolbox sidebar tab was consolidated into Audio Workspace
+        XCTAssertFalse(app.outlines.firstMatch.staticTexts["Audio Toolbox"].exists)
+
+        // 6. Audio Workspace -> Audio Tools (consolidated Audio Toolbox)
+        clickSidebarTab(app, title: "Audio Workspace")
+        let toolsModeButton = app.buttons["audioworkspace.mode.tools"]
+        XCTAssertTrue(toolsModeButton.waitForExistence(timeout: 5))
+        toolsModeButton.click()
         RunLoop.current.run(until: Date().addingTimeInterval(0.4))
-        assertNoVerticalLetterStacking(in: window, screen: "AudioToolbox_820x580")
-        try captureScreenshot(window: window, name: "08_audio_toolbox_820x580")
+        assertNoVerticalLetterStacking(in: window, screen: "AudioWorkspace_AudioTools_820x580")
+        try captureScreenshot(window: window, name: "08_audio_tools_820x580")
 
         // 7. Image Toolbox
         clickSidebarTab(app, title: "Image Toolbox")
@@ -395,8 +401,12 @@ final class EnglishTextLayoutAuditUITests: XCTestCase {
         assertNoVerticalLetterStacking(in: window, screen: "ImageToolbox_820x580")
         try captureScreenshot(window: window, name: "09_image_toolbox_820x580")
 
-        // 8. Audio Workspace
+        // 8. Audio Workspace (Library)
         clickSidebarTab(app, title: "Audio Workspace")
+        let libraryModeButton = app.buttons["audioworkspace.mode.library"]
+        if libraryModeButton.waitForExistence(timeout: 3) {
+            libraryModeButton.click()
+        }
         RunLoop.current.run(until: Date().addingTimeInterval(0.4))
         assertNoVerticalLetterStacking(in: window, screen: "AudioWorkspace_820x580")
         try captureScreenshot(window: window, name: "10_audio_workspace_820x580")

@@ -364,9 +364,9 @@ enum CommandPaletteCatalog {
         case .pdfToolbox:
             return ("Merge, split, compress, OCR, redact, and inspect PDFs", "nav_pdf", ["tab", "pdf", "document"])
         case .audioToolbox:
-            return ("Convert, trim, normalize, and inspect audio files", "nav_audio", ["tab", "audio", "sound"])
+            return ("Convert, trim, normalize, and inspect audio files in Audio Workspace", "nav_audio_workspace", ["tab", "audio", "audio tools", "audio toolbox", "sound"])
         case .audioWorkspace:
-            return ("Local audio library, waveform editor, and audio tools", "nav_audio_workspace", ["tab", "audio workspace", "music", "waveform"])
+            return ("Local audio library, waveform editor, and audio tools", "nav_audio_workspace", ["tab", "audio workspace", "audio tools", "audio toolbox", "music", "waveform"])
         case .imageToolbox:
             return ("Convert, resize, crop, optimize, remove background, and watermark", "nav_image", ["tab", "image", "photo", "jxl", "webp"])
         case .metadata:
@@ -376,7 +376,7 @@ enum CommandPaletteCatalog {
         case .history:
             return ("Browse past conversions and Watch Folder activity", "nav_history", ["tab", "history", "log"])
         case .settings:
-            return ("Configure output defaults, appearance, and keyboard shortcuts", "settings", ["tab", "preferences", "shortcuts"])
+            return ("Configure output defaults, appearance, and keyboard shortcuts", "nav_settings", ["tab", "preferences", "shortcuts"])
         }
     }
 
@@ -398,7 +398,7 @@ enum CommandPaletteCatalog {
         case .waveformEditor:
             return ["audio workspace", "waveform", "editor", "timeline", "trim", "cut", "mix"]
         case .audioTools:
-            return ["audio workspace", "audio tools", "toolbox", "convert", "spotify"]
+            return ["audio workspace", "audio tools", "audio toolbox", "toolbox", "convert", "trim", "normalize", "spotify"]
         }
     }
 
@@ -737,7 +737,11 @@ enum CommandPaletteRouter {
     ) {
         switch item.action {
         case .navigationTab(let tab):
-            appState.selectedTab = tab
+            if tab == .audioToolbox {
+                appState.openAudioTools()
+            } else {
+                appState.selectedTab = tab
+            }
 
         case .pdfTool:
             appState.selectedTab = .pdfToolbox
@@ -746,8 +750,8 @@ enum CommandPaletteRouter {
             appState.selectedTab = .imageToolbox
 
         case .audioWorkspaceMode(let mode):
-            appState.selectedTab = .audioWorkspace
             appState.audioWorkspace.activeMode = mode
+            appState.selectedTab = .audioWorkspace
 
         case .preset(let preset):
             presetManager.selectedPresetId = preset.id

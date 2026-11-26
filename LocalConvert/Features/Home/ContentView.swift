@@ -107,9 +107,7 @@ struct ContentView: View {
             JobsCenterView()
         case .pdfToolbox:
             PDFToolboxView()
-        case .audioToolbox:
-            AudioToolboxView()
-        case .audioWorkspace:
+        case .audioToolbox, .audioWorkspace:
             AudioWorkspaceRootView(
                 coordinator: appState.audioWorkspace,
                 editorStore: appState.audioEditorStore,

@@ -106,6 +106,21 @@ enum AppNavigationTab: String, Hashable, CaseIterable, Identifiable {
     case presets = "Presets"
     case history = "History"
     case settings = "Settings"
+
+    /// The 9 primary sidebar tabs in exact navigation/shortcut (`⌘1`–`⌘9`) order.
+    /// `.audioToolbox` is retained solely as an internal compatibility route that redirects
+    /// into `.audioWorkspace` (`Audio Tools` mode).
+    static let allCases: [AppNavigationTab] = [
+        .convert,
+        .jobs,
+        .pdfToolbox,
+        .audioWorkspace,
+        .imageToolbox,
+        .metadata,
+        .presets,
+        .history,
+        .settings
+    ]
     
     var id: String { rawValue }
     
@@ -157,7 +172,14 @@ final class AppState: ObservableObject {
     let fileDetector = FileDetector()
     private var isUITestingOutputLocked = false
     
-    @Published var selectedTab: AppNavigationTab = .convert
+    @Published var selectedTab: AppNavigationTab = .convert {
+        didSet {
+            if selectedTab == .audioToolbox {
+                audioWorkspace.activeMode = .audioTools
+                selectedTab = .audioWorkspace
+            }
+        }
+    }
     @Published var droppedFiles: [DroppedFile] = []
     @Published var outputLocation: OutputLocation = .sameFolder {
         didSet {
@@ -450,9 +472,17 @@ final class AppState: ObservableObject {
             break
         case .audioToolbox where categories.contains(.audio) || categories.contains(.video):
             break
+        case .audioWorkspace where (categories.contains(.audio) || categories.contains(.video)) && audioWorkspace.activeMode == .audioTools:
+            break
         default:
             selectedTab = .convert
         }
+    }
+
+    /// Navigates directly to Audio Workspace in Audio Tools mode.
+    public func openAudioTools() {
+        audioWorkspace.activeMode = .audioTools
+        selectedTab = .audioWorkspace
     }
 
     /// True when at least one queued file has a valid detected format and target output format and no conversion is currently running.

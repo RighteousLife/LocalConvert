@@ -140,9 +140,14 @@ final class ConversionRegistry: @unchecked Sendable {
                 recommendations.append(target)
             }
         case .document:
-            let preferred: [FileFormat] = (inputFormat == .pdf)
-                ? [.docx, .xlsx, .pptx, .png, .jpg]
-                : [.pdf, .docx, .xlsx, .pptx, .odt, .ods, .odp]
+            let preferred: [FileFormat]
+            if inputFormat == .pdf {
+                preferred = [.docx, .xlsx, .pptx, .png, .jpg]
+            } else if [.plist, .json, .xml, .ics, .vcf, .webloc].contains(inputFormat) {
+                preferred = [.json, .xml, .plist, .csv, .txt, .md]
+            } else {
+                preferred = [.pdf, .docx, .xlsx, .pptx, .odt, .ods, .odp, .rtf, .txt, .csv]
+            }
             for target in preferred where supported.contains(target) {
                 recommendations.append(target)
             }

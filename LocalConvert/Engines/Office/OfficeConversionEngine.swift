@@ -1201,9 +1201,14 @@ final class OfficeConversionEngine: ConversionEngine, @unchecked Sendable {
     
     private let logger = Logger(subsystem: "com.localconvert.app", category: "OfficeEngine")
     let provider: OfficeEngineProvider
+    let iWorkBridge: IWorkConversionBridge
     
-    init(provider: OfficeEngineProvider = BundledLibreOfficeProvider(fallbackToSystem: BundledBinarySecurityPolicy.allowsSystemFallback)) {
+    init(
+        provider: OfficeEngineProvider = BundledLibreOfficeProvider(fallbackToSystem: BundledBinarySecurityPolicy.allowsSystemFallback),
+        iWorkBridge: IWorkConversionBridge = IWorkConversionBridge()
+    ) {
         self.provider = provider
+        self.iWorkBridge = iWorkBridge
     }
     
     private static let writerInputs: Set<FileFormat> = [
@@ -1231,6 +1236,7 @@ final class OfficeConversionEngine: ConversionEngine, @unchecked Sendable {
         Self.writerInputs
             .union(Self.spreadsheetInputs)
             .union(Self.presentationInputs)
+            .union(IWorkConversionBridge.supportedInputFormats)
             .union([.pdf])
     }
     
@@ -1247,6 +1253,9 @@ final class OfficeConversionEngine: ConversionEngine, @unchecked Sendable {
     func availableOutputFormats(for input: FileFormat) -> Set<FileFormat> {
         if input == .pdf {
             return [.docx, .xlsx, .pptx]
+        }
+        if IWorkConversionBridge.supportedInputFormats.contains(input) {
+            return IWorkConversionBridge.availableOutputFormats(for: input)
         }
         
         var outputs = Set<FileFormat>()
@@ -1268,6 +1277,9 @@ final class OfficeConversionEngine: ConversionEngine, @unchecked Sendable {
     
     func optionDescriptors(from input: FileFormat, to output: FileFormat) -> [ConversionOptionDescriptor] {
         guard canConvert(from: input, to: output) else { return [] }
+        if IWorkConversionBridge.supportedInputFormats.contains(input) {
+            return []
+        }
         var descriptors: [ConversionOptionDescriptor] = []
         
         let validPresets: [ConversionPreset] = [.custom, .documentPDF, .documentEditable, .documentPrintArchive]
@@ -1295,14 +1307,21 @@ final class OfficeConversionEngine: ConversionEngine, @unchecked Sendable {
     }
     
     func isAvailable() async -> Bool {
-        await provider.isAvailable()
+        if await provider.isAvailable() {
+            return true
+        }
+        return iWorkBridge.isAnyAppAvailable()
     }
     
     /// Diagnostics method returning the active provider version if available
     func diagnostics() async -> String {
         let isAvail = await provider.isAvailable()
         let ver = await provider.version() ?? "unknown"
-        return "Provider: \(provider.providerName), Available: \(isAvail), Version: \(ver)"
+        let installedIWork = IWorkApplication.allCases
+            .filter { iWorkBridge.isApplicationInstalled($0) }
+            .map(\.appName)
+        let iWorkSummary = installedIWork.isEmpty ? "none" : installedIWork.joined(separator: ", ")
+        return "Provider: \(provider.providerName), Available: \(isAvail), Version: \(ver), iWork: \(iWorkSummary)"
     }
     
     func convert(
@@ -1317,6 +1336,17 @@ final class OfficeConversionEngine: ConversionEngine, @unchecked Sendable {
         
         try Task.checkCancellation()
         
+        if let iWorkFormat = IWorkConversionBridge.resolveInputFormat(for: input) {
+            return try await iWorkBridge.convert(
+                input: input,
+                inputFormat: iWorkFormat,
+                to: outputFormat,
+                outputDirectory: outputDirectory,
+                options: options,
+                progress: progress
+            )
+        }
+
         let outputURL = try await provider.convert(
             input: input,
             to: outputFormat,

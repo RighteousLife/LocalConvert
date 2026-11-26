@@ -344,7 +344,7 @@ enum AudioFilterGraphBuilder {
 
     static func containerMuxerArguments(for outputFormat: FileFormat) -> [String] {
         switch outputFormat {
-        case .m4a, .alac:
+        case .m4a, .m4r, .alac:
             return ["-f", "ipod"]
         case .m4b:
             return ["-f", "mp4"]

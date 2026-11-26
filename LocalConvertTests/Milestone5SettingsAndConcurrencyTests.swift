@@ -159,18 +159,38 @@ final class Milestone5SettingsAndConcurrencyTests: XCTestCase {
     func testKeyboardShortcutDescriptorParityWithLiveMenuBindings() {
         XCTAssertFalse(KeyboardShortcutDescriptor.hasDuplicateShortcuts)
 
+        // Verify consolidated 9-tab sidebar structure
+        let expectedTabs: [AppNavigationTab] = [
+            .convert, .jobs, .pdfToolbox, .audioWorkspace,
+            .imageToolbox, .metadata, .presets, .history, .settings
+        ]
+        XCTAssertEqual(AppNavigationTab.allCases, expectedTabs)
+        XCTAssertEqual(AppNavigationTab.allCases.count, 9)
+        XCTAssertFalse(AppNavigationTab.allCases.contains(.audioToolbox))
+
         let descriptors = KeyboardShortcutDescriptor.defaultShortcuts
         let byID = Dictionary(uniqueKeysWithValues: descriptors.map { ($0.id, $0) })
 
-        // Verify newly unified shortcuts are present with exact key equivalents
+        XCTAssertNil(byID["nav_audio"], "Redundant nav_audio shortcut must be removed after Audio Toolbox consolidation")
+
+        // Verify newly aligned 1-to-1 Navigation shortcuts and key equivalents
         let audioWorkspace = byID["nav_audio_workspace"]
-        XCTAssertEqual(audioWorkspace?.shortcut, "⌘9")
+        XCTAssertEqual(audioWorkspace?.shortcut, "⌘4")
         XCTAssertEqual(audioWorkspace?.category, "Navigation")
         XCTAssertEqual(
             audioWorkspace?.keySpec,
-            KeyboardShortcutDescriptor.KeySpec(key: .character("9"), modifiers: [.command])
+            KeyboardShortcutDescriptor.KeySpec(key: .character("4"), modifiers: [.command])
         )
         XCTAssertNotNil(KeyboardShortcutDescriptor.swiftUIShortcut(forID: "nav_audio_workspace"))
+
+        let navSettings = byID["nav_settings"]
+        XCTAssertEqual(navSettings?.shortcut, "⌘9")
+        XCTAssertEqual(navSettings?.category, "Navigation")
+        XCTAssertEqual(
+            navSettings?.keySpec,
+            KeyboardShortcutDescriptor.KeySpec(key: .character("9"), modifiers: [.command])
+        )
+        XCTAssertNotNil(KeyboardShortcutDescriptor.swiftUIShortcut(forID: "nav_settings"))
 
         let editingHistory = byID["editing_history"]
         XCTAssertEqual(editingHistory?.shortcut, "⌥⌘Z")
@@ -180,6 +200,15 @@ final class Milestone5SettingsAndConcurrencyTests: XCTestCase {
             KeyboardShortcutDescriptor.KeySpec(key: .character("z"), modifiers: [.command, .option])
         )
         XCTAssertNotNil(KeyboardShortcutDescriptor.swiftUIShortcut(forID: "editing_history"))
+
+        let commandPalette = byID["command_palette"]
+        XCTAssertEqual(commandPalette?.shortcut, "⌘K")
+        XCTAssertEqual(commandPalette?.category, "General")
+        XCTAssertEqual(
+            commandPalette?.keySpec,
+            KeyboardShortcutDescriptor.KeySpec(key: .character("k"), modifiers: [.command])
+        )
+        XCTAssertNotNil(KeyboardShortcutDescriptor.swiftUIShortcut(forID: "command_palette"))
 
         let cancel = byID["cancel"]
         XCTAssertEqual(cancel?.shortcut, "Esc")
@@ -194,9 +223,10 @@ final class Milestone5SettingsAndConcurrencyTests: XCTestCase {
         let expectedLiveMenuIDs = [
             "settings", "undo", "redo", "editing_history",
             "add_files", "convert_all", "repeat_last", "cancel",
-            "nav_convert", "nav_jobs", "nav_pdf", "nav_metadata",
-            "nav_presets", "nav_history", "nav_audio", "nav_image",
-            "nav_audio_workspace", "quit"
+            "command_palette",
+            "nav_convert", "nav_jobs", "nav_pdf", "nav_audio_workspace",
+            "nav_image", "nav_metadata", "nav_presets", "nav_history",
+            "nav_settings", "quit"
         ]
         for id in expectedLiveMenuIDs {
             let descriptor = KeyboardShortcutDescriptor.descriptor(forID: id)
@@ -205,9 +235,17 @@ final class Milestone5SettingsAndConcurrencyTests: XCTestCase {
             XCTAssertNotNil(KeyboardShortcutDescriptor.swiftUIShortcut(forID: id), "Missing SwiftUI KeyboardShortcut for menu ID '\(id)'")
         }
 
-        // Verify all 9 non-Settings navigation tabs map 1:1 to ⌘1..⌘9 descriptors
-        let navShortcuts = descriptors.filter { $0.category == "Navigation" }.map(\.shortcut)
-        XCTAssertEqual(Set(navShortcuts), Set((1...9).map { "⌘\($0)" }))
+        // Verify all 9 sidebar navigation tabs map 1:1 in exact sidebar order to ⌘1..⌘9 descriptors
+        let navDescriptors = descriptors.filter { $0.category == "Navigation" }
+        XCTAssertEqual(navDescriptors.count, AppNavigationTab.allCases.count)
+        XCTAssertEqual(navDescriptors.map(\.shortcut), (1...9).map { "⌘\($0)" })
+        XCTAssertEqual(
+            navDescriptors.map(\.id),
+            [
+                "nav_convert", "nav_jobs", "nav_pdf", "nav_audio_workspace",
+                "nav_image", "nav_metadata", "nav_presets", "nav_history", "nav_settings"
+            ]
+        )
     }
 
     @MainActor
@@ -331,7 +369,12 @@ final class Milestone5SettingsAndConcurrencyTests: XCTestCase {
     func testAppStateScopesSubStoreObjectWillChangeWithoutBreakingActiveTabs() throws {
         let sandbox = try TestSandbox(runID: "M5-AppStateScope-\(UUID().uuidString)")
         let prevShared = AppState.shared
+        AppStoragePaths.setTestOverrides(
+            sandboxRoot: sandbox.rootURL,
+            defaultsSuiteName: sandbox.userDefaultsSuiteName
+        )
         defer {
+            AppStoragePaths.clearTestOverrides()
             AppState.shared = prevShared
             _ = sandbox.cleanup()
         }
@@ -405,7 +448,11 @@ final class Milestone5SettingsAndConcurrencyTests: XCTestCase {
         }
         XCTAssertGreaterThan(publishCount, 0)
 
+        // Legacy .audioToolbox route redirects cleanly to Audio Workspace (Audio Tools mode)
+        // and still rebroadcasts audioToolboxStore changes.
         appState.selectedTab = .audioToolbox
+        XCTAssertEqual(appState.selectedTab, .audioWorkspace)
+        XCTAssertEqual(appState.audioWorkspace.activeMode, .audioTools)
         publishCount = 0
         appState.audioToolboxStore.updateState(for: sampleAudioURL, recordUndo: false) { state in
             state.targetFormat = .wav

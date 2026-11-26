@@ -6,6 +6,7 @@ import os.log
 class BaseFFmpegProvider: FFmpegProvider, @unchecked Sendable {
     
     static let defaultConversionTimeoutSeconds: TimeInterval = 1800.0
+    static let maxRingtoneDurationSeconds: Double = 30.0
     var providerName: String { "Base FFmpeg" }
     
     let logger = Logger(subsystem: "com.localconvert.app", category: "FFmpegProvider")
@@ -100,7 +101,22 @@ class BaseFFmpegProvider: FFmpegProvider, @unchecked Sendable {
                 throw ConversionError.invalidInput(trimValidation.errorMessage ?? "Invalid video trim configuration.")
             }
         }
-        let totalDuration = max(options.videoTrim?.durationSeconds ?? inputInfo.duration, 0.1)
+        if outputFormat == .m4r {
+            try Self.validateRingtoneDurationOption(options: options)
+        }
+        let durationLimit = Self.effectiveOutputDurationLimitSeconds(outputFormat: outputFormat, options: options)
+        let totalDuration: Double = {
+            if let limit = durationLimit {
+                if options.videoTrim != nil {
+                    return max(limit, 0.1)
+                }
+                if inputInfo.duration > 0 {
+                    return max(min(inputInfo.duration, limit), 0.1)
+                }
+                return max(limit, 0.1)
+            }
+            return max(inputInfo.duration, 0.1)
+        }()
         
         if outputFormat.category == .audio && !inputInfo.hasAudio {
             throw ConversionError.invalidInput("The source media file does not contain an audio stream to extract.")
@@ -409,6 +425,44 @@ class BaseFFmpegProvider: FFmpegProvider, @unchecked Sendable {
         return parts.isEmpty ? nil : parts.joined(separator: "\n\n")
     }
     
+    // MARK: - Ringtone Duration Helpers
+
+    static func validateRingtoneDurationOption(options: ConversionOptions) throws {
+        let rawValue = options.customOptions["ringtone_duration"] ?? options.customOptions["max_duration"]
+        guard let raw = rawValue?.trimmingCharacters(in: .whitespacesAndNewlines), !raw.isEmpty else {
+            return
+        }
+        guard let seconds = Double(raw), seconds.isFinite, seconds > 0 else {
+            throw ConversionError.invalidInput("Ringtone duration must be a positive number of seconds.")
+        }
+    }
+
+    static func resolvedRingtoneDurationCapSeconds(from options: ConversionOptions) -> Double {
+        let rawValue = options.customOptions["ringtone_duration"] ?? options.customOptions["max_duration"]
+        if let raw = rawValue?.trimmingCharacters(in: .whitespacesAndNewlines),
+           !raw.isEmpty,
+           let seconds = Double(raw),
+           seconds.isFinite,
+           seconds > 0 {
+            return min(seconds, maxRingtoneDurationSeconds)
+        }
+        return maxRingtoneDurationSeconds
+    }
+
+    static func effectiveOutputDurationLimitSeconds(
+        outputFormat: FileFormat,
+        options: ConversionOptions
+    ) -> Double? {
+        if outputFormat == .m4r {
+            let cap = resolvedRingtoneDurationCapSeconds(from: options)
+            if let trim = options.videoTrim {
+                return min(trim.durationSeconds, cap)
+            }
+            return cap
+        }
+        return options.videoTrim?.durationSeconds
+    }
+
     // MARK: - Argument Construction
     
     func buildFFmpegArguments(
@@ -423,8 +477,9 @@ class BaseFFmpegProvider: FFmpegProvider, @unchecked Sendable {
             args += ["-ss", trim.ffmpegStartTimestamp]
         }
         args += ["-i", inputURL.path]
-        if let trim = options.videoTrim {
-            args += ["-t", trim.ffmpegDurationTimestamp]
+        if let durationLimit = Self.effectiveOutputDurationLimitSeconds(outputFormat: outputFormat, options: options) {
+            let ms = max(100, Int64((durationLimit * 1000.0).rounded()))
+            args += ["-t", VideoTrimTimestamp.formatFFmpeg(milliseconds: ms)]
         }
         args += [
             "-progress", "pipe:1",  // Machine-readable progress on stdout
@@ -674,6 +729,18 @@ class BaseFFmpegProvider: FFmpegProvider, @unchecked Sendable {
             case .maximum: bitrate = "256k"
             }
             return ["-c:a", "aac", "-b:a", bitrate, "-f", "mp4"]
+
+        case .m4r:
+            let bitrate: String
+            switch quality {
+            case .low: bitrate = "128k"
+            case .medium: bitrate = "192k"
+            case .high: bitrate = "256k"
+            case .maximum: bitrate = "320k"
+            }
+            let rawACodec = options.customOptions["acodec"]?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+            let encoder = (rawACodec == "aac_at") ? "aac_at" : "aac"
+            return ["-c:a", encoder, "-b:a", bitrate, "-f", "ipod"]
             
         case .ogg, .opus:
             let bitrate: String
@@ -814,6 +881,8 @@ class BaseFFmpegProvider: FFmpegProvider, @unchecked Sendable {
             return 0.0
         case .webm, .flv:
             return 128_000.0
+        case .m4r:
+            return 256_000.0
         default:
             return 192_000.0
         }

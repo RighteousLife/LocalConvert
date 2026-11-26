@@ -193,6 +193,33 @@ final class FormatCapabilityRegistry: @unchecked Sendable {
         case .epub:
             aliases = []; canRead = false; canWrite = true; multiPage = true; animation = false; transparency = false
             note = "Export target from Writer/Markdown/HTML documents via LibreOffice."
+        case .pages:
+            aliases = []; canRead = true; canWrite = false; multiPage = true; animation = false; transparency = false
+            note = "Read-only Apple Pages input; converts to PDF, DOCX, RTF, or TXT via Pages.app."
+        case .numbers:
+            aliases = []; canRead = true; canWrite = false; multiPage = true; animation = false; transparency = false
+            note = "Read-only Apple Numbers input; converts to PDF, XLSX, or CSV via Numbers.app."
+        case .key:
+            aliases = []; canRead = true; canWrite = false; multiPage = true; animation = false; transparency = false
+            note = "Read-only Apple Keynote input; converts to PDF or PPTX via Keynote.app."
+        case .plist:
+            aliases = []; canRead = true; canWrite = true; multiPage = false; animation = false; transparency = false
+            note = "Apple Property List (Binary/XML) supporting bidirectional conversion with JSON and XML."
+        case .ics:
+            aliases = ["ical"]; canRead = true; canWrite = false; multiPage = false; animation = false; transparency = false
+            note = "Read-only iCalendar input; exports events to JSON, CSV, or TXT."
+        case .vcf:
+            aliases = ["vcard"]; canRead = true; canWrite = false; multiPage = false; animation = false; transparency = false
+            note = "Read-only vCard contact input; exports contacts to JSON, CSV, or TXT."
+        case .webloc:
+            aliases = []; canRead = true; canWrite = false; multiPage = false; animation = false; transparency = false
+            note = "Read-only macOS web internet location (.webloc) input; exports URL and metadata to JSON, TXT, Markdown, or CSV."
+        case .json:
+            aliases = []; canRead = true; canWrite = true; multiPage = false; animation = false; transparency = false
+            note = "Structured JSON data format; supports PLIST ↔ JSON and export from ICS/VCF/WEBLOC."
+        case .xml:
+            aliases = []; canRead = true; canWrite = true; multiPage = false; animation = false; transparency = false
+            note = "Structured XML format; supports PLIST ↔ XML conversion."
             
         // MARK: Images
         case .jpg:
@@ -207,6 +234,9 @@ final class FormatCapabilityRegistry: @unchecked Sendable {
         case .heic:
             aliases = ["heif", "hif"]; canRead = true; canWrite = true; multiPage = false; animation = false; transparency = true
             note = nil
+        case .heics, .heifs:
+            aliases = []; canRead = true; canWrite = false; multiPage = true; animation = true; transparency = true
+            note = "Read-only HEIF image sequence input decoded via macOS ImageIO to still images or animated GIF."
         case .tiff:
             aliases = ["tif"]; canRead = true; canWrite = true; multiPage = true; animation = false; transparency = true
             note = "Supports 8/16-bit precision and multi-page TIFF preservation to TIFF/PDF."
@@ -276,16 +306,20 @@ final class FormatCapabilityRegistry: @unchecked Sendable {
             note = "Read-only camera RAW input decoded via macOS ImageIO / Camera RAW (availability depends on macOS camera support and file variant)."
             
         // MARK: Audio
-        case .mp3, .wav, .flac, .m4a, .m4b, .aac, .ogg, .opus, .aiff, .caf, .alac, .ac3, .eac3, .dts, .wma, .au, .wv, .mka:
+        case .mp3, .wav, .flac, .m4a, .m4b, .m4r, .aac, .ogg, .opus, .aiff, .caf, .alac, .ac3, .eac3, .dts, .wma, .au, .wv, .mka:
             switch format {
             case .aiff: aliases = ["aif", "aifc"]
             case .au: aliases = ["snd"]
             default: aliases = []
             }
             canRead = true; canWrite = true; multiPage = false; animation = false; transparency = false
-            note = format == .alac
-                ? "Apple Lossless (M4A/iPod-compatible container); M4A also accepts AAC."
-                : nil
+            if format == .alac {
+                note = "Apple Lossless (M4A/iPod-compatible container); M4A also accepts AAC."
+            } else if format == .m4r {
+                note = "iPhone ringtone (AAC in iPod/MP4 container; trimmed to max 30 seconds by default on export)."
+            } else {
+                note = nil
+            }
         case .amr:
             aliases = []; canRead = true; canWrite = false; multiPage = false; animation = false; transparency = false
             note = "Read-only input: bundled FFmpeg includes AMR-NB/AMR-WB decoders but no AMR encoder."

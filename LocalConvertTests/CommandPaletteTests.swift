@@ -90,12 +90,15 @@ final class CommandPaletteTests: XCTestCase {
         // Unique IDs
         XCTAssertEqual(Set(items.map(\.id)).count, items.count)
 
-        // All top-level navigation tabs
-        for tab in AppNavigationTab.allCases {
-            XCTAssertTrue(
-                items.contains(where: { $0.action == .navigationTab(tab) }),
-                "Missing navigation tab \(tab.rawValue)"
-            )
+        // All 9 top-level navigation tabs (without duplicate Audio Toolbox tab)
+        XCTAssertEqual(AppNavigationTab.allCases.count, 9)
+        XCTAssertFalse(AppNavigationTab.allCases.contains(.audioToolbox))
+        XCTAssertFalse(items.contains(where: { $0.action == .navigationTab(.audioToolbox) }))
+
+        for (index, tab) in AppNavigationTab.allCases.enumerated() {
+            let navItem = items.first(where: { $0.action == .navigationTab(tab) })
+            XCTAssertNotNil(navItem, "Missing navigation tab \(tab.rawValue)")
+            XCTAssertEqual(navItem?.shortcutHint, "⌘\(index + 1)")
         }
 
         // Key PDF Toolbox tools
@@ -218,6 +221,11 @@ final class CommandPaletteTests: XCTestCase {
         let waveformFuzzy = CommandPaletteSearchEngine.search(query: "wfed", in: items)
         XCTAssertTrue(waveformFuzzy.contains(where: { $0.action == .audioWorkspaceMode(.waveformEditor) }))
 
+        // Searching "Audio Toolbox" routes to Audio Workspace Audio Tools mode without duplicate tab
+        let audioToolboxQuery = CommandPaletteSearchEngine.search(query: "Audio Toolbox", in: items)
+        XCTAssertTrue(audioToolboxQuery.contains(where: { $0.action == .audioWorkspaceMode(.audioTools) }))
+        XCTAssertFalse(audioToolboxQuery.contains(where: { $0.action == .navigationTab(.audioToolbox) }))
+
         // Multi-token query
         let securityResults = CommandPaletteSearchEngine.search(query: "pdf security", in: items)
         XCTAssertEqual(securityResults.first?.action, .pdfTool(operationID: "inspectSecurity"))
@@ -283,13 +291,28 @@ final class CommandPaletteTests: XCTestCase {
         CommandPaletteRouter.execute(resizeItem, appState: appState, presetManager: presetManager)
         XCTAssertEqual(appState.selectedTab, .imageToolbox)
 
-        // 4. Audio Workspace modes
+        // 4. Audio Workspace modes + legacy .audioToolbox route redirection
         for mode in AudioWorkspaceMode.allCases {
             let modeItem = try XCTUnwrap(items.first { $0.action == .audioWorkspaceMode(mode) })
             CommandPaletteRouter.execute(modeItem, appState: appState, presetManager: presetManager)
             XCTAssertEqual(appState.selectedTab, .audioWorkspace)
             XCTAssertEqual(appState.audioWorkspace.activeMode, mode)
         }
+
+        // Switching back to Library first, then executing legacy .audioToolbox route opens Audio Workspace in Audio Tools mode
+        appState.audioWorkspace.activeMode = .library
+        appState.selectedTab = .convert
+        let legacyAudioToolboxItem = CommandPaletteItem(
+            id: "legacy.audio_toolbox",
+            title: "Audio Toolbox",
+            subtitle: "Legacy route",
+            category: .navigation,
+            systemImage: "waveform",
+            action: .navigationTab(.audioToolbox)
+        )
+        CommandPaletteRouter.execute(legacyAudioToolboxItem, appState: appState, presetManager: presetManager)
+        XCTAssertEqual(appState.selectedTab, .audioWorkspace)
+        XCTAssertEqual(appState.audioWorkspace.activeMode, .audioTools)
 
         // 5. Saved Preset with empty queue -> selects preset and opens Presets tab
         let webpPreset = try XCTUnwrap(presetManager.presets.first { $0.targetFormat == .webp })
@@ -328,11 +351,11 @@ final class CommandPaletteTests: XCTestCase {
         )
         XCTAssertNotNil(KeyboardShortcutDescriptor.swiftUIShortcut(forID: "command_palette"))
 
-        // Preserve ⌘1..⌘9 Navigation parity
+        // Preserve ⌘1..⌘9 Navigation parity matching AppNavigationTab.allCases order 1-to-1
         let navShortcuts = KeyboardShortcutDescriptor.defaultShortcuts
             .filter { $0.category == "Navigation" }
             .map(\.shortcut)
-        XCTAssertEqual(Set(navShortcuts), Set((1...9).map { "⌘\($0)" }))
+        XCTAssertEqual(navShortcuts, (1...9).map { "⌘\($0)" })
 
         // Escape should dismiss Command Palette instead of cancelling an active conversion
         XCTAssertTrue(

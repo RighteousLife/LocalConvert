@@ -17,7 +17,7 @@ final class ImageConversionEngine: ConversionEngine, @unchecked Sendable {
     
     var supportedInputFormats: Set<FileFormat> {
         [
-            .jpg, .png, .heic, .webp, .tiff, .bmp, .gif, .apng, .avif,
+            .jpg, .png, .heic, .heics, .heifs, .webp, .tiff, .bmp, .gif, .apng, .avif,
             .jp2, .psd, .exr, .ppm, .hdr, .jxl, .qoi, .pcx, .wbmp, .sgi, .xpm,
             .svg, .ico, .icns, .tga,
             .dng, .cr2, .cr3, .nef, .nrw, .arw, .raf, .rw2, .orf, .pef, .srw
@@ -245,12 +245,13 @@ final class ImageConversionEngine: ConversionEngine, @unchecked Sendable {
             )
         }
 
-        // Animated GIF / APNG / WEBP / JXL <-> Animated JXL / GIF / APNG (when no resize/crop/target-size)
+        // Animated GIF / APNG / WEBP / JXL / HEICS / HEIFS <-> Animated JXL / GIF / APNG (when no resize/crop/target-size)
         if !hasGeometryTransforms, let inFmt = detectedInputFormat {
             let isAnimatedContainerPair =
                 ((inFmt == .gif || inFmt == .apng || inFmt == .webp) && outputFormat == .jxl) ||
                 (inFmt == .webp && (outputFormat == .gif || outputFormat == .apng)) ||
-                (inFmt == .jxl && (outputFormat == .gif || outputFormat == .apng || outputFormat == .jxl))
+                (inFmt == .jxl && (outputFormat == .gif || outputFormat == .apng || outputFormat == .jxl)) ||
+                ((inFmt == .heics || inFmt == .heifs) && (outputFormat == .gif || outputFormat == .apng || outputFormat == .jxl))
 
             if isAnimatedContainerPair {
                 let tempAnimOut = FileManager.default.temporaryDirectory
@@ -409,11 +410,39 @@ final class ImageConversionEngine: ConversionEngine, @unchecked Sendable {
                 sourceProperties = CGImageSourceCopyPropertiesAtIndex(imageSource, 0, nil) as? [String: Any]
             }
         } else {
-            // Standard ImageIO & Apple-native Camera RAW Handling
+            // Standard ImageIO & Apple-native Camera RAW Handling (including HEICS/HEIFS frame 0)
             try Task.checkCancellation()
-            let (decodedImage, props) = try ImageSourcePipeline.decodeStandardOrRAW(url: input, detectedFormat: detectedInputFormat)
-            cgImage = decodedImage
-            sourceProperties = props
+            if detectedInputFormat == .heics || detectedInputFormat == .heifs {
+                do {
+                    let (decodedImage, props) = try ImageSourcePipeline.decodeStandardOrRAW(url: input, detectedFormat: detectedInputFormat)
+                    cgImage = decodedImage
+                    sourceProperties = props
+                } catch {
+                    guard let hintedSource = CGImageSourceCreateWithURL(
+                        input as CFURL,
+                        [kCGImageSourceTypeIdentifierHint: "public.heics"] as CFDictionary
+                    ),
+                    CGImageSourceGetCount(hintedSource) > 0,
+                    var hintedImg = CGImageSourceCreateImageAtIndex(
+                        hintedSource,
+                        0,
+                        [kCGImageSourceShouldCache: false] as CFDictionary
+                    ) else {
+                        throw error
+                    }
+                    let props = CGImageSourceCopyPropertiesAtIndex(hintedSource, 0, nil) as? [String: Any]
+                    let orient = ImageSourcePipeline.orientation(from: props)
+                    if orient != .up {
+                        hintedImg = ImageProcessor.orientCGImage(hintedImg, orientation: orient)
+                    }
+                    cgImage = hintedImg
+                    sourceProperties = props
+                }
+            } else {
+                let (decodedImage, props) = try ImageSourcePipeline.decodeStandardOrRAW(url: input, detectedFormat: detectedInputFormat)
+                cgImage = decodedImage
+                sourceProperties = props
+            }
         }
         
         try Task.checkCancellation()
@@ -662,7 +691,12 @@ final class ImageConversionEngine: ConversionEngine, @unchecked Sendable {
         onFrameDecoded: (@Sendable (Int) -> Void)?,
         progress: @Sendable (ConversionProgress) -> Void
     ) throws -> (frames: [JXLEncodeFrame], loopCount: Int)? {
-        guard let source = CGImageSourceCreateWithURL(input as CFURL, nil) else { return nil }
+        guard let source = CGImageSourceCreateWithURL(input as CFURL, nil)
+            ?? ((inputFormat == .heics || inputFormat == .heifs)
+                ? CGImageSourceCreateWithURL(input as CFURL, [kCGImageSourceTypeIdentifierHint: "public.heics"] as CFDictionary)
+                : nil) else {
+            return nil
+        }
         let count = CGImageSourceGetCount(source)
         guard count > 1 else { return nil }
 
@@ -672,12 +706,15 @@ final class ImageConversionEngine: ConversionEngine, @unchecked Sendable {
 
         let gifDict = containerProps?[kCGImagePropertyGIFDictionary] as? [CFString: Any]
         let webpDict = containerProps?[kCGImagePropertyWebPDictionary] as? [CFString: Any]
+        let heicsDict = containerProps?[kCGImagePropertyHEICSDictionary] as? [CFString: Any]
 
         let canvasWidth = (gifDict?[kCGImagePropertyGIFCanvasPixelWidth] as? NSNumber)?.intValue
             ?? (webpDict?[kCGImagePropertyWebPCanvasPixelWidth] as? NSNumber)?.intValue
+            ?? (heicsDict?[kCGImagePropertyHEICSCanvasPixelWidth] as? NSNumber)?.intValue
             ?? 0
         let canvasHeight = (gifDict?[kCGImagePropertyGIFCanvasPixelHeight] as? NSNumber)?.intValue
             ?? (webpDict?[kCGImagePropertyWebPCanvasPixelHeight] as? NSNumber)?.intValue
+            ?? (heicsDict?[kCGImagePropertyHEICSCanvasPixelHeight] as? NSNumber)?.intValue
             ?? 0
 
         let prop0Width = (frame0Props?[kCGImagePropertyPixelWidth] as? NSNumber)?.intValue ?? 0
@@ -731,8 +768,12 @@ final class ImageConversionEngine: ConversionEngine, @unchecked Sendable {
             if let loops = webpDict?[kCGImagePropertyWebPLoopCount] as? Int {
                 return loops
             }
+            if let loops = (heicsDict?[kCGImagePropertyHEICSLoopCount] as? NSNumber)?.intValue {
+                return loops
+            }
             return 0
         }()
+        let heicsFrameInfoArray = heicsDict?[kCGImagePropertyHEICSFrameInfoArray] as? [[CFString: Any]]
 
         for i in 0..<count {
             try Task.checkCancellation()
@@ -752,9 +793,9 @@ final class ImageConversionEngine: ConversionEngine, @unchecked Sendable {
                 }
             }
 
-            let frameImg: CGImage
+            let rawFrameImg: CGImage
             if i == 0, let predecoded0 = cachedFrame0 {
-                frameImg = predecoded0
+                rawFrameImg = predecoded0
                 cachedFrame0 = nil
             } else {
                 guard let decoded = CGImageSourceCreateImageAtIndex(
@@ -765,7 +806,16 @@ final class ImageConversionEngine: ConversionEngine, @unchecked Sendable {
                     continue
                 }
                 onFrameDecoded?(i)
-                frameImg = decoded
+                rawFrameImg = decoded
+            }
+
+            let frameOrientation = ImageSourcePipeline.orientation(from: props)
+            let frameImg = (frameOrientation != .up)
+                ? ImageProcessor.orientCGImage(rawFrameImg, orientation: frameOrientation)
+                : rawFrameImg
+            if i == 0, frameOrientation != .up, (5...8).contains(frameOrientation.rawValue) {
+                targetWidth = frameImg.width
+                targetHeight = frameImg.height
             }
 
             let normalizedImg: CGImage = (frameImg.width == targetWidth && frameImg.height == targetHeight)
@@ -777,15 +827,23 @@ final class ImageConversionEngine: ConversionEngine, @unchecked Sendable {
                 case .gif: return props?[kCGImagePropertyGIFDictionary] as? [CFString: Any]
                 case .apng: return props?[kCGImagePropertyPNGDictionary] as? [CFString: Any]
                 case .webp: return props?[kCGImagePropertyWebPDictionary] as? [CFString: Any]
+                case .heics, .heifs: return props?[kCGImagePropertyHEICSDictionary] as? [CFString: Any]
                 default: return nil
                 }
             }()
+            let heicsContainerFrameDict = (heicsFrameInfoArray != nil && i < heicsFrameInfoArray!.count)
+                ? heicsFrameInfoArray![i]
+                : nil
             let delay = (animDict?[kCGImagePropertyGIFUnclampedDelayTime] as? Double)
                 ?? (animDict?[kCGImagePropertyGIFDelayTime] as? Double)
                 ?? (animDict?[kCGImagePropertyAPNGUnclampedDelayTime] as? Double)
                 ?? (animDict?[kCGImagePropertyAPNGDelayTime] as? Double)
                 ?? (animDict?[kCGImagePropertyWebPUnclampedDelayTime] as? Double)
                 ?? (animDict?[kCGImagePropertyWebPDelayTime] as? Double)
+                ?? (animDict?[kCGImagePropertyHEICSUnclampedDelayTime] as? NSNumber)?.doubleValue
+                ?? (animDict?[kCGImagePropertyHEICSDelayTime] as? NSNumber)?.doubleValue
+                ?? (heicsContainerFrameDict?[kCGImagePropertyHEICSUnclampedDelayTime] as? NSNumber)?.doubleValue
+                ?? (heicsContainerFrameDict?[kCGImagePropertyHEICSDelayTime] as? NSNumber)?.doubleValue
                 ?? 0.1
             frames.append(JXLEncodeFrame(image: normalizedImg, duration: max(0.02, delay)))
         }
@@ -811,7 +869,7 @@ final class ImageConversionEngine: ConversionEngine, @unchecked Sendable {
             .appendingPathComponent("LocalConvert-AnimCommit-\(UUID().uuidString).\(outputFormat.fileExtension)")
         defer { try? FileManager.default.removeItem(at: stagedOutputURL) }
 
-        if inputFormat == .gif || inputFormat == .apng || inputFormat == .webp {
+        if inputFormat == .gif || inputFormat == .apng || inputFormat == .webp || inputFormat == .heics || inputFormat == .heifs {
             guard let extracted = try extractAnimatedImageIOFrames(
                 input: input,
                 inputFormat: inputFormat,

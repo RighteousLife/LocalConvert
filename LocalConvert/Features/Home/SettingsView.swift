@@ -1,30 +1,87 @@
 import SwiftUI
 import AppKit
 
+private enum SettingsTab: String, CaseIterable, Hashable, Identifiable {
+    case general = "General"
+    case output = "Output"
+    case automation = "Automation"
+    case shortcuts = "Shortcuts"
+    case advanced = "Advanced"
+
+    var id: Self { self }
+
+    var systemImage: String {
+        switch self {
+        case .general: return "gearshape"
+        case .output: return "folder"
+        case .automation: return "bell.badge"
+        case .shortcuts: return "keyboard"
+        case .advanced: return "slider.horizontal.3"
+        }
+    }
+}
+
 struct SettingsView: View {
+    @State private var selectedTab: SettingsTab = .general
     @State private var showingLicensesSheet = false
     @State private var showingFormatsSheet = false
 
     var body: some View {
-        Form {
-            GeneralSettingsSection()
-            OutputFilesSettingsSection()
-            NotificationsSettingsSection()
-            ConversionDefaultsSettingsSection()
-            PerformanceSettingsSection()
-            JobsHistorySettingsSection()
-            UndoEditingHistorySettingsSection()
-            PrivacyDiagnosticsSettingsSection()
-            KeyboardShortcutsSettingsSection()
-            AboutSettingsSection(
-                showingLicensesSheet: $showingLicensesSheet,
-                showingFormatsSheet: $showingFormatsSheet
-            )
-            ResetDefaultsSettingsSection()
+        TabView(selection: $selectedTab) {
+            settingsTabForm {
+                GeneralSettingsSection()
+                AboutSettingsSection(
+                    showingLicensesSheet: $showingLicensesSheet,
+                    showingFormatsSheet: $showingFormatsSheet
+                )
+            }
+            .tabItem {
+                Label(SettingsTab.general.rawValue, systemImage: SettingsTab.general.systemImage)
+            }
+            .tag(SettingsTab.general)
+
+            settingsTabForm {
+                OutputFilesSettingsSection()
+                ConversionDefaultsSettingsSection()
+            }
+            .tabItem {
+                Label(SettingsTab.output.rawValue, systemImage: SettingsTab.output.systemImage)
+            }
+            .tag(SettingsTab.output)
+
+            settingsTabForm {
+                NotificationsSettingsSection()
+                JobsHistorySettingsSection()
+            }
+            .tabItem {
+                Label(SettingsTab.automation.rawValue, systemImage: SettingsTab.automation.systemImage)
+            }
+            .tag(SettingsTab.automation)
+
+            settingsTabForm {
+                KeyboardShortcutsSettingsSection()
+            }
+            .tabItem {
+                Label(SettingsTab.shortcuts.rawValue, systemImage: SettingsTab.shortcuts.systemImage)
+            }
+            .tag(SettingsTab.shortcuts)
+
+            settingsTabForm {
+                PerformanceSettingsSection()
+                UndoEditingHistorySettingsSection()
+                PrivacyDiagnosticsSettingsSection()
+                ResetDefaultsSettingsSection()
+            }
+            .tabItem {
+                Label(SettingsTab.advanced.rawValue, systemImage: SettingsTab.advanced.systemImage)
+            }
+            .tag(SettingsTab.advanced)
         }
-        .formStyle(.grouped)
-        .padding(16)
-        .frame(minWidth: 480, maxWidth: 680, minHeight: 520, maxHeight: .infinity, alignment: .topLeading)
+        .accessibilityIdentifier("settings.tabView")
+        .padding(.top, AppTheme.Spacing.md)
+        .padding(.horizontal, AppTheme.Spacing.lg)
+        .padding(.bottom, AppTheme.Spacing.lg)
+        .frame(minWidth: 460, maxWidth: .infinity, minHeight: 420, maxHeight: .infinity, alignment: .top)
         .appWorkspaceSurface()
         .navigationTitle("Settings")
         .sheet(isPresented: $showingLicensesSheet) {
@@ -33,6 +90,17 @@ struct SettingsView: View {
         .sheet(isPresented: $showingFormatsSheet) {
             SupportedFormatsView(isPresented: $showingFormatsSheet)
         }
+    }
+
+    @ViewBuilder
+    private func settingsTabForm<Content: View>(@ViewBuilder content: () -> Content) -> some View {
+        Form {
+            content()
+        }
+        .formStyle(.grouped)
+        .scrollContentBackground(.hidden)
+        .frame(minWidth: 420, maxWidth: 680, maxHeight: .infinity, alignment: .topLeading)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
     }
 }
 

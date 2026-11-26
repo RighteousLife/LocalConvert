@@ -9,7 +9,6 @@ struct ImageToolboxView: View {
 
     @State private var selectedSection: ImageToolboxSection = .convert
     @State private var selectedFileIds: Set<UUID> = []
-    @State private var allowSameFormatSave: Bool = false
     @State private var overwriteExisting: Bool = false
 
     private var config: ImageToolboxConfig {

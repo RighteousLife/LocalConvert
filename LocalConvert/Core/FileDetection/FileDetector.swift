@@ -127,6 +127,26 @@ struct FileDetector: Sendable {
     static func detectFormat(url: URL) -> FileFormat? {
         FileDetector().detect(url: url).bestFormat
     }
+
+    /// Returns `true` when `url` is a macOS directory-bundle iWork package (`.pages`, `.numbers`, `.key`)
+    /// containing expected iWork package entries rather than a plain user folder.
+    static func isIWorkPackageBundle(url: URL) -> Bool {
+        let ext = url.pathExtension.lowercased()
+        guard ["pages", "numbers", "key"].contains(ext) else { return false }
+        var isDir: ObjCBool = false
+        guard FileManager.default.fileExists(atPath: url.path, isDirectory: &isDir), isDir.boolValue else {
+            return false
+        }
+        let markers = [
+            "Index/Document.iwa",
+            "Index/Slide.iwa",
+            "Index/Presentation.iwa",
+            "Index/Tables",
+            "Metadata/Properties.plist",
+            "index.xml"
+        ]
+        return markers.contains { FileManager.default.fileExists(atPath: url.appendingPathComponent($0).path) }
+    }
     
     // MARK: - Detection Methods
     
@@ -156,6 +176,20 @@ struct FileDetector: Sendable {
     }
     
     private func detectByMagicBytes(url: URL, extensionHint: FileFormat?) -> FileFormat? {
+        if Self.isIWorkPackageBundle(url: url) {
+            if FileManager.default.fileExists(atPath: url.appendingPathComponent("Index/Slide.iwa").path)
+                || FileManager.default.fileExists(atPath: url.appendingPathComponent("Index/Presentation.iwa").path) {
+                return .key
+            }
+            if FileManager.default.fileExists(atPath: url.appendingPathComponent("Index/Tables").path) {
+                return .numbers
+            }
+            if let hint = extensionHint, [.pages, .numbers, .key].contains(hint) {
+                return hint
+            }
+            return .pages
+        }
+
         guard let fileHandle = try? FileHandle(forReadingFrom: url) else { return nil }
         defer { try? fileHandle.close() }
         
@@ -197,7 +231,12 @@ struct FileDetector: Sendable {
             if brand.hasPrefix("avif") || brand.hasPrefix("avis") {
                 return .avif
             }
+            if brand.hasPrefix("msf1") || brand.hasPrefix("hevs") {
+                return ext == "heifs" ? .heifs : .heics
+            }
             if brand.hasPrefix("heic") || brand.hasPrefix("heix") || brand.hasPrefix("hevc") || brand.hasPrefix("mif1") || brand.hasPrefix("heif") {
+                if ext == "heics" { return .heics }
+                if ext == "heifs" { return .heifs }
                 return .heic
             }
             if brand.hasPrefix("jxl") {
@@ -208,6 +247,9 @@ struct FileDetector: Sendable {
             }
             if brand.hasPrefix("alac") || ext == "alac" {
                 return .alac
+            }
+            if brand.hasPrefix("m4r") || ext == "m4r" {
+                return .m4r
             }
             if brand.hasPrefix("m4b") || ext == "m4b" {
                 return .m4b
@@ -321,6 +363,14 @@ struct FileDetector: Sendable {
                 return hint
             }
         }
+
+        // 15b. Binary Apple Property List (bplist) / Binary .webloc
+        if bytes.starts(with: [0x62, 0x70, 0x6C, 0x69, 0x73, 0x74]) {
+            if ext == "webloc" || extensionHint == .webloc {
+                return .webloc
+            }
+            return .plist
+        }
         
         // 16. Standard fixed-byte signatures
         for sig in Self.signatures {
@@ -350,6 +400,36 @@ struct FileDetector: Sendable {
             }
             if ext == "sub" && trimmed.range(of: #"^\{\d+\}\{\d+\}"#, options: .regularExpression) != nil {
                 return .sub
+            }
+            if trimmed.hasPrefix("BEGIN:VCALENDAR") {
+                return .ics
+            }
+            if trimmed.hasPrefix("BEGIN:VCARD") {
+                return .vcf
+            }
+            if lower.contains("<!doctype plist") || lower.contains("<plist") {
+                if ext == "webloc" || extensionHint == .webloc {
+                    return .webloc
+                }
+                return .plist
+            }
+            if lower.hasPrefix("<?xml") {
+                if ext == "webloc" || extensionHint == .webloc {
+                    return .webloc
+                }
+                if ext == "plist" || extensionHint == .plist {
+                    return .plist
+                }
+                return .xml
+            }
+            if trimmed.hasPrefix("{") || trimmed.hasPrefix("[") {
+                if ext == "json" || extensionHint == .json {
+                    return .json
+                }
+                if let jsonData = trimmed.data(using: .utf8),
+                   (try? JSONSerialization.jsonObject(with: jsonData)) != nil {
+                    return .json
+                }
             }
         }
         
@@ -412,9 +492,35 @@ struct FileDetector: Sendable {
             }
             return .pptx
         }
+
+        // Check Apple iWork ZIP package markers (.key / .numbers / .pages) before falling back to .zip
+        if probeData.range(of: Data("Index/Slide.iwa".utf8)) != nil
+            || probeData.range(of: Data("Index/Presentation.iwa".utf8)) != nil
+            || probeData.range(of: Data("Index/MasterSlide".utf8)) != nil
+            || probeData.range(of: Data("http://developer.apple.com/namespaces/keynote2".utf8)) != nil {
+            return .key
+        }
+        if probeData.range(of: Data("Index/Tables/".utf8)) != nil
+            || probeData.range(of: Data("Index/CalculationEngine".utf8)) != nil
+            || probeData.range(of: Data("http://developer.apple.com/namespaces/ls".utf8)) != nil {
+            return .numbers
+        }
+        if probeData.range(of: Data("Index/Document.iwa".utf8)) != nil
+            || probeData.range(of: Data("http://developer.apple.com/namespaces/sl".utf8)) != nil {
+            if let hint = extensionHint, [.pages, .numbers, .key].contains(hint) {
+                return hint
+            }
+            return .pages
+        }
+        if (probeData.range(of: Data("Metadata/Properties.plist".utf8)) != nil
+            || probeData.range(of: Data("Index/".utf8)) != nil
+            || probeData.range(of: Data("index.xml".utf8)) != nil),
+           let hint = extensionHint, [.pages, .numbers, .key].contains(hint) {
+            return hint
+        }
         
         if let hint = extensionHint,
-           [.docx, .docm, .dotx, .xlsx, .xlsm, .xltx, .pptx, .pptm, .potx, .ppsx, .odt, .ods, .odp, .epub].contains(hint) {
+           [.docx, .docm, .dotx, .xlsx, .xlsm, .xltx, .pptx, .pptm, .potx, .ppsx, .odt, .ods, .odp, .epub, .pages, .numbers, .key].contains(hint) {
             return hint
         }
         return .zip
