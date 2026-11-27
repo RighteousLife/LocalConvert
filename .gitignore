@@ -39,6 +39,9 @@ Carthage/Build/
 # Release Staging & Packaging Artifacts
 dist/
 release/
+Apps/
+debug-deployment/
+*.trace
 *.dmg
 
 
