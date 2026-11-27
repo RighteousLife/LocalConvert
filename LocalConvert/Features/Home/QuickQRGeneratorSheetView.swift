@@ -278,7 +278,7 @@ struct QuickQRGeneratorSheetView: View {
             AppDivider()
             footerBar
         }
-        .frame(minWidth: 560, idealWidth: 620, maxWidth: 680, minHeight: 430, idealHeight: 470, maxHeight: 540)
+        .frame(minWidth: 560, idealWidth: 620, maxWidth: 680, minHeight: 450, idealHeight: 480, maxHeight: 540)
         .appWorkspaceSurface()
         .onExitCommand {
             controller.dismiss()
@@ -460,10 +460,10 @@ struct QuickQRGeneratorSheetView: View {
                     VStack(spacing: AppTheme.Spacing.xs) {
                         Image(systemName: "qrcode")
                             .font(.system(size: 36))
-                            .foregroundStyle(Color.secondary)
+                            .foregroundStyle(Color.black.opacity(0.45))
                         Text("Enter content to generate QR")
                             .font(AppTheme.Typography.caption)
-                            .foregroundStyle(Color.secondary)
+                            .foregroundStyle(Color.black.opacity(0.55))
                             .multilineTextAlignment(.center)
                     }
                     .padding(AppTheme.Spacing.md)
@@ -494,6 +494,7 @@ struct QuickQRGeneratorSheetView: View {
                 Label("Copy PNG", systemImage: "doc.on.clipboard")
             }
             .buttonStyle(.bordered)
+            .fixedSize(horizontal: true, vertical: false)
             .disabled(activePayload.isEmpty)
             .accessibilityIdentifier("quickQR.copyPNGButton")
 
@@ -503,6 +504,7 @@ struct QuickQRGeneratorSheetView: View {
                 Label("Save PNG...", systemImage: "square.and.arrow.down")
             }
             .buttonStyle(.borderedProminent)
+            .fixedSize(horizontal: true, vertical: false)
             .disabled(activePayload.isEmpty)
             .accessibilityIdentifier("quickQR.savePNGButton")
         }

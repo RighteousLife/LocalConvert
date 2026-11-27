@@ -190,7 +190,7 @@ struct Phase40Tests {
         let appBundle = Bundle.main
         if appBundle.bundleURL.pathExtension == "app" {
             let shortVer = appBundle.infoDictionary?["CFBundleShortVersionString"] as? String
-            #expect(shortVer == "1.0.0")
+            #expect(shortVer == "2.0.0")
 
             let resourceURL = try #require(appBundle.resourceURL)
             for required in ["LICENSE", "LICENSE.webp", "LICENSE.jxl", "THIRD_PARTY_NOTICES.md", "ffmpeg/FFmpeg-LICENSE.txt"] {

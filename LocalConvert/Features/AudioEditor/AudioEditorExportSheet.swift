@@ -336,7 +336,7 @@ struct AudioEditorExportSheet: View {
             }
         }
         .padding(AppTheme.Spacing.lg)
-        .frame(width: 560, height: 640)
+        .frame(minWidth: 520, idealWidth: 560, maxWidth: 600, minHeight: 460, idealHeight: 540, maxHeight: 560)
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("audioworkspace.export.sheet")
         .onAppear {

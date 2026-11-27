@@ -6,53 +6,48 @@ This document describes the software architecture, design patterns, threading mo
 
 ## 1. Architectural Philosophy
 
-LocalConvert is built on four core principles:
+LocalConvert (`v2.0.0`) is built on four core principles:
 
-1. **Zero Network Trust**: The application contains no networking code, analytics, or remote calls. All data processing remains strictly on the host Mac.
-2. **Modular Engine Abstraction**: The core UI and queue orchestration know nothing about FFmpeg, LibreOffice, or libwebp. All conversions interact through the unified `ConversionEngine` protocol.
-3. **Strict Process & Sandbox Isolation**: External engines run in isolated child processes with ephemeral per-job sandboxes. One failing or crashed process cannot corrupt another job's state or the parent application.
-4. **Self-Contained Portability**: Every required binary and library is bundled within `LocalConvert.app`. The application runs portably without requiring package managers or system dependencies.
+1. **Offline-First Processing & Opt-In-Only Network Boundary**: All file conversion, OCR, on-device speech transcription, redaction, and metadata operations run strictly offline on the host Mac with zero background network calls, telemetry, or analytics. The only network paths in the application are strictly user-initiated opt-in actions: `UpdateCheckService` (when the user explicitly clicks Check for Updates against GitHub Releases) and `URL-to-PDF` (`LiveWebKitURLToPDFRenderer` when the user explicitly confirms rendering an `http`/`https` URL).
+2. **Modular Engine Abstraction**: The core UI and queue orchestration know nothing about FFmpeg, LibreOffice, `libwebp`, or `libjxl`. All conversions interact through the unified `ConversionEngine` protocol and capability-driven `ConversionRegistry`.
+3. **Strict Process & Sandbox Isolation**: External engines run in isolated child processes with ephemeral per-job sandboxes, timeouts, and cancellation watchdogs; the Finder Quick Actions extension (`LocalConvertQuickActions.appex`) runs in its own App Sandbox with strict `LC-002` path/symlink validation.
+4. **Self-Contained Portability**: Required runtimes and codecs (`FFmpeg 9.0.2`, `LibreOffice 26.8.0.3`, `libwebp 1.6.0`, `libjxl 0.13.0`) are bundled within `LocalConvert.app` for Apple Silicon (`arm64`) with zero Homebrew runtime dependencies.
 
 ---
 
 ## 2. High-Level System Architecture
 
 ```text
-┌────────────────────────────────────────────────────────────────────────┐
-│                        macOS System Interfaces                         │
-│   • Drag & Drop               • Finder Services (NSServices)           │
-│   • Open With Association     • Custom URL Scheme (localconvert://)    │
-└───────────────────────────────────┬────────────────────────────────────┘
-                                    │
-┌───────────────────────────────────▼────────────────────────────────────┐
-│                       Presentation Layer (SwiftUI)                     │
-│   • ContentView              • DropZoneView                            │
-│   • FileRowView              • FormatPickerView                        │
-│   • BatchProgressBar         • Settings / OutputLocationBar            │
-└───────────────────────────────────┬────────────────────────────────────┘
-                                    │
-┌───────────────────────────────────▼────────────────────────────────────┐
-│                     Orchestration & State Management                   │
-│   • AppState (@MainActor, ObservableObject)                            │
-│   • ConversionQueue (Bounded Concurrency, Task Cancellation)          │
-│   • ConversionManager (Job Lifecycle, Progress & Status Publishing)    │
-│   • OutputManager (Output Path Resolution, User Preferences)          │
-│   • FileDetector (Magic Bytes + Uniform Type Identifiers)              │
-└───────────────────────────────────┬────────────────────────────────────┘
-                                    │
-┌───────────────────────────────────▼────────────────────────────────────┐
-│                          Conversion Registry                           │
-│   • ConversionRegistry (Route Discovery, Capabilities, Options)        │
-│   • ConversionEngine Protocol                                          │
-└───────┬──────────────┬──────────────────────────┬──────────────────────┘
-        │              │                          │                      │
-┌───────▼──────┐┌──────▼───────────────────┐┌─────▼──────────────┐┌──────▼──────┐
-│ ImageEngine  ││       OfficeEngine       ││     PDFEngine      ││ MediaEngine │
-│ • ImageIO    ││ • Bundled LibreOffice    ││ • Apple PDFKit     ││ • Bundled   │
-│ • CoreGraph. ││   (Headless Subprocess)  ││ • CoreGraphics     ││   FFmpeg    │
-│ • libwebp    ││ • Sandboxed User Profile ││ • DPI Resampling   ││ • ffprobe   │
-│   (C Bridge) ││ • OpenXML Validation     ││ • Multi-page Render││ • VideoToolb│
-└──────────────┘└──────────────────────────┘└────────────────────┘└─────────────┘
+┌──────────────────────────────────────────────────────────────────────────────────┐
+│                             macOS System Interfaces                              │
+│  • Drag & Drop / Clipboard (`⌘V`)    • Finder Quick Actions (.appex) & Services  │
+│  • AppIntents / Siri & Shortcuts     • Custom URL Scheme (`localconvert://`)     │
+└─────────────────────────────────────────┬────────────────────────────────────────┘
+                                          │
+┌─────────────────────────────────────────▼────────────────────────────────────────┐
+│                           Presentation Layer (SwiftUI)                           │
+│  • ContentView (`⌘1`–`⌘9`, `⌘K`, `⌘/`)  • ContextualSmartBarView & QuickLook     │
+│  • MediaViewer/ (Photo & Video Editors)  • AudioWorkspace/ (Library & Timeline)  │
+│  • PDFToolbox / ImageToolbox / Settings  • Text & Archive / Renamer / Duplicates │
+└─────────────────────────────────────────┬────────────────────────────────────────┘
+                                          │
+┌─────────────────────────────────────────▼────────────────────────────────────────┐
+│                        Orchestration & Core Services                             │
+│  • AppState (@MainActor)                 • ConversionQueue & ConversionManager   │
+│  • OutputManager & Atomic Reservation    • FileDetector (Magic Bytes + UTI)      │
+│  • UndoRedoCoordinator & Presets/History • BatchFileRenamer / DuplicateScanner   │
+│  • DiagnosticBundleExporter / UpdateCheckService (opt-in) / Localization (en/tr) │
+└─────────────────────────────────────────┬────────────────────────────────────────┘
+                                          │
+┌─────────────────────────────────────────▼────────────────────────────────────────┐
+│                        Conversion Registry & Engines                             │
+│  • ImageEngine (ImageIO, libwebp 1.6.0, libjxl 0.13.0)                           │
+│  • OfficeEngine (LibreOffice 26.8.0.3 + IWorkConversionBridge)                   │
+│  • PDFEngine & PDFToolboxEngine (PDFKit, CoreGraphics, Vision OCR, PDFPowerTools)│
+│  • MediaEngine (FFmpeg/ffprobe, VideoToolbox, QuickVideoCutter, Speech-to-Text)  │
+│  • TextEngine (CSV/TSV/PLIST/JSON/XML/WEBLOC/ICS/VCF) & SubtitleEngine           │
+│  • ArchiveConversionEngine & ArchiveInspectorEngine (ZIP/7Z/TAR/TGZ/TBZ2/TXZ)    │
+└──────────────────────────────────────────────────────────────────────────────────┘
 ```
 
 ---
@@ -111,52 +106,51 @@ protocol ConversionEngine: Sendable {
 ```
 
 ### 4.1 Image Conversion Engine (`ImageConversionEngine.swift`)
-- **Native Pipeline**: Utilizes Apple `ImageIO` (`CGImageSource`, `CGImageDestination`) and `CoreGraphics` for zero-overhead raster operations.
+- **Native Pipeline**: Utilizes Apple `ImageIO` (`CGImageSource`, `CGImageDestination`), `CoreGraphics`, and `Vision` (`VNGenerateForegroundInstanceMaskRequest`) for raster operations, subject cutout, and ICC color management.
 - **WebP Integration**:
   - macOS `ImageIO` cannot write WebP files. LocalConvert bundles Google's official `libwebp.dylib` (`v1.6.0`) and `libsharpyuv.dylib`.
-  - Communicates via a minimal, non-blocking C bridge (`WebPBridge.h` / `WebPBridge.c`).
-  - Converts CoreGraphics premultiplied alpha into straight alpha before calling `WebPEncodeRGBA` to prevent dark edge artifacts.
+  - Communicates via a minimal, non-blocking C bridge (`WebPBridge.h` / `WebPBridge.c`), converting CoreGraphics premultiplied alpha into straight alpha before encoding.
   - Supports lossy compression (quality 0–100) and lossless encoding.
+- **JPEG XL (`libjxl 0.13.0`) Integration (`Engines/JXL/`)**:
+  - Statically links upstream `libjxl` (`0.13.0`), `highway`, and `brotli` via an Objective-C++/C bridge for full `* ↔ JXL` read/write, effort `1–9`, 8/16-bit depth, alpha, animated JXL, ICC/EXIF/XMP container boxes, and lossless JPEG bitstream transcoding/reconstruction.
 
-### 4.2 Office Conversion Engine (`OfficeConversionEngine.swift`)
-- **Headless LibreOffice**: Invokes bundled `soffice` directly as an unprivileged child process using `Process()`.
-- **Ephemeral Sandbox Profile**:
-  - Every job creates `/tmp/LocalConvert-Office-<UUID>/profile` passed via `-env:UserInstallation=file://...`.
-  - Prevents single-instance lockups, allows fully concurrent document processing, and guarantees clean teardown without touching the user's personal configuration.
-- **Bidirectional Office & PDF Pipelines**:
-  - **Office → PDF**: Direct `--headless --convert-to pdf` filter execution.
-  - **PDF → DOCX**: `--infilter=writer_pdf_import --convert-to docx`.
-  - **PDF → PPTX**: `--infilter=impress_pdf_import --convert-to pptx`.
-  - **PDF → XLSX**: Two-stage extraction: PDF layout conversion via Writer followed by tabular workbook reconstruction in Calc.
-- **Structural Integrity Verification**: Validates generated OpenXML output archives using `unzip -l` for required XML entries (`word/document.xml`, `xl/workbook.xml`, `ppt/presentation.xml`).
+### 4.2 Office, iWork & Apple Data Engines
+- **Headless LibreOffice (`OfficeConversionEngine.swift`)**: Invokes bundled `soffice` (`26.8.0.3`) directly as an unprivileged child process with isolated per-job `-env:UserInstallation=file:///tmp/...` profiles, supporting Office ↔ PDF, PDF → DOCX/PPTX/XLSX, and OpenXML archive validation.
+- **iWork Bridge (`IWorkConversionBridge.swift`)**: Converts `.pages`, `.numbers`, and `.key` documents when Apple Pages/Numbers/Keynote are installed (and extracts embedded PDF previews when available).
+- **Apple Data & Structured Formats (`TextConversionEngine.swift` / `AppleDataFormatConverter.swift`)**: Native offline conversion across `CSV`/`TSV`, `PLIST` (Binary/XML) ↔ `JSON`/`XML`, and read-only extraction from `.webloc`, `.ics`, and `.vcf`.
 
-### 4.3 PDF Engine (`PDFConversionEngine.swift`)
-- **Native PDFKit & CoreGraphics**: Renders PDF pages directly into vector and raster representations.
-- **DPI Resampling**: Computes exact target pixel dimensions based on chosen DPI presets (72, 96, 150, 200, 300, 600 DPI) for archival or print reproduction.
+### 4.3 PDF Engine & PDF Toolbox Pro (`PDFConversionEngine.swift`, `PDFToolboxEngine.swift`, `PDFPowerToolsEngine.swift`)
+- **Native PDFKit & CoreGraphics**: Renders PDF pages into vector and raster representations with exact DPI resampling (`72–600` DPI).
+- **Pro Workflows**: Vision `VNRecognizeTextRequest` searchable OCR, LibreOffice `PDF/A-1b/2b/3b/4` archival export, permanent rasterized redaction with verification, LCS/pixel PDF Compare, 6-profile compression, AcroForm editing/flattening, page normalization, and encryption/decryption.
+- **Opt-In URL to PDF (`URLToPDFExportCoordinator`)**: Renders `http`/`https` URLs via `WebKit` only upon explicit user confirmation (local `file://` HTML supported offline).
 
-### 4.4 Media Engine (`MediaConversionEngine.swift`)
-- **Bundled Static FFmpeg & ffprobe**: Self-contained static arm64 binaries compiled with LGPLv3+ and VideoToolbox.
-- **Hardware Acceleration**: Video encoding defaults to Apple VideoToolbox (`h264_videotoolbox`, `hevc_videotoolbox`) for maximum throughput and minimal battery drain.
-- **Stream Copy Pass-Through**: When source and target containers use identical compatible codecs (e.g., MP4 ↔ MOV containing H.264 / AAC), uses `-c copy` for instant, lossless conversion without re-encoding.
-- **Real-Time Progress**: Parses machine-readable `-progress pipe:1` outputs, extracting `out_time_us` against probed duration to compute exact fractional completion.
+### 4.4 Media Engine, Audio Workspace & Speech-to-Text (`MediaConversionEngine.swift`, `AudioWorkspace/`, `OfflineSpeechTranscriptionEngine.swift`)
+- **Bundled Static FFmpeg & ffprobe (`9.0.2`)**: Self-contained arm64 binaries compiled with LGPLv3+ and Apple `VideoToolbox`/`AudioToolbox`. Supports hardware-accelerated H.264/HEVC encoding, stream copy pass-through, real-time `-progress pipe:1` tracking, `QuickVideoCutterEngine` trim/subtitle overlay, and `.m4r` ringtone export.
+- **Audio Workspace (`LocalConvert/AudioWorkspace/` & `Engines/AudioEditor/`)**: Unified SQLite FTS5 audio library, waveform pyramid & `.lcwave` disk cache (`WaveformPyramidService`, `LCWaveDiskCache`), non-destructive multitrack/waveform editor, DSP chain, and Spotify Local Files compatibility inspector/safe normalizer.
+- **Offline Speech-to-Text (`OfflineSpeechTranscriptionEngine.swift`)**: On-device `SFSpeechRecognizer` (`requiresOnDeviceRecognition = true`) exporting `TXT` and `SRT` (with `SubtitleConversionEngine` conversion to `VTT`/`ASS`/`SSA`).
+
+### 4.5 Media Viewer & Capture (`Features/MediaViewer/`, `ScreenCaptureService`)
+- **Media Viewer (`MediaViewer/`)**: Dedicated modal and pinned-window media inspection and quick editing (`PhotoViewerEditorView`, `VideoViewerEditorView`, `PinnedImageWindowController`) supporting clipboard paste (`⌘V`), screen capture (`instant`/`3s`/`5s`), and direct handoff back to the conversion queue.
+
+### 4.6 Archive Inspector & Core File Utilities (`Engines/Archive/`, `Core/FileManagement/`)
+- **Archives**: `ArchiveConversionEngine` and `ArchiveInspectorEngine` support `ZIP`, `7Z`, `TAR`, `TAR.GZ`, `TAR.BZ2`, `TAR.XZ`, `GZ`, `BZ2`, and read-only `RAR` with strict Zip-Slip traversal validation and passphrase-protected ZIP extraction.
+- **Utilities**: `BatchFileRenamerEngine`, `DuplicateFileScannerEngine`, `QuickTextToolsEngine` (Markdown/JSON/Base64), Quick QR Generator, and `DiagnosticBundleExporter`.
 
 ---
 
 ## 5. Platform Integration
 
-### 5.1 Finder Quick Actions & Services
-Configured in `Info.plist` and `project.yml`:
-- `NSServices`: Registers `Convert with LocalConvert` under Finder services for `public.item`.
-- Handled in `AppDelegate` via `ServicesProvider.handleServicesConvert(_:userData:error:)`.
+### 5.1 Finder Quick Actions Extension & Services
+- **Finder Quick Actions (`LocalConvertQuickActions/`)**: Sandboxed `.appex` extension (`com.localconvert.app.quickactions`) enforcing strict `LC-002` file URL validation (rejecting non-file URLs, path traversal, symlinks, folders, and non-regular files) before handing off valid files to the main app. Release builds disable `CODE_SIGN_INJECT_BASE_ENTITLEMENTS` so `get-task-allow` is never embedded.
+- **Finder Services (`NSServices`)**: Registers context-menu actions (`Convert with LocalConvert`, `Convert to PDF`, `Convert to WebP`, `Convert to MP4`, `Extract Audio`, `Merge PDFs`, `Extract PDF Pages`, `Compress PDF`) handled by `AppDelegate`.
 
-### 5.2 Document Types & Drag-and-Drop
-- Registers `CFBundleDocumentTypes` for `public.item` with `LSHandlerRank: Alternate`.
-- Implements `NSApplicationDelegate.application(_:open:)` for seamless Dock drop and "Open With" file routing.
+### 5.2 Document Types, Clipboard & Drag-and-Drop
+- Registers `CFBundleDocumentTypes` for `public.item` (`LSHandlerRank: Alternate`) and implements `NSApplicationDelegate.application(_:open:)` for Dock drops and "Open With" routing, plus `⌘V` clipboard staging.
 
-### 5.3 URL Scheme (`localconvert://`)
-- Registered under `CFBundleURLTypes`.
-- Supports parameter payloads: `localconvert://convert?files=<percent-encoded-paths>`.
-- Enables external automation from Shortcuts, Raycast, Alfred, and CLI scripts.
+### 5.3 AppIntents, Shortcuts & URL Scheme (`localconvert://`)
+- **AppIntents (`LocalConvertAppIntents.swift`)**: Exposes `ConvertFilesIntent`, `RunSavedPresetIntent`, and `LocalConvertShortcuts` (`AppShortcutsProvider`) for Apple Shortcuts and Siri automation.
+- **URL Scheme**: Registered under `CFBundleURLTypes` (`localconvert://convert?files=...`) for Raycast, Alfred, and CLI workflows.
+- **Localization**: Full `en` / `tr` localization via `LocalConvert/Resources/Localizable.xcstrings`.
 
 ---
 
@@ -188,9 +182,9 @@ UI updates without orphaned artifacts
 
 ## 7. Testing Strategy
 
-LocalConvert enforces test-driven quality across 21 test suites comprising **162 unit and integration tests**:
+LocalConvert enforces test-driven quality across **120 unit/integration test files (`120+` test suites)** in `LocalConvertTests/` and **4 UI test suites** in `LocalConvertUITests/` (`AudioWorkspaceUITests`, `ConversionActivityProvenanceUITests`, `EnglishTextLayoutAuditUITests`, `Phase57UITests`):
 
-1. **Unit Tests**: Formats, registry lookups, option descriptors, file detection, magic bytes, UI state transitions.
-2. **Integration Tests**: Real conversions for PNG, JPG, WebP, PDF, DOCX, XLSX, PPTX, MP3, WAV, MP4, MOV, WEBM.
-3. **Concurrency & Resilience Tests**: Batch queues with simultaneous jobs, cancellation under active load, corrupt inputs, password-protected PDF rejection.
-4. **Packaging & Security Tests**: App bundle integrity, dynamic library linkage (`otool -L`), code signature validation (`codesign`), and quarantine attributes.
+1. **Unit & Contract Tests**: Format capabilities, registry lookups, option descriptors, file detection, magic bytes, Apple data/iWork converters, AppIntents, localization coverage, security validators (`LC-001`–`LC-021`), and UI state transitions.
+2. **Integration Tests**: Real on-device conversions for images (including WebP & JPEG XL `libjxl 0.13.0`), PDFs (OCR, PDF/A, redaction, compression, compare), Office documents, audio/video/subtitles, archives (`ArchiveInspectorEngine`), and speech transcription.
+3. **Concurrency & Resilience Tests**: Batch queues with bounded concurrency, cancellation under active load, corrupt/hostile inputs, Zip-Slip path traversal rejection, and password-protected PDF/ZIP handling.
+4. **UI, Packaging & Security Tests**: XCUITest responsive layout (`820×580` / `820×632`) and accessibility audits, app bundle integrity, dynamic library linkage (`otool -L`), deep code signature & `.appex` Release entitlement validation (`codesign`), and SHA-256 verification.

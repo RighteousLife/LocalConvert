@@ -13,8 +13,8 @@ settings:
     ARCHS: "arm64"
     SWIFT_VERSION: "6.0"
     MACOSX_DEPLOYMENT_TARGET: "15.0"
-    MARKETING_VERSION: "1.0.0"
-    CURRENT_PROJECT_VERSION: "1"
+    MARKETING_VERSION: "2.0.0"
+    CURRENT_PROJECT_VERSION: "2"
     SWIFT_STRICT_CONCURRENCY: complete
     ENABLE_USER_SCRIPT_SANDBOXING: false
 
@@ -25,11 +25,13 @@ targets:
     info:
       path: LocalConvert/Info.plist
       properties:
-        CFBundleShortVersionString: "1.0.0"
+        CFBundleShortVersionString: "2.0.0"
+        CFBundleVersion: "2"
         CFBundleIconFile: AppIcon
         CFBundleIconName: AppIcon
         NSScreenCaptureUsageDescription: "LocalConvert captures screenshots only when you trigger Capture Screen, keeping every image local on your Mac."
         NSSpeechRecognitionUsageDescription: "LocalConvert uses on-device speech recognition to transcribe audio and video files locally into text or subtitles without sending data off your Mac."
+        NSMicrophoneUsageDescription: "LocalConvert uses your microphone only when you start a Quick Voice Memo recording, saving audio locally on your Mac."
         CFBundleURLTypes:
           - CFBundleURLName: com.localconvert.url
             CFBundleURLSchemes:
@@ -274,14 +276,19 @@ targets:
         GENERATE_INFOPLIST_FILE: false
         ARCHS: "arm64"
         MACOSX_DEPLOYMENT_TARGET: "15.0"
-        MARKETING_VERSION: "1.0.0"
-        CURRENT_PROJECT_VERSION: "1"
+        MARKETING_VERSION: "2.0.0"
+        CURRENT_PROJECT_VERSION: "2"
         CODE_SIGN_IDENTITY: "-"
         CODE_SIGN_STYLE: Manual
         CODE_SIGN_ENTITLEMENTS: "LocalConvertQuickActions/LocalConvertQuickActions.entitlements"
         ENABLE_HARDENED_RUNTIME: true
         SKIP_INSTALL: true
         INFOPLIST_KEY_CFBundleDisplayName: "Convert with LocalConvert"
+      configs:
+        Debug:
+          CODE_SIGN_INJECT_BASE_ENTITLEMENTS: true
+        Release:
+          CODE_SIGN_INJECT_BASE_ENTITLEMENTS: false
 
   LocalConvertTests:
     type: bundle.unit-test

@@ -54,6 +54,12 @@ enum SmartSuggestionActionID: String, CaseIterable, Identifiable, Codable, Senda
     // Target Size Compression
     case targetSizeCompress = "target_size_compress"
 
+    // Real-World Goals & File Management (Milestone 14A)
+    case goalWhatsAppDiscord10MB = "goal_whatsapp_discord_10mb"
+    case goalOfficialDocumentPDF5MB = "goal_official_document_pdf_5mb"
+    case goalStripPrivacyMetadata = "goal_strip_privacy_metadata"
+    case batchRename = "batch_rename"
+
     // Mixed Batch
     case applySavedPreset = "apply_saved_preset"
     case convertAll = "convert_all"
@@ -246,11 +252,49 @@ enum SmartSuggestionEngine: Sendable {
 
     static func suggest(for files: [DroppedFile]) -> SmartSuggestionPlan {
         var plan = suggest(for: files.map(\.detectedFormat))
+        guard !files.isEmpty else { return plan }
+
         let imageCount = files.filter { $0.detectedFormat?.category == .image }.count
         let hasTargetCompressible = files.contains { file in
             guard let fmt = file.detectedFormat else { return false }
             return fmt == .pdf || fmt.category == .image || fmt.category == .video
         }
+        let hasOfficialPDFEligible = files.contains { file in
+            file.detectedFormat == .pdf || file.availableOutputFormats.contains(.pdf)
+        }
+        let hasPrivacyMetadataEligible = files.contains { file in
+            guard let fmt = file.detectedFormat else { return false }
+            return fmt == .pdf || fmt.category == .image || fmt.category == .audio || fmt.category == .video
+        }
+
+        let whatsAppGoal = ContextualSmartAction(
+            id: .goalWhatsAppDiscord10MB,
+            title: "WhatsApp / Discord (<10 MB)",
+            systemImage: "paperplane.circle",
+            helpText: "Compress queued media or PDFs to fit under 10 MB for WhatsApp and Discord",
+            isEnabled: hasTargetCompressible
+        )
+        let officialPDFGoal = ContextualSmartAction(
+            id: .goalOfficialDocumentPDF5MB,
+            title: "Official Document PDF (<5 MB)",
+            systemImage: "doc.badge.gearshape",
+            helpText: "Convert or compress queued files to an official PDF under 5 MB",
+            isEnabled: hasOfficialPDFEligible
+        )
+        let privacyGoal = ContextualSmartAction(
+            id: .goalStripPrivacyMetadata,
+            title: "Strip Privacy Metadata",
+            systemImage: "shield.lefthalf.filled",
+            helpText: "Strip EXIF, GPS location, and embedded metadata without overwriting originals",
+            isEnabled: hasPrivacyMetadataEligible
+        )
+        let batchRenameAction = ContextualSmartAction(
+            id: .batchRename,
+            title: "Batch Rename...",
+            systemImage: "character.cursor.ibeam",
+            helpText: "Preview and apply batch filename rules to queued files",
+            isEnabled: !files.isEmpty
+        )
 
         if plan.category == .audioVideo {
             var updatedActions = plan.actions
@@ -273,7 +317,12 @@ enum SmartSuggestionEngine: Sendable {
                         isEnabled: true
                     )
                 )
+                updatedActions.append(whatsAppGoal)
             }
+            if hasPrivacyMetadataEligible {
+                updatedActions.append(privacyGoal)
+            }
+            updatedActions.append(batchRenameAction)
             plan = SmartSuggestionPlan(category: .audioVideo, actions: updatedActions)
         } else if plan.category == .mixed {
             let canConvert = files.contains { $0.detectedFormat != nil && $0.selectedOutputFormat != nil }
@@ -293,48 +342,56 @@ enum SmartSuggestionEngine: Sendable {
                 }
                 return action
             }
-            if imageCount >= 2 {
-                let stitchAction = ContextualSmartAction(
-                    id: .stitchImages,
-                    title: "Stitch Images",
-                    systemImage: "rectangle.split.2x1",
-                    helpText: "Combine 2 or more queued images vertically or horizontally",
-                    isEnabled: true
-                )
+
+            func insertBeforeConvertAll(_ action: ContextualSmartAction) {
                 if let convertAllIdx = updatedActions.firstIndex(where: { $0.id == .convertAll }) {
-                    updatedActions.insert(stitchAction, at: convertAllIdx)
+                    updatedActions.insert(action, at: convertAllIdx)
                 } else {
-                    updatedActions.append(stitchAction)
+                    updatedActions.append(action)
                 }
+            }
+
+            if imageCount >= 2 {
+                insertBeforeConvertAll(
+                    ContextualSmartAction(
+                        id: .stitchImages,
+                        title: "Stitch Images",
+                        systemImage: "rectangle.split.2x1",
+                        helpText: "Combine 2 or more queued images vertically or horizontally",
+                        isEnabled: true
+                    )
+                )
             }
             if hasTargetCompressible {
-                let targetAction = ContextualSmartAction(
-                    id: .targetSizeCompress,
-                    title: "Target Size",
-                    systemImage: "arrow.down.right.and.arrow.up.left",
-                    helpText: "Auto-compress queued files to fit a target file size (10 MB Discord, 25 MB Email, 5 MB, or custom MB)",
-                    isEnabled: true
+                insertBeforeConvertAll(
+                    ContextualSmartAction(
+                        id: .targetSizeCompress,
+                        title: "Target Size",
+                        systemImage: "arrow.down.right.and.arrow.up.left",
+                        helpText: "Auto-compress queued files to fit a target file size (10 MB Discord, 25 MB Email, 5 MB, or custom MB)",
+                        isEnabled: true
+                    )
                 )
-                if let convertAllIdx = updatedActions.firstIndex(where: { $0.id == .convertAll }) {
-                    updatedActions.insert(targetAction, at: convertAllIdx)
-                } else {
-                    updatedActions.append(targetAction)
-                }
+                insertBeforeConvertAll(whatsAppGoal)
+            }
+            if hasOfficialPDFEligible {
+                insertBeforeConvertAll(officialPDFGoal)
+            }
+            if hasPrivacyMetadataEligible {
+                insertBeforeConvertAll(privacyGoal)
             }
             if hasAudioOrVideo {
-                let transcribeAction = ContextualSmartAction(
-                    id: .transcribeSRT,
-                    title: "Transcribe (.srt)",
-                    systemImage: "captions.bubble",
-                    helpText: "Transcribe staged audio/video files offline on-device to SubRip subtitles (.srt)",
-                    isEnabled: true
+                insertBeforeConvertAll(
+                    ContextualSmartAction(
+                        id: .transcribeSRT,
+                        title: "Transcribe (.srt)",
+                        systemImage: "captions.bubble",
+                        helpText: "Transcribe staged audio/video files offline on-device to SubRip subtitles (.srt)",
+                        isEnabled: true
+                    )
                 )
-                if let convertAllIdx = updatedActions.firstIndex(where: { $0.id == .convertAll }) {
-                    updatedActions.insert(transcribeAction, at: convertAllIdx)
-                } else {
-                    updatedActions.append(transcribeAction)
-                }
             }
+            insertBeforeConvertAll(batchRenameAction)
             plan = SmartSuggestionPlan(category: .mixed, actions: updatedActions)
         } else if plan.category == .image {
             var updatedActions = plan.actions
@@ -359,7 +416,15 @@ enum SmartSuggestionEngine: Sendable {
                         isEnabled: true
                     )
                 )
+                updatedActions.append(whatsAppGoal)
             }
+            if hasOfficialPDFEligible {
+                updatedActions.append(officialPDFGoal)
+            }
+            if hasPrivacyMetadataEligible {
+                updatedActions.append(privacyGoal)
+            }
+            updatedActions.append(batchRenameAction)
             plan = SmartSuggestionPlan(category: .image, actions: updatedActions)
         } else if plan.category == .pdf {
             var updatedActions = plan.actions
@@ -373,7 +438,15 @@ enum SmartSuggestionEngine: Sendable {
                         isEnabled: true
                     )
                 )
+                updatedActions.append(whatsAppGoal)
             }
+            if hasOfficialPDFEligible {
+                updatedActions.append(officialPDFGoal)
+            }
+            if hasPrivacyMetadataEligible {
+                updatedActions.append(privacyGoal)
+            }
+            updatedActions.append(batchRenameAction)
             plan = SmartSuggestionPlan(category: .pdf, actions: updatedActions)
         }
         return plan
@@ -654,6 +727,102 @@ enum SmartBarActionExecutor {
         coordinator: SmartBarTranscriptionCoordinator = .shared
     ) {
         coordinator.startTranscribeSRT(appState: appState, engine: engine)
+    }
+
+    static func runWhatsAppDiscord10MB(
+        appState: AppState,
+        coordinator: SmartBarTargetCompressionCoordinator = .shared
+    ) {
+        coordinator.startCompression(
+            targetBytes: TargetSizeQuickPreset.discord10MB.targetBytes,
+            appState: appState
+        )
+    }
+
+    @discardableResult
+    static func prepareOfficialDocumentPDF5MB(appState: AppState) -> (convertedToPDFCount: Int, pdfCompressionCount: Int) {
+        var convertedCount = 0
+        var existingPDFCount = 0
+
+        for index in appState.droppedFiles.indices {
+            let file = appState.droppedFiles[index]
+            if file.detectedFormat == .pdf {
+                existingPDFCount += 1
+                var updated = file.options
+                updated.targetFileSizeMB = TargetSizeQuickPreset.mb5.megabytes
+                updated.targetFileSizeBytes = TargetSizeQuickPreset.mb5.targetBytes
+                appState.updateOptions(for: file.id, options: updated)
+            } else if file.availableOutputFormats.contains(.pdf) {
+                appState.updateOutputFormat(for: file.id, format: .pdf)
+                appState.applyPreset(.documentPDF, for: file.id)
+                var updated = appState.droppedFiles[index].options
+                updated.targetFileSizeMB = TargetSizeQuickPreset.mb5.megabytes
+                updated.targetFileSizeBytes = TargetSizeQuickPreset.mb5.targetBytes
+                updated.pdfDPI = min(updated.pdfDPI ?? 150.0, 150.0)
+                updated.imageQuality = min(updated.imageQuality ?? 0.80, 0.80)
+                appState.updateOptions(for: file.id, options: updated)
+                convertedCount += 1
+            }
+        }
+        return (convertedCount, existingPDFCount)
+    }
+
+    static func runOfficialDocumentPDF5MB(
+        appState: AppState,
+        coordinator: SmartBarTargetCompressionCoordinator = .shared
+    ) {
+        let prepared = prepareOfficialDocumentPDF5MB(appState: appState)
+        if prepared.convertedToPDFCount > 0 {
+            appState.convertAll()
+        } else if prepared.pdfCompressionCount > 0 {
+            coordinator.startCompression(
+                targetBytes: TargetSizeQuickPreset.mb5.targetBytes,
+                appState: appState
+            )
+        }
+    }
+
+    @discardableResult
+    static func prepareStripPrivacyMetadataOptions(appState: AppState) -> Bool {
+        var didModify = false
+        for file in appState.droppedFiles {
+            var updated = file.options
+            if updated.preserveMetadata {
+                updated.preserveMetadata = false
+                appState.updateOptions(for: file.id, options: updated)
+            }
+            didModify = true
+        }
+        return didModify
+    }
+
+    static func runStripPrivacyMetadata(appState: AppState) {
+        guard prepareStripPrivacyMetadataOptions(appState: appState) else { return }
+
+        let imageFiles = appState.droppedFiles.filter { $0.detectedFormat?.category == .image }
+        if !imageFiles.isEmpty {
+            runStripMetadata(appState: appState)
+            return
+        }
+
+        let pdfFiles = appState.droppedFiles.filter { $0.detectedFormat == .pdf }
+        if !pdfFiles.isEmpty {
+            var pdfOpts = PDFCompressionOptions(
+                profile: .maximumQuality,
+                strategy: .quartzOptimized,
+                stripMetadata: true
+            )
+            pdfOpts.password = nil
+            var extra: [String: String] = [:]
+            if let data = try? JSONEncoder().encode(pdfOpts),
+               let json = String(data: data, encoding: .utf8) {
+                extra["pdf_compress_config"] = json
+            }
+            appState.executePDFOperation(operation: "compress", files: pdfFiles, extraOptions: extra)
+            return
+        }
+
+        appState.convertAll()
     }
 }
 
@@ -1224,11 +1393,17 @@ struct ContextualSmartBarView: View {
                 .accessibilityIdentifier("smartbar.action.\(action.id.rawValue)")
             } else {
                 let isBusyTranscribing = (action.id == .transcribeSRT && transcriptionCoordinator.isTranscribing)
+                let isBusyCompressing = (
+                    (action.id == .goalWhatsAppDiscord10MB || action.id == .goalOfficialDocumentPDF5MB)
+                    && targetSizeCoordinator.isCompressing
+                )
                 Button {
                     trigger(action.id)
                 } label: {
                     Label(
-                        isBusyTranscribing ? "Transcribing..." : action.title,
+                        isBusyTranscribing
+                            ? "Transcribing..."
+                            : (isBusyCompressing ? "Compressing..." : action.title),
                         systemImage: action.systemImage
                     )
                     .font(AppTheme.Typography.caption)
@@ -1237,7 +1412,7 @@ struct ContextualSmartBarView: View {
                 .controlSize(.small)
                 .buttonStyle(.bordered)
                 .fixedSize(horizontal: true, vertical: false)
-                .disabled(!action.isEnabled || appState.isConverting || isBusyTranscribing)
+                .disabled(!action.isEnabled || appState.isConverting || isBusyTranscribing || isBusyCompressing)
                 .help(action.helpText)
                 .accessibilityLabel(action.title)
                 .accessibilityIdentifier("smartbar.action.\(action.id.rawValue)")
@@ -1267,6 +1442,14 @@ struct ContextualSmartBarView: View {
             }
         case .transcribeSRT:
             SmartBarActionExecutor.runTranscribeSRT(appState: appState)
+        case .goalWhatsAppDiscord10MB:
+            SmartBarActionExecutor.runWhatsAppDiscord10MB(appState: appState)
+        case .goalOfficialDocumentPDF5MB:
+            SmartBarActionExecutor.runOfficialDocumentPDF5MB(appState: appState)
+        case .goalStripPrivacyMetadata:
+            SmartBarActionExecutor.runStripPrivacyMetadata(appState: appState)
+        case .batchRename:
+            BatchRenamerSheetController.shared.open()
         case .convertAll:
             appState.convertAll()
         case .resizeImages, .applySavedPreset, .stitchImages, .targetSizeCompress:

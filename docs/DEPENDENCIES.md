@@ -30,6 +30,19 @@ This document provides a factual, verified inventory of all external runtimes, b
 
 ---
 
+## 2b. libjxl, highway & brotli
+
+- **Component**: `libjxl` (with bundled `highway`, `brotli`, `skcms`)
+- **Version**: `0.13.0` (`libjxl`), `1.2.0` (`highway`), `1.2.1` (`brotli`)
+- **Purpose**: Full JPEG XL decoding and encoding backend (`* ↔ JXL`), supporting lossy/lossless compression (effort `1–9`), 8/16-bit precision, alpha transparency, animated JXL, ICC/EXIF/XMP container boxes, and lossless JPEG bitstream transcoding/reconstruction.
+- **License**: BSD 3-Clause (`libjxl`, `skcms`), Apache-2.0 / BSD 3-Clause (`highway`), MIT (`brotli`)
+- **Distribution Status**: Statically linked Apple Silicon (`arm64`) archives (`LocalConvert/Frameworks/libjxl.a`, `libjxl_threads.a`, `libjxl_cms.a`, `libhwy.a`, `libbrotlienc.a`, `libbrotlidec.a`, `libbrotlicommon.a`) with headers under `LocalConvert/Frameworks/include/jxl/`.
+- **Source / Provenance**: JPEG XL Project Authors (`https://github.com/libjxl/libjxl`), built from upstream `v0.13.0` for `arm64` with `minos 15.0` and zero Homebrew runtime dependencies.
+- **License File Location**: Bundled at [`LocalConvert/Frameworks/LICENSE.jxl`](../LocalConvert/Frameworks/LICENSE.jxl) and documented in [`THIRD_PARTY_NOTICES.md`](../THIRD_PARTY_NOTICES.md).
+- **Notes**: Invoked via LocalConvert's Objective-C++/C bridge (`LocalConvert/Engines/JXL/`). Linked statically with `-lc++`.
+
+---
+
 ## 3. FFmpeg & ffprobe
 
 - **Component**: `FFmpeg` / `ffprobe`
@@ -83,6 +96,9 @@ This document provides a factual, verified inventory of all external runtimes, b
 | libvpx | 1.17.0 | BSD 3-Clause | Statically linked into FFmpeg |
 | libwebp | 1.6.0 | BSD 3-Clause | Bundled |
 | libsharpyuv | 0.1.2 | BSD 3-Clause | Bundled |
+| libjxl | 0.13.0 | BSD 3-Clause | Statically linked (`arm64`) |
+| highway | 1.2.0 | Apache-2.0 / BSD 3-Clause | Statically linked (`arm64`) |
+| brotli | 1.2.1 | MIT | Statically linked (`arm64`) |
 | LibreOffice | 26.8.0.3 | MPL 2.0 + third-party components | Bundled |
-| ImageIO / PDFKit | macOS 15.0+ | Apple Proprietary System Frameworks | Native System Frameworks |
+| ImageIO / PDFKit / Vision / Speech / WebKit / AppIntents | macOS 15.0+ | Apple Proprietary System Frameworks | Native System Frameworks |
 

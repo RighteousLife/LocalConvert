@@ -146,12 +146,25 @@ struct PhotoViewerEditorView: View {
             await analyzeLoadedPhoto()
         }
         .onChange(of: model.currentURL) { _, _ in
+            isHoldingBefore = false
             resetViewportTransform()
             pendingTextPoint = nil
             activeDragAnnotation = nil
             detectedBarcodes = []
             dominantSwatches = []
             localStatusToast = nil
+        }
+        .onChange(of: showOverwriteConfirmation) { _, isPresented in
+            if isPresented { isHoldingBefore = false }
+        }
+        .onChange(of: showTrashConfirmation) { _, isPresented in
+            if isPresented { isHoldingBefore = false }
+        }
+        .onChange(of: pendingTextPoint) { _, point in
+            if point != nil { isHoldingBefore = false }
+        }
+        .onDisappear {
+            isHoldingBefore = false
         }
         .confirmationDialog(
             "Overwrite Original Photo?",
@@ -181,6 +194,31 @@ struct PhotoViewerEditorView: View {
             Text("\"\(model.currentURL.lastPathComponent)\" will be moved to the macOS Trash.")
         }
         .background(shortcutOverlay)
+        .background(
+            PhotoViewerHoldCompareKeyMonitorHost(
+                isHoldingBefore: { isHoldingBefore },
+                canActivate: { hostWindow in
+                    PhotoViewerHoldComparePolicy.canActivateHoldCompare(
+                        isSameWindow: true,
+                        isKeyWindow: hostWindow.isKeyWindow,
+                        hasImage: model.sourceCGImage != nil || model.originalPreviewImage != nil,
+                        isEditingText: isEditingText,
+                        hasActiveDragAnnotation: activeDragAnnotation != nil,
+                        isConfirmationPresented: showOverwriteConfirmation || showTrashConfirmation,
+                        isCommandPalettePresented: CommandPaletteController.shared.isPresented,
+                        isFirstResponderTextInput: PhotoViewerHoldComparePolicy.isTextInputResponder(hostWindow.firstResponder)
+                    )
+                },
+                onHoldChanged: { holding in
+                    if isHoldingBefore != holding {
+                        isHoldingBefore = holding
+                    }
+                }
+            )
+            .frame(width: 0, height: 0)
+            .allowsHitTesting(false)
+            .accessibilityHidden(true)
+        )
     }
 
     // MARK: - Top Toolbar
@@ -526,31 +564,51 @@ struct PhotoViewerEditorView: View {
                             ProgressView()
                                 .controlSize(.small)
                                 .padding(6)
-                                .background(.ultraThinMaterial, in: Circle())
-                        }
-                        if model.hasUnsavedChanges {
-                            Label("Hold Before", systemImage: isHoldingBefore ? "eye.fill" : "eye")
-                                .font(AppTheme.Typography.caption.weight(.medium))
-                                .padding(.horizontal, AppTheme.Spacing.sm + 2)
-                                .padding(.vertical, 5)
-                                .background(
-                                    isHoldingBefore
-                                        ? AppTheme.Colors.accent.opacity(0.92)
-                                        : AppTheme.Colors.cardBackground.opacity(0.94)
-                                )
-                                .foregroundStyle(isHoldingBefore ? Color.white : Color.primary)
-                                .clipShape(Capsule())
+                                .background(AppTheme.Colors.cardBackground.opacity(0.92), in: Circle())
                                 .overlay(
-                                    Capsule()
-                                        .strokeBorder(isHoldingBefore ? AppTheme.Colors.accent : AppTheme.Colors.cardBorder, lineWidth: 1)
+                                    Circle()
+                                        .strokeBorder(AppTheme.Colors.cardBorder, lineWidth: 1)
                                 )
-                                .shadow(color: Color.black.opacity(0.16), radius: 6, y: 2)
-                                .gesture(
-                                    DragGesture(minimumDistance: 0)
-                                        .onChanged { _ in if !isHoldingBefore { isHoldingBefore = true } }
-                                        .onEnded { _ in isHoldingBefore = false }
-                                )
-                                .help("Press and hold to inspect original")
+                        }
+                        if model.sourceCGImage != nil || model.originalPreviewImage != nil {
+                            Label(
+                                isHoldingBefore
+                                    ? String(localized: "Original (\\)")
+                                    : (model.hasUnsavedChanges ? String(localized: "Hold Before") : String(localized: "Original")),
+                                systemImage: isHoldingBefore ? "eye.fill" : "eye"
+                            )
+                            .font(AppTheme.Typography.caption.weight(.medium))
+                            .padding(.horizontal, AppTheme.Spacing.sm + 2)
+                            .padding(.vertical, 5)
+                            .background(
+                                isHoldingBefore
+                                    ? AppTheme.Colors.accent.opacity(0.95)
+                                    : AppTheme.Colors.cardBackground.opacity(0.95)
+                            )
+                            .foregroundStyle(
+                                isHoldingBefore
+                                    ? Color.white
+                                    : (model.hasUnsavedChanges ? Color.primary : Color.secondary)
+                            )
+                            .clipShape(Capsule())
+                            .overlay(
+                                Capsule()
+                                    .strokeBorder(
+                                        isHoldingBefore ? AppTheme.Colors.accent : AppTheme.Colors.cardBorder,
+                                        lineWidth: 1
+                                    )
+                            )
+                            .opacity(model.hasUnsavedChanges || isHoldingBefore ? 1.0 : 0.85)
+                            .shadow(color: Color.black.opacity(0.16), radius: 6, y: 2)
+                            .contentShape(Capsule())
+                            .gesture(
+                                DragGesture(minimumDistance: 0)
+                                    .onChanged { _ in if !isHoldingBefore { isHoldingBefore = true } }
+                                    .onEnded { _ in isHoldingBefore = false }
+                            )
+                            .help("Press and hold or hold \\ key to inspect original")
+                            .accessibilityLabel("Hold to Compare Original")
+                            .accessibilityIdentifier("photoviewer.holdCompareButton")
                         }
                     }
                     Spacer()
@@ -656,6 +714,7 @@ struct PhotoViewerEditorView: View {
 
             Text(barcode.payload)
                 .font(AppTheme.Typography.monoCaption)
+                .foregroundStyle(.primary)
                 .lineLimit(1)
                 .truncationMode(.middle)
                 .frame(maxWidth: 220, alignment: .leading)
@@ -1129,15 +1188,26 @@ struct PhotoViewerEditorView: View {
     private var adjustInspectorContent: some View {
         VStack(alignment: .leading, spacing: AppTheme.Spacing.sm) {
             HStack(spacing: AppTheme.Spacing.xs) {
-                Button {
-                    model.toggleAutoEnhance()
-                } label: {
-                    Label("Auto-Enhance", systemImage: "wand.and.stars")
-                        .frame(maxWidth: .infinity)
+                if model.editState.adjustments.autoEnhanceEnabled {
+                    Button {
+                        model.toggleAutoEnhance()
+                    } label: {
+                        Label("Auto-Enhance", systemImage: "wand.and.stars")
+                            .frame(maxWidth: .infinity)
+                    }
+                    .controlSize(.small)
+                    .buttonStyle(.borderedProminent)
+                    .tint(AppTheme.Colors.accent)
+                } else {
+                    Button {
+                        model.toggleAutoEnhance()
+                    } label: {
+                        Label("Auto-Enhance", systemImage: "wand.and.stars")
+                            .frame(maxWidth: .infinity)
+                    }
+                    .controlSize(.small)
+                    .buttonStyle(.bordered)
                 }
-                .controlSize(.small)
-                .buttonStyle(.borderedProminent)
-                .tint(model.editState.adjustments.autoEnhanceEnabled ? AppTheme.Colors.accent : .secondary)
 
                 Button("Reset") {
                     model.resetAllEdits()
@@ -1352,7 +1422,7 @@ struct PhotoViewerEditorView: View {
                                 .frame(width: 22, height: 22)
                                 .overlay(
                                     Circle()
-                                        .strokeBorder(isSelected ? AppTheme.Colors.accent : AppTheme.Colors.cardBorder, lineWidth: isSelected ? 2.5 : 1)
+                                        .strokeBorder(isSelected ? AppTheme.Colors.accent : Color.primary.opacity(0.24), lineWidth: isSelected ? 2.5 : 1)
                                 )
                                 .overlay(
                                     Circle()
@@ -1647,6 +1717,10 @@ struct PhotoViewerEditorView: View {
                                 .padding(.vertical, 4)
                                 .background(AppTheme.Colors.subtleSurface)
                                 .clipShape(RoundedRectangle(cornerRadius: AppTheme.Radius.xs))
+                                .overlay(
+                                    RoundedRectangle(cornerRadius: AppTheme.Radius.xs)
+                                        .strokeBorder(AppTheme.Colors.cardBorder, lineWidth: 1)
+                                )
                             }
                             .buttonStyle(.plain)
                             .help("Copy \(swatch.hex)")
@@ -2455,6 +2529,219 @@ enum PhotoColorPaletteExtractor: Sendable {
                 blue: avgB,
                 percentage: pct
             )
+        }
+    }
+}
+
+// MARK: - Hold-to-Compare (\) Keyboard Monitor & Guard Policy
+
+enum PhotoViewerHoldComparePolicy: Sendable {
+    static let backslashKeyCode: UInt16 = 42
+
+    static func isBackslashEvent(
+        keyCode: UInt16,
+        characters: String?,
+        charactersIgnoringModifiers: String?,
+        modifierFlags: NSEvent.ModifierFlags
+    ) -> Bool {
+        let hardDisallowed = modifierFlags.intersection([.command, .control])
+        guard hardDisallowed.isEmpty else { return false }
+        if characters == "\\" {
+            return true
+        }
+        let allModifiers = modifierFlags.intersection([.command, .option, .control, .shift])
+        return allModifiers.isEmpty && (keyCode == backslashKeyCode || charactersIgnoringModifiers == "\\")
+    }
+
+    static func isBackslashReleaseEvent(
+        keyCode: UInt16,
+        characters: String?,
+        charactersIgnoringModifiers: String?
+    ) -> Bool {
+        keyCode == backslashKeyCode || characters == "\\" || charactersIgnoringModifiers == "\\"
+    }
+
+    static func canActivateHoldCompare(
+        isSameWindow: Bool,
+        isKeyWindow: Bool,
+        hasImage: Bool,
+        isEditingText: Bool,
+        hasActiveDragAnnotation: Bool,
+        isConfirmationPresented: Bool,
+        isCommandPalettePresented: Bool,
+        isFirstResponderTextInput: Bool
+    ) -> Bool {
+        isSameWindow
+            && isKeyWindow
+            && hasImage
+            && !isEditingText
+            && !hasActiveDragAnnotation
+            && !isConfirmationPresented
+            && !isCommandPalettePresented
+            && !isFirstResponderTextInput
+    }
+
+    @MainActor
+    static func isTextInputResponder(_ responder: NSResponder?) -> Bool {
+        guard let responder else { return false }
+        return UndoMenuController.activeEditableTextResponder(from: responder) != nil
+            || responder is NSTextField
+            || responder is NSTextView
+    }
+}
+
+private struct PhotoViewerHoldCompareKeyMonitorHost: NSViewRepresentable {
+    let isHoldingBefore: @MainActor () -> Bool
+    let canActivate: @MainActor (NSWindow) -> Bool
+    let onHoldChanged: @MainActor (Bool) -> Void
+
+    func makeCoordinator() -> Coordinator {
+        Coordinator(
+            isHoldingBefore: isHoldingBefore,
+            canActivate: canActivate,
+            onHoldChanged: onHoldChanged
+        )
+    }
+
+    func makeNSView(context: Context) -> NSView {
+        let view = NSView(frame: .zero)
+        context.coordinator.hostView = view
+        context.coordinator.install()
+        return view
+    }
+
+    func updateNSView(_ nsView: NSView, context: Context) {
+        context.coordinator.hostView = nsView
+        context.coordinator.isHoldingBefore = isHoldingBefore
+        context.coordinator.canActivate = canActivate
+        context.coordinator.onHoldChanged = onHoldChanged
+    }
+
+    static func dismantleNSView(_ nsView: NSView, coordinator: Coordinator) {
+        coordinator.uninstall()
+    }
+
+    @MainActor
+    final class Coordinator {
+        weak var hostView: NSView?
+        var isHoldingBefore: @MainActor () -> Bool
+        var canActivate: @MainActor (NSWindow) -> Bool
+        var onHoldChanged: @MainActor (Bool) -> Void
+
+        private var eventMonitor: Any?
+        private var notificationTokens: [any NSObjectProtocol] = []
+
+        init(
+            isHoldingBefore: @escaping @MainActor () -> Bool,
+            canActivate: @escaping @MainActor (NSWindow) -> Bool,
+            onHoldChanged: @escaping @MainActor (Bool) -> Void
+        ) {
+            self.isHoldingBefore = isHoldingBefore
+            self.canActivate = canActivate
+            self.onHoldChanged = onHoldChanged
+        }
+
+        func install() {
+            if eventMonitor == nil {
+                eventMonitor = NSEvent.addLocalMonitorForEvents(matching: [.keyDown, .keyUp, .flagsChanged]) { [weak self] event in
+                    guard let self else { return event }
+                    return self.handleEvent(event)
+                }
+            }
+
+            if notificationTokens.isEmpty {
+                let center = NotificationCenter.default
+                let resignKeyToken = center.addObserver(
+                    forName: NSWindow.didResignKeyNotification,
+                    object: nil,
+                    queue: .main
+                ) { [weak self] _ in
+                    Task { @MainActor [weak self] in
+                        self?.resetHoldIfActive()
+                    }
+                }
+                let resignActiveToken = center.addObserver(
+                    forName: NSApplication.didResignActiveNotification,
+                    object: nil,
+                    queue: .main
+                ) { [weak self] _ in
+                    Task { @MainActor [weak self] in
+                        self?.resetHoldIfActive()
+                    }
+                }
+                notificationTokens = [resignKeyToken, resignActiveToken]
+            }
+        }
+
+        func uninstall() {
+            if let eventMonitor {
+                NSEvent.removeMonitor(eventMonitor)
+                self.eventMonitor = nil
+            }
+            for token in notificationTokens {
+                NotificationCenter.default.removeObserver(token)
+            }
+            notificationTokens.removeAll()
+            resetHoldIfActive()
+        }
+
+        private func resetHoldIfActive() {
+            if isHoldingBefore() {
+                onHoldChanged(false)
+            }
+        }
+
+        private func handleEvent(_ event: NSEvent) -> NSEvent? {
+            switch event.type {
+            case .keyDown:
+                guard let hostWindow = hostView?.window,
+                      event.window === hostWindow else {
+                    return event
+                }
+                guard PhotoViewerHoldComparePolicy.isBackslashEvent(
+                    keyCode: event.keyCode,
+                    characters: event.characters,
+                    charactersIgnoringModifiers: event.charactersIgnoringModifiers,
+                    modifierFlags: event.modifierFlags
+                ) else {
+                    return event
+                }
+                if canActivate(hostWindow) {
+                    onHoldChanged(true)
+                    return nil
+                }
+                resetHoldIfActive()
+                return event
+
+            case .keyUp:
+                guard let hostWindow = hostView?.window,
+                      event.window === hostWindow else {
+                    resetHoldIfActive()
+                    return event
+                }
+                guard PhotoViewerHoldComparePolicy.isBackslashReleaseEvent(
+                    keyCode: event.keyCode,
+                    characters: event.characters,
+                    charactersIgnoringModifiers: event.charactersIgnoringModifiers
+                ) else {
+                    return event
+                }
+                if isHoldingBefore() {
+                    onHoldChanged(false)
+                    return nil
+                }
+                return event
+
+            case .flagsChanged:
+                if isHoldingBefore(),
+                   !event.modifierFlags.intersection([.command, .control]).isEmpty {
+                    onHoldChanged(false)
+                }
+                return event
+
+            default:
+                return event
+            }
         }
     }
 }

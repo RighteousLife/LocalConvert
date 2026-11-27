@@ -509,6 +509,7 @@ private struct MenuBarPresetRowButton: View {
 struct MenuBarView: View {
     @ObservedObject var appState: AppState
     @ObservedObject var dropSession: MenuBarDropSession
+    @ObservedObject private var voiceRecorder = QuickVoiceRecorderService.shared
 
     init(
         appState: AppState,
@@ -583,6 +584,14 @@ struct MenuBarView: View {
                 }
             }
 
+            Button("Capture Screen Text (OCR)") {
+                triggerScreenTextOCR()
+            }
+
+            Button(voiceRecorder.isRecording ? String(localized: "Stop Voice Memo Recording") : String(localized: "Record Voice Memo")) {
+                toggleVoiceMemo()
+            }
+
             Button("Quick QR Generator...") {
                 AppLifecycleManager.shared.restoreOrActivateMainWindow(appState: appState)
                 QuickQRGeneratorController.shared.open()
@@ -644,6 +653,14 @@ struct MenuBarView: View {
                 )
             }
         }
+    }
+
+    private func triggerScreenTextOCR() {
+        ScreenTextOCRService.shared.triggerCaptureFromUI(appState: appState)
+    }
+
+    private func toggleVoiceMemo() {
+        QuickVoiceRecorderService.shared.toggleRecording(into: appState)
     }
     
     private func openFilePicker() {
@@ -986,13 +1003,30 @@ final class MenuBarManager: NSObject, NSPopoverDelegate {
         let watchRules = appState.watchFolderManager.rules
         let watchSummary = watchRules.isEmpty ? nil : Self.watchFolderStatusSummary(for: appState)
         let isWatchPaused = appState.watchFolderManager.isGloballyPaused
-        let signature = "\(statusString)|\(watchSummary ?? "")|\(isWatchPaused)"
+        let isRecordingVoiceMemo = QuickVoiceRecorderService.shared.isRecording
+        let signature = "\(statusString)|\(watchSummary ?? "")|\(isWatchPaused)|\(isRecordingVoiceMemo)"
         if !force, item.menu != nil, lastRenderedStatusSignature == signature {
             return
         }
         lastRenderedStatusSignature = signature
         menuRebuildCount += 1
 
+        item.menu = buildMenu(
+            statusString: statusString,
+            watchSummary: watchSummary,
+            hasWatchRules: !watchRules.isEmpty,
+            isWatchPaused: isWatchPaused,
+            isRecordingVoiceMemo: isRecordingVoiceMemo
+        )
+    }
+
+    func buildMenu(
+        statusString: String,
+        watchSummary: String?,
+        hasWatchRules: Bool,
+        isWatchPaused: Bool,
+        isRecordingVoiceMemo: Bool
+    ) -> NSMenu {
         let menu = NSMenu()
         
         let titleItem = NSMenuItem(title: "LocalConvert", action: nil, keyEquivalent: "")
@@ -1033,6 +1067,18 @@ final class MenuBarManager: NSObject, NSPopoverDelegate {
         captureParentItem.submenu = captureSubmenu
         menu.addItem(captureParentItem)
 
+        let screenOCRItem = NSMenuItem(title: String(localized: "Capture Screen Text (OCR)"), action: #selector(captureScreenTextOCR), keyEquivalent: "")
+        screenOCRItem.target = self
+        menu.addItem(screenOCRItem)
+
+        let voiceMemoTitle = isRecordingVoiceMemo
+            ? String(localized: "Stop Voice Memo Recording")
+            : String(localized: "Record Voice Memo")
+        let voiceMemoItem = NSMenuItem(title: voiceMemoTitle, action: #selector(toggleVoiceMemoRecording), keyEquivalent: "")
+        voiceMemoItem.state = isRecordingVoiceMemo ? .on : .off
+        voiceMemoItem.target = self
+        menu.addItem(voiceMemoItem)
+
         let quickQRItem = NSMenuItem(title: String(localized: "Quick QR Generator..."), action: #selector(openQuickQRGenerator), keyEquivalent: "")
         quickQRItem.target = self
         menu.addItem(quickQRItem)
@@ -1051,7 +1097,7 @@ final class MenuBarManager: NSObject, NSPopoverDelegate {
         presetsItem.target = self
         menu.addItem(presetsItem)
 
-        if !watchRules.isEmpty {
+        if hasWatchRules {
             let watchToggleTitle = isWatchPaused
                 ? String(localized: "Resume Watch Folders")
                 : String(localized: "Pause Watch Folders")
@@ -1069,8 +1115,8 @@ final class MenuBarManager: NSObject, NSPopoverDelegate {
         let quitItem = NSMenuItem(title: String(localized: "Quit LocalConvert"), action: #selector(quitApp), keyEquivalent: "q")
         quitItem.target = self
         menu.addItem(quitItem)
-        
-        item.menu = menu
+
+        return menu
     }
     
     @objc private func openMainApp() {
@@ -1087,6 +1133,17 @@ final class MenuBarManager: NSObject, NSPopoverDelegate {
 
     @objc private func captureScreenFiveSeconds() {
         triggerScreenCapture(delay: .fiveSeconds)
+    }
+
+    @objc private func captureScreenTextOCR() {
+        guard let appState else { return }
+        ScreenTextOCRService.shared.triggerCaptureFromUI(appState: appState)
+    }
+
+    @objc private func toggleVoiceMemoRecording() {
+        guard let appState else { return }
+        QuickVoiceRecorderService.shared.toggleRecording(into: appState)
+        updateStatus()
     }
 
     @objc private func openQuickQRGenerator() {

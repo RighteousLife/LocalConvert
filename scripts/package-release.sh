@@ -139,20 +139,69 @@ if [[ "${GIT_DIRTY}" == "true" && "${ALLOW_DIRTY}" -ne 1 ]]; then
     exit 1
 fi
 
-OUTPUT_DIR_ABS="$(cd "${REPO_ROOT}" && mkdir -p "$(dirname "${OUTPUT_DIR}")" && cd "$(dirname "${OUTPUT_DIR}")" && echo "$(pwd)/$(basename "${OUTPUT_DIR}")")"
+OUTPUT_DIR_ABS="$(cd "${REPO_ROOT}" && python3 -c 'import os, sys; print(os.path.abspath(sys.argv[1]))' "${OUTPUT_DIR}")"
 if [[ -n "${DERIVED_DATA}" ]]; then
-    DERIVED_DATA_ABS="$(cd "${REPO_ROOT}" && mkdir -p "$(dirname "${DERIVED_DATA}")" && cd "$(dirname "${DERIVED_DATA}")" && echo "$(pwd)/$(basename "${DERIVED_DATA}")")"
+    DERIVED_DATA_ABS="$(cd "${REPO_ROOT}" && python3 -c 'import os, sys; print(os.path.abspath(sys.argv[1]))' "${DERIVED_DATA}")"
     if [[ "${DERIVED_DATA_ABS}" == "${OUTPUT_DIR_ABS}" || "${DERIVED_DATA_ABS}" == "${OUTPUT_DIR_ABS}/"* || "${OUTPUT_DIR_ABS}" == "${DERIVED_DATA_ABS}/"* ]]; then
         echo "❌ --derived-data (${DERIVED_DATA_ABS}) must remain separate from --output-dir (${OUTPUT_DIR_ABS})." >&2
         exit 1
     fi
 fi
 
-WORK_ROOT="$(mktemp -d "${TMPDIR:-/tmp}/localconvert-release-work.XXXXXX")"
+WORK_ROOT=""
 cleanup_work() {
-    rm -rf "${WORK_ROOT}"
+    if [[ -n "${WORK_ROOT:-}" ]]; then
+        rm -rf "${WORK_ROOT}"
+    fi
 }
 trap cleanup_work EXIT INT TERM
+
+RELEASE_DIR="${OUTPUT_DIR_ABS}/${VERSION}"
+DMG_NAME="LocalConvert-${VERSION}-arm64.dmg"
+ZIP_NAME="LocalConvert-${VERSION}-arm64.zip"
+SHA_NAME="SHA256SUMS.txt"
+MANIFEST_NAME="release-manifest.json"
+RELEASE_NOTES_NAME="RELEASE_NOTES_${VERSION}.md"
+RELEASE_NOTES_SRC="${REPO_ROOT}/docs/${RELEASE_NOTES_NAME}"
+DMG_PATH="${RELEASE_DIR}/${DMG_NAME}"
+ZIP_PATH="${RELEASE_DIR}/${ZIP_NAME}"
+SHA_FILE="${RELEASE_DIR}/${SHA_NAME}"
+MANIFEST_FILE="${RELEASE_DIR}/${MANIFEST_NAME}"
+RELEASE_NOTES_FILE="${RELEASE_DIR}/${RELEASE_NOTES_NAME}"
+ENTITLEMENTS="${REPO_ROOT}/LocalConvert/LocalConvert.entitlements"
+QUICKACTIONS_ENTITLEMENTS="${REPO_ROOT}/LocalConvertQuickActions/LocalConvertQuickActions.entitlements"
+
+SDK_VERSION="$(xcrun --sdk macosx --show-sdk-version 2>/dev/null || echo unknown)"
+SDK_NAME="macosx${SDK_VERSION}"
+if [[ "${IDENTITY}" == "-" ]]; then
+    HARDENED_RUNTIME_MODE="app-only-adhoc"
+else
+    HARDENED_RUNTIME_MODE="runtime-all"
+fi
+
+if [[ "${DRY_RUN}" -eq 1 ]]; then
+    PLANNED_ARTIFACTS="${DMG_NAME}, ${ZIP_NAME}, ${SHA_NAME}, ${MANIFEST_NAME}"
+    if [[ -f "${RELEASE_NOTES_SRC}" ]]; then
+        PLANNED_ARTIFACTS="${PLANNED_ARTIFACTS}, ${RELEASE_NOTES_NAME}"
+    fi
+    cat <<EOF
+[DRY RUN] LocalConvert Release Packaging Plan
+  Version / Build:      ${VERSION} (${BUILD_NUMBER})
+  Configuration / Arch: ${CONFIGURATION} / arm64 (${SDK_NAME})
+  Git Commit / Dirty:   ${GIT_COMMIT} / dirty=${GIT_DIRTY} (${GIT_DIRTY_COUNT} entries, allow_dirty=${ALLOW_DIRTY})
+  Signing Identity:     ${IDENTITY} (hardened runtime: ${HARDENED_RUNTIME_MODE})
+  Notarize Profile:     ${NOTARIZE_PROFILE:-<none>}
+  Isolated XcodeGen:    $([[ "${SKIP_BUILD}" -eq 0 ]] && echo "${TMPDIR:-/tmp}/localconvert-release-work.XXXXXX/project-gen" || echo "<skipped>")
+  DerivedData:          ${DERIVED_DATA_ABS:-${TMPDIR:-/tmp}/localconvert-release-work.XXXXXX/DerivedData} (separate from output-dir)
+  Stage Workspace:      ${TMPDIR:-/tmp}/localconvert-release-work.XXXXXX/artifacts
+  Final Release Dir:    ${RELEASE_DIR}
+  Planned Artifacts:    ${PLANNED_ARTIFACTS}
+  Publish Mode:         Atomic hidden-sibling rename after build, codesign --verify, verify-dependencies.sh, and checksum verification
+EOF
+    exit 0
+fi
+
+WORK_ROOT="$(mktemp -d "${TMPDIR:-/tmp}/localconvert-release-work.XXXXXX")"
 
 if [[ -z "${DERIVED_DATA}" ]]; then
     DERIVED_DATA_ABS="${WORK_ROOT}/DerivedData"
@@ -168,43 +217,6 @@ WORK_APP_COPY="${WORK_ROOT}/app-stage/LocalConvert.app"
 DMG_STAGE="${WORK_ROOT}/dmg-root"
 ARTIFACT_STAGE="${WORK_ROOT}/artifacts"
 XCODEGEN_WORKSPACE="${WORK_ROOT}/project-gen"
-
-RELEASE_DIR="${OUTPUT_DIR_ABS}/${VERSION}"
-DMG_NAME="LocalConvert-${VERSION}-arm64.dmg"
-ZIP_NAME="LocalConvert-${VERSION}-arm64.zip"
-SHA_NAME="SHA256SUMS.txt"
-MANIFEST_NAME="release-manifest.json"
-DMG_PATH="${RELEASE_DIR}/${DMG_NAME}"
-ZIP_PATH="${RELEASE_DIR}/${ZIP_NAME}"
-SHA_FILE="${RELEASE_DIR}/${SHA_NAME}"
-MANIFEST_FILE="${RELEASE_DIR}/${MANIFEST_NAME}"
-ENTITLEMENTS="${REPO_ROOT}/LocalConvert/LocalConvert.entitlements"
-
-SDK_VERSION="$(xcrun --sdk macosx --show-sdk-version 2>/dev/null || echo unknown)"
-SDK_NAME="macosx${SDK_VERSION}"
-if [[ "${IDENTITY}" == "-" ]]; then
-    HARDENED_RUNTIME_MODE="app-only-adhoc"
-else
-    HARDENED_RUNTIME_MODE="runtime-all"
-fi
-
-if [[ "${DRY_RUN}" -eq 1 ]]; then
-    cat <<EOF
-[DRY RUN] LocalConvert Release Packaging Plan
-  Version / Build:      ${VERSION} (${BUILD_NUMBER})
-  Configuration / Arch: ${CONFIGURATION} / arm64 (${SDK_NAME})
-  Git Commit / Dirty:   ${GIT_COMMIT} / dirty=${GIT_DIRTY} (${GIT_DIRTY_COUNT} entries, allow_dirty=${ALLOW_DIRTY})
-  Signing Identity:     ${IDENTITY} (hardened runtime: ${HARDENED_RUNTIME_MODE})
-  Notarize Profile:     ${NOTARIZE_PROFILE:-<none>}
-  Isolated XcodeGen:    $([[ "${SKIP_BUILD}" -eq 0 ]] && echo "${XCODEGEN_WORKSPACE}" || echo "<skipped>")
-  DerivedData:          ${DERIVED_DATA_ABS} (separate from output-dir)
-  Stage Workspace:      ${ARTIFACT_STAGE}
-  Final Release Dir:    ${RELEASE_DIR}
-  Planned Artifacts:    ${DMG_NAME}, ${ZIP_NAME}, ${SHA_NAME}, ${MANIFEST_NAME}
-  Publish Mode:         Atomic hidden-sibling rename after build, codesign --verify, verify-dependencies.sh, and checksum verification
-EOF
-    exit 0
-fi
 
 sign_target() {
     local target="$1"
@@ -237,7 +249,7 @@ if [[ "${SKIP_BUILD}" -eq 0 ]]; then
 
     echo "▶ Generating isolated Xcode project in ${XCODEGEN_WORKSPACE} (leaving repo .xcodeproj untouched)..."
     mkdir -p "${XCODEGEN_WORKSPACE}"
-    for item in LocalConvert LocalConvertTests LocalConvertUITests LocalConvertTestSupport LICENSE THIRD_PARTY_NOTICES.md scripts project.yml; do
+    for item in LocalConvert LocalConvertQuickActions LocalConvertTests LocalConvertUITests LocalConvertTestSupport LICENSE THIRD_PARTY_NOTICES.md scripts project.yml; do
         if [[ -e "${REPO_ROOT}/${item}" ]]; then
             ln -s "${REPO_ROOT}/${item}" "${XCODEGEN_WORKSPACE}/${item}"
         fi
@@ -320,10 +332,22 @@ if [[ -d "${LO_BUNDLE}" ]]; then
     sign_target "${LO_BUNDLE}" >/dev/null
 fi
 
+QUICKACTIONS_APPEX="${WORK_APP_COPY}/Contents/PlugIns/LocalConvertQuickActions.appex"
+if [[ -d "${QUICKACTIONS_APPEX}" ]]; then
+    sign_target "${QUICKACTIONS_APPEX}" "${QUICKACTIONS_ENTITLEMENTS}" >/dev/null
+fi
+
 sign_target "${WORK_APP_COPY}" "${ENTITLEMENTS}"
 
 echo "▶ Verifying staged bundle signatures & third-party compliance..."
 /usr/bin/codesign --verify --deep --strict --verbose=2 "${WORK_APP_COPY}"
+if [[ "${CONFIGURATION}" == "Release" && -d "${QUICKACTIONS_APPEX}" ]]; then
+    APPEX_ENTITLEMENTS_OUT="$(/usr/bin/codesign -d --entitlements :- "${QUICKACTIONS_APPEX}" 2>&1 || true)"
+    if printf '%s' "${APPEX_ENTITLEMENTS_OUT}" | /usr/bin/grep -q "com.apple.security.get-task-allow"; then
+        echo "❌ Release Quick Actions extension must not contain com.apple.security.get-task-allow entitlement (${QUICKACTIONS_APPEX})." >&2
+        exit 1
+    fi
+fi
 bash "${SCRIPT_DIR}/verify-dependencies.sh" --app "${WORK_APP_COPY}"
 
 if [[ -d "${LO_BUNDLE}" ]]; then
@@ -439,6 +463,12 @@ with open(out_path, "w", encoding="utf-8") as fh:
     fh.write("\n")
 PY
 
+PUBLISH_NAMES=("${DMG_NAME}" "${ZIP_NAME}" "${SHA_NAME}" "${MANIFEST_NAME}")
+if [[ -f "${RELEASE_NOTES_SRC}" ]]; then
+    cp -p "${RELEASE_NOTES_SRC}" "${ARTIFACT_STAGE}/${RELEASE_NOTES_NAME}"
+    PUBLISH_NAMES+=("${RELEASE_NOTES_NAME}")
+fi
+
 if [[ "${SIMULATE_FAILURE_BEFORE_PUBLISH}" -eq 1 ]]; then
     echo "❌ Simulated failure before atomic publish (staged artifacts discarded; pre-existing ${RELEASE_DIR} preserved)." >&2
     exit 1
@@ -446,7 +476,6 @@ fi
 
 echo "▶ Publishing validated artifacts atomically into ${RELEASE_DIR}..."
 mkdir -p "${RELEASE_DIR}"
-PUBLISH_NAMES=("${DMG_NAME}" "${ZIP_NAME}" "${SHA_NAME}" "${MANIFEST_NAME}")
 STAGED_TARGET_TMP=()
 
 cleanup_publish_tmp() {
@@ -475,6 +504,9 @@ echo "✅ Published ${DMG_PATH}"
 echo "✅ Published ${ZIP_PATH}"
 echo "✅ Published ${SHA_FILE}"
 echo "✅ Published ${MANIFEST_FILE}"
+if [[ -f "${RELEASE_NOTES_FILE}" ]]; then
+    echo "✅ Published ${RELEASE_NOTES_FILE}"
+fi
 
 if [[ -z "${NOTARIZE_PROFILE}" && "${IDENTITY}" != "-" ]]; then
     cat <<EOF

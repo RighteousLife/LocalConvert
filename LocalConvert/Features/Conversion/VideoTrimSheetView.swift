@@ -288,7 +288,7 @@ struct VideoTrimSheetView: View {
             Divider().overlay(AppTheme.Colors.divider)
             footerBar
         }
-        .frame(minWidth: 680, idealWidth: 760, minHeight: 500, idealHeight: 640)
+        .frame(minWidth: 680, idealWidth: 760, minHeight: 500, idealHeight: 540, maxHeight: 560)
         .background(AppTheme.Colors.workspaceBackground)
         .task {
             await loadMediaAndThumbnails()

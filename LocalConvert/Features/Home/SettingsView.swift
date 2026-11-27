@@ -1,7 +1,27 @@
 import SwiftUI
 import AppKit
+import UniformTypeIdentifiers
 
-private enum SettingsTab: String, CaseIterable, Hashable, Identifiable {
+@MainActor
+final class SettingsNavigationCoordinator: ObservableObject {
+    static let shared = SettingsNavigationCoordinator()
+
+    @Published var requestedTab: SettingsTabSelection? = nil
+    @Published var diagnosticsExportPromptRequested: Bool = false
+
+    func openAdvancedDiagnostics() {
+        requestedTab = .advanced
+        diagnosticsExportPromptRequested = true
+    }
+
+    func consumeRequestedTab() -> SettingsTabSelection? {
+        let tab = requestedTab
+        requestedTab = nil
+        return tab
+    }
+}
+
+enum SettingsTabSelection: String, CaseIterable, Hashable, Identifiable {
     case general = "General"
     case output = "Output"
     case automation = "Automation"
@@ -32,7 +52,8 @@ private enum SettingsTab: String, CaseIterable, Hashable, Identifiable {
 }
 
 struct SettingsView: View {
-    @State private var selectedTab: SettingsTab = .general
+    @ObservedObject private var navigationCoordinator = SettingsNavigationCoordinator.shared
+    @State private var selectedTab: SettingsTabSelection = .general
     @State private var showingLicensesSheet = false
     @State private var showingFormatsSheet = false
 
@@ -40,15 +61,16 @@ struct SettingsView: View {
         TabView(selection: $selectedTab) {
             settingsTabForm {
                 GeneralSettingsSection()
+                UpdatesSettingsSection()
                 AboutSettingsSection(
                     showingLicensesSheet: $showingLicensesSheet,
                     showingFormatsSheet: $showingFormatsSheet
                 )
             }
             .tabItem {
-                Label(SettingsTab.general.localizedTitle, systemImage: SettingsTab.general.systemImage)
+                Label(SettingsTabSelection.general.localizedTitle, systemImage: SettingsTabSelection.general.systemImage)
             }
-            .tag(SettingsTab.general)
+            .tag(SettingsTabSelection.general)
 
             settingsTabForm {
                 OutputFilesSettingsSection()
@@ -58,37 +80,38 @@ struct SettingsView: View {
                 ConversionDefaultsSettingsSection()
             }
             .tabItem {
-                Label(SettingsTab.output.localizedTitle, systemImage: SettingsTab.output.systemImage)
+                Label(SettingsTabSelection.output.localizedTitle, systemImage: SettingsTabSelection.output.systemImage)
             }
-            .tag(SettingsTab.output)
+            .tag(SettingsTabSelection.output)
 
             settingsTabForm {
                 NotificationsSettingsSection()
                 JobsHistorySettingsSection()
             }
             .tabItem {
-                Label(SettingsTab.automation.localizedTitle, systemImage: SettingsTab.automation.systemImage)
+                Label(SettingsTabSelection.automation.localizedTitle, systemImage: SettingsTabSelection.automation.systemImage)
             }
-            .tag(SettingsTab.automation)
+            .tag(SettingsTabSelection.automation)
 
             settingsTabForm {
                 KeyboardShortcutsSettingsSection()
             }
             .tabItem {
-                Label(SettingsTab.shortcuts.localizedTitle, systemImage: SettingsTab.shortcuts.systemImage)
+                Label(SettingsTabSelection.shortcuts.localizedTitle, systemImage: SettingsTabSelection.shortcuts.systemImage)
             }
-            .tag(SettingsTab.shortcuts)
+            .tag(SettingsTabSelection.shortcuts)
 
             settingsTabForm {
                 PerformanceSettingsSection()
                 UndoEditingHistorySettingsSection()
+                TerminalCLISettingsSection()
                 PrivacyDiagnosticsSettingsSection()
                 ResetDefaultsSettingsSection()
             }
             .tabItem {
-                Label(SettingsTab.advanced.localizedTitle, systemImage: SettingsTab.advanced.systemImage)
+                Label(SettingsTabSelection.advanced.localizedTitle, systemImage: SettingsTabSelection.advanced.systemImage)
             }
-            .tag(SettingsTab.advanced)
+            .tag(SettingsTabSelection.advanced)
         }
         .accessibilityIdentifier("settings.tabView")
         .padding(.top, AppTheme.Spacing.md)
@@ -97,6 +120,16 @@ struct SettingsView: View {
         .frame(minWidth: 460, maxWidth: .infinity, minHeight: 420, maxHeight: .infinity, alignment: .top)
         .appWorkspaceSurface()
         .navigationTitle("Settings")
+        .task {
+            if let pending = navigationCoordinator.consumeRequestedTab() {
+                selectedTab = pending
+            }
+        }
+        .onChange(of: navigationCoordinator.requestedTab) { _, _ in
+            if let pending = navigationCoordinator.consumeRequestedTab() {
+                selectedTab = pending
+            }
+        }
         .sheet(isPresented: $showingLicensesSheet) {
             LicensesSheetView(isPresented: $showingLicensesSheet)
         }
@@ -634,68 +667,311 @@ private struct UndoEditingHistorySettingsSection: View {
     }
 }
 
+private struct UpdatesSettingsSection: View {
+    @ObservedObject private var updateService = UpdateCheckService.shared
+
+    var body: some View {
+        Section("Software Updates") {
+            Text("LocalConvert never checks for updates automatically in the background. A single network request to GitHub Releases is made only when you click Check for Updates.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+
+            HStack(spacing: AppTheme.Spacing.sm) {
+                Button {
+                    Task { @MainActor in
+                        _ = try? await updateService.checkForUpdates()
+                    }
+                } label: {
+                    Label("Check for Updates", systemImage: "arrow.clockwise.circle")
+                }
+                .buttonStyle(.bordered)
+                .controlSize(.small)
+                .disabled(updateService.isChecking)
+                .accessibilityIdentifier("settings.updates.checkButton")
+
+                if updateService.isChecking {
+                    ProgressView()
+                        .controlSize(.small)
+                    Text("Checking GitHub releases...")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+
+                Spacer(minLength: 0)
+            }
+
+            if let error = updateService.lastError {
+                AppInfoBanner(style: .error, message: error)
+            } else if let result = updateService.lastResult {
+                if result.isUpdateAvailable {
+                    AppInfoBanner(
+                        style: .info,
+                        message: String(localized: "Update available: v\(result.latestVersion) (current: v\(result.currentVersion))."),
+                        actionTitle: result.releaseURL != nil ? String(localized: "View Release") : nil,
+                        onAction: result.releaseURL.map { url in
+                            { NSWorkspace.shared.open(url) }
+                        }
+                    )
+                } else {
+                    AppInfoBanner(
+                        style: .success,
+                        message: String(localized: "You are up to date (v\(result.currentVersion)).")
+                    )
+                }
+            }
+        }
+    }
+}
+
+private struct TerminalCLISettingsSection: View {
+    @State private var cliStatus: CLIBridgeInstallStatus = CLIBridgeInstaller.shared.status()
+    @State private var feedbackMessage: String? = nil
+    @State private var errorMessage: String? = nil
+
+    var body: some View {
+        Section("Terminal CLI Helper") {
+            HStack(alignment: .center, spacing: AppTheme.Spacing.sm) {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Install ~/.local/bin/localconvert launcher")
+                        .font(AppTheme.Typography.body)
+                    Text("Open or queue files directly from Terminal with `localconvert file1.png file2.pdf`.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+
+                Spacer(minLength: AppTheme.Spacing.sm)
+
+                AppStatusBadge(
+                    text: cliStatus.isInstalled ? String(localized: "Installed") : String(localized: "Not Installed"),
+                    tint: cliStatus.isInstalled ? AppTheme.Colors.success : .secondary
+                )
+            }
+
+            ViewThatFits(in: .horizontal) {
+                cliButtonsRow
+                VStack(alignment: .leading, spacing: AppTheme.Spacing.xs) {
+                    cliButtonsRow
+                }
+            }
+
+            if cliStatus.isInstalled && !cliStatus.isBinDirectoryInPATH {
+                Text("Add ~/.local/bin to your shell PATH if `localconvert` is not found in Terminal.")
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+
+            if let errorMessage {
+                AppInfoBanner(style: .error, message: errorMessage, onDismiss: { self.errorMessage = nil })
+            } else if let feedbackMessage {
+                AppInfoBanner(style: .success, message: feedbackMessage, onDismiss: { self.feedbackMessage = nil })
+            }
+        }
+        .task {
+            cliStatus = CLIBridgeInstaller.shared.status()
+        }
+    }
+
+    private var cliButtonsRow: some View {
+        HStack(spacing: AppTheme.Spacing.sm) {
+            Button(cliStatus.isInstalled ? String(localized: "Reinstall CLI Helper") : String(localized: "Install CLI Helper")) {
+                installCLI()
+            }
+            .buttonStyle(.borderedProminent)
+            .controlSize(.small)
+            .accessibilityIdentifier("settings.cli.installButton")
+
+            Button(role: .destructive) {
+                removeCLI()
+            } label: {
+                Text("Remove CLI Helper")
+            }
+            .buttonStyle(.bordered)
+            .controlSize(.small)
+            .disabled(!cliStatus.isInstalled)
+            .accessibilityIdentifier("settings.cli.removeButton")
+        }
+    }
+
+    private func installCLI() {
+        errorMessage = nil
+        do {
+            cliStatus = try CLIBridgeInstaller.shared.install()
+            feedbackMessage = String(localized: "Installed localconvert CLI helper at ~/.local/bin/localconvert.")
+        } catch {
+            errorMessage = error.localizedDescription
+        }
+    }
+
+    private func removeCLI() {
+        errorMessage = nil
+        do {
+            cliStatus = try CLIBridgeInstaller.shared.remove()
+            feedbackMessage = String(localized: "Removed localconvert CLI helper.")
+        } catch {
+            errorMessage = error.localizedDescription
+        }
+    }
+}
+
 private struct PrivacyDiagnosticsSettingsSection: View {
     @AppStorage("settings.verboseLogging", store: AppStoragePaths.userDefaults)
     private var verboseLogging: Bool = false
+    @ObservedObject private var navigationCoordinator = SettingsNavigationCoordinator.shared
+    @State private var isExportingBundle: Bool = false
+    @State private var exportSuccessURL: URL? = nil
+    @State private var exportErrorMessage: String? = nil
 
     var body: some View {
         Section("Privacy & Diagnostics") {
-            Text("All file processing occurs 100% locally and offline on your Mac. LocalConvert never uploads or transmits your files, telemetry, or metadata to external servers.")
+            Text("All file conversions run 100% locally and offline on your Mac with zero background telemetry. Optional user-triggered tools (Update Check and URL-to-PDF) connect to the network only when you explicitly invoke them.")
                 .font(.caption)
                 .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
 
             Toggle("Enable Verbose Diagnostic Logging", isOn: $verboseLogging)
                 .accessibilityLabel("Enable Verbose Diagnostic Logging")
 
-            HStack(spacing: AppTheme.Spacing.sm) {
-                Button("Open Logs Folder") {
-                    DiagnosticLogManager.openLogsFolder()
+            ViewThatFits(in: .horizontal) {
+                diagnosticsButtonsRow
+                VStack(alignment: .leading, spacing: AppTheme.Spacing.xs) {
+                    diagnosticsButtonsRow
                 }
-                .buttonStyle(.bordered)
-                .controlSize(.small)
-                .accessibilityLabel("Open Logs Folder")
+            }
 
-                Button(role: .destructive) {
-                    DiagnosticLogManager.clearDiagnosticLogs()
-                } label: {
-                    Text("Clear Diagnostic Logs")
+            Text("Exported diagnostic bundles automatically redact /Users/<username> paths, credentials, and GPS tags into a local .zip file.")
+                .font(.caption2)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+
+            if navigationCoordinator.diagnosticsExportPromptRequested {
+                AppInfoBanner(
+                    style: .info,
+                    message: String(localized: "Click Export Redacted Diagnostics... above to save a sanitized .zip bundle."),
+                    onDismiss: { navigationCoordinator.diagnosticsExportPromptRequested = false }
+                )
+            }
+
+            if let exportErrorMessage {
+                AppInfoBanner(
+                    style: .error,
+                    message: exportErrorMessage,
+                    onDismiss: { self.exportErrorMessage = nil }
+                )
+            } else if let exportSuccessURL {
+                AppInfoBanner(
+                    style: .success,
+                    message: String(localized: "Exported redacted diagnostics: \(exportSuccessURL.lastPathComponent)"),
+                    actionTitle: String(localized: "Reveal"),
+                    onAction: {
+                        NSWorkspace.shared.activateFileViewerSelecting([exportSuccessURL])
+                    },
+                    onDismiss: { self.exportSuccessURL = nil }
+                )
+            }
+        }
+    }
+
+    private var diagnosticsButtonsRow: some View {
+        HStack(spacing: AppTheme.Spacing.sm) {
+            Button("Export Redacted Diagnostics...") {
+                exportRedactedDiagnostics()
+            }
+            .buttonStyle(.borderedProminent)
+            .controlSize(.small)
+            .disabled(isExportingBundle)
+            .accessibilityLabel("Export Redacted Diagnostics")
+            .accessibilityIdentifier("settings.diagnostics.exportButton")
+
+            Button("Open Logs Folder") {
+                DiagnosticLogManager.openLogsFolder()
+            }
+            .buttonStyle(.bordered)
+            .controlSize(.small)
+            .accessibilityLabel("Open Logs Folder")
+
+            Button(role: .destructive) {
+                DiagnosticLogManager.clearDiagnosticLogs()
+            } label: {
+                Text("Clear Diagnostic Logs")
+            }
+            .buttonStyle(.bordered)
+            .controlSize(.small)
+            .accessibilityLabel("Clear Diagnostic Logs")
+        }
+    }
+
+    private func exportRedactedDiagnostics() {
+        navigationCoordinator.diagnosticsExportPromptRequested = false
+        exportErrorMessage = nil
+        exportSuccessURL = nil
+
+        let panel = NSSavePanel()
+        panel.allowedContentTypes = [.zip]
+        panel.canCreateDirectories = true
+        panel.nameFieldStringValue = DiagnosticBundleExporter.defaultExportFilename()
+        panel.prompt = String(localized: "Export")
+
+        guard panel.runModal() == .OK, let destinationURL = panel.url else {
+            return
+        }
+
+        isExportingBundle = true
+        Task {
+            do {
+                let result = try await Task.detached(priority: .userInitiated) {
+                    try DiagnosticBundleExporter().exportBundle(to: destinationURL, policy: .overwrite)
+                }.value
+                await MainActor.run {
+                    isExportingBundle = false
+                    exportSuccessURL = result.outputURL
                 }
-                .buttonStyle(.bordered)
-                .controlSize(.small)
-                .accessibilityLabel("Clear Diagnostic Logs")
+            } catch {
+                await MainActor.run {
+                    isExportingBundle = false
+                    exportErrorMessage = error.localizedDescription
+                }
             }
         }
     }
 }
 
 private struct KeyboardShortcutsSettingsSection: View {
+    private var groups: [(category: String, entries: [AppShortcutEntry])] {
+        KeyboardShortcutsCatalog.groupedEntries()
+    }
+
     var body: some View {
-        Section("Keyboard Shortcuts") {
-            VStack(spacing: 0) {
-                ForEach(Array(KeyboardShortcutDescriptor.defaultShortcuts.enumerated()), id: \.element.id) { index, shortcut in
-                    if index > 0 {
-                        Divider()
-                            .overlay(AppTheme.Colors.divider)
+        ForEach(groups, id: \.category) { group in
+            Section(LocalizedStringKey(group.category)) {
+                VStack(spacing: 0) {
+                    ForEach(Array(group.entries.enumerated()), id: \.element.id) { index, shortcut in
+                        if index > 0 {
+                            Divider()
+                                .overlay(AppTheme.Colors.divider)
+                        }
+                        HStack(spacing: AppTheme.Spacing.md) {
+                            Text(LocalizedStringKey(shortcut.action))
+                                .font(AppTheme.Typography.subheadline)
+                                .lineLimit(1)
+                                .truncationMode(.tail)
+                            Spacer(minLength: AppTheme.Spacing.sm)
+                            Text(verbatim: shortcut.shortcut)
+                                .font(AppTheme.Typography.badge.monospaced())
+                                .padding(.horizontal, AppTheme.Spacing.xs + 3)
+                                .padding(.vertical, 3)
+                                .background(AppTheme.Colors.neutralTint)
+                                .clipShape(RoundedRectangle(cornerRadius: AppTheme.Radius.xs))
+                                .overlay(
+                                    RoundedRectangle(cornerRadius: AppTheme.Radius.xs)
+                                        .strokeBorder(Color.primary.opacity(0.08), lineWidth: 1)
+                                )
+                                .fixedSize(horizontal: true, vertical: false)
+                        }
+                        .padding(.vertical, AppTheme.Spacing.xs + 2)
                     }
-                    HStack(spacing: AppTheme.Spacing.md) {
-                        Text(LocalizedStringKey(shortcut.action))
-                            .font(AppTheme.Typography.subheadline)
-                            .lineLimit(1)
-                            .truncationMode(.tail)
-                        Spacer(minLength: AppTheme.Spacing.sm)
-                        Text(shortcut.shortcut)
-                            .font(AppTheme.Typography.badge.monospaced())
-                            .padding(.horizontal, AppTheme.Spacing.xs + 3)
-                            .padding(.vertical, 3)
-                            .background(AppTheme.Colors.neutralTint)
-                            .clipShape(RoundedRectangle(cornerRadius: AppTheme.Radius.xs))
-                            .overlay(
-                                RoundedRectangle(cornerRadius: AppTheme.Radius.xs)
-                                    .strokeBorder(Color.primary.opacity(0.08), lineWidth: 1)
-                            )
-                            .fixedSize(horizontal: true, vertical: false)
-                    }
-                    .padding(.vertical, AppTheme.Spacing.xs + 2)
                 }
             }
         }
@@ -713,8 +989,8 @@ private struct AboutSettingsSection: View {
     }()
 
     private static let versionLine: String = {
-        let version = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "1.0.0"
-        let build = Bundle.main.infoDictionary?["CFBundleVersion"] as? String ?? "1"
+        let version = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "2.0.0"
+        let build = Bundle.main.infoDictionary?["CFBundleVersion"] as? String ?? "2"
         return String(localized: "Version \(version) (Build \(build)) · Apple Silicon (arm64)")
     }()
 

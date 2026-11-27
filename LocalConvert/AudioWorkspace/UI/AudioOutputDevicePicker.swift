@@ -40,10 +40,10 @@ struct AudioOutputDevicePicker: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: 4) {
                     deviceRow(
-                        title: "System Default",
+                        title: String(localized: "System Default"),
                         subtitle: deviceMonitor.defaultDevice.map {
                             "\($0.name) · \(Self.formatRate($0.nominalSampleRateHz))"
-                        } ?? "No active output device",
+                        } ?? String(localized: "No active output device"),
                         isSelected: deviceMonitor.selectedDeviceUID == nil,
                         isDefault: true
                     ) {
@@ -51,7 +51,7 @@ struct AudioOutputDevicePicker: View {
                     }
                     .accessibilityIdentifier("audioworkspace.device_picker.system_default")
                     .accessibilityLabel("System Default output device")
-                    .accessibilityValue(deviceMonitor.selectedDeviceUID == nil ? "Selected" : "Not selected")
+                    .accessibilityValue(deviceMonitor.selectedDeviceUID == nil ? String(localized: "Selected") : String(localized: "Not selected"))
 
                     if !deviceMonitor.availableDevices.isEmpty {
                         Divider()
@@ -60,17 +60,21 @@ struct AudioOutputDevicePicker: View {
 
                     ForEach(deviceMonitor.availableDevices) { device in
                         let isSelected = deviceMonitor.selectedDeviceUID == device.uid
+                        let rateText = Self.formatRate(device.nominalSampleRateHz)
+                        let subtitle = device.isDefault
+                            ? String(localized: "\(rateText) · \(device.outputChannelCount) ch · Default")
+                            : String(localized: "\(rateText) · \(device.outputChannelCount) ch")
                         deviceRow(
                             title: device.name,
-                            subtitle: "\(Self.formatRate(device.nominalSampleRateHz)) · \(device.outputChannelCount) ch\(device.isDefault ? " · Default" : "")",
+                            subtitle: subtitle,
                             isSelected: isSelected,
                             isDefault: device.isDefault
                         ) {
                             Task { _ = await playback.selectOutputDevice(uid: device.uid) }
                         }
                         .accessibilityIdentifier("audioworkspace.device_picker.device.\(device.uid)")
-                        .accessibilityLabel("\(device.name), \(Self.formatRate(device.nominalSampleRateHz)), \(device.outputChannelCount) channels")
-                        .accessibilityValue(isSelected ? "Selected" : "Not selected")
+                        .accessibilityLabel(String(localized: "\(device.name), \(rateText), \(device.outputChannelCount) channels"))
+                        .accessibilityValue(isSelected ? String(localized: "Selected") : String(localized: "Not selected"))
                     }
                 }
             }
@@ -84,7 +88,7 @@ struct AudioOutputDevicePicker: View {
                 .help("Automatically pause the Editor when the Library Player starts, and vice versa")
                 .accessibilityLabel("Auto-pause other audio transport")
                 .accessibilityHint("Non-destructively pauses the other player when playback starts")
-                .accessibilityValue(localAutoPause ? "On" : "Off")
+                .accessibilityValue(localAutoPause ? String(localized: "On") : String(localized: "Off"))
                 .accessibilityIdentifier("audioworkspace.device_picker.auto_pause_toggle")
         }
         .padding(AppTheme.Spacing.md)

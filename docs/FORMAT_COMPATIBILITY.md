@@ -45,6 +45,23 @@ Read-only formats are **inputs only** (they can be converted to compatible writa
 | **PPSX / PPS** | ✓ | — | — | **Read-only input** slideshow files |
 | **ODP** | ✓ | ✓ | — | OpenDocument Presentation (also `.fodp`) |
 
+### Apple iWork Family (`IWorkConversionBridge`)
+| Format | Read | Write | Metadata | Notes |
+|---|:---:|:---:|:---:|---|
+| **PAGES** | ✓ | — | — | **Read-only** Apple Pages input → PDF, DOCX, RTF, TXT via installed `Pages.app` (also extracts embedded PDF preview when available) |
+| **NUMBERS** | ✓ | — | — | **Read-only** Apple Numbers input → PDF, XLSX, CSV via installed `Numbers.app` |
+| **KEY** | ✓ | — | — | **Read-only** Apple Keynote input → PDF, PPTX via installed `Keynote.app` |
+
+### Apple Data & Structured Formats (`TextConversionEngine` + `AppleDataFormatConverter`)
+| Format | Read | Write | Metadata | Notes |
+|---|:---:|:---:|:---:|---|
+| **PLIST** | ✓ | ✓ | — | Apple Property List (Binary & XML) ↔ JSON, XML |
+| **JSON** | ✓ | ✓ | — | Structured JSON; bidirectional with PLIST, export target from WEBLOC/ICS/VCF |
+| **XML** | ✓ | ✓ | — | Structured XML; bidirectional with PLIST |
+| **WEBLOC** | ✓ | — | — | **Read-only** macOS web shortcut (`.webloc`) → JSON, TXT, MD, CSV |
+| **ICS** | ✓ | — | — | **Read-only** iCalendar (`.ics`) → JSON, CSV, TXT |
+| **VCF** | ✓ | — | — | **Read-only** vCard (`.vcf`) → JSON, CSV, TXT |
+
 ---
 
 ## 2. Images & Camera RAW (`ImageConversionEngine`)
@@ -97,6 +114,7 @@ Read-only formats are **inputs only** (they can be converted to compatible writa
 | **FLAC** | ✓ | ✓ | Lossless FLAC 16-bit & 24-bit (`compression_level 0..8`), up to 192 kHz / 7.1, Stream Copy, Vorbis comments + lyrics + cover artwork |
 | **M4A** | ✓ | ✓ | AAC (`aac`, `aac_at` VBR `0..14`), Apple Lossless (`alac` 16/24-bit), Stream Copy, MP4/iTunes atoms + lyrics + cover artwork |
 | **M4B** | ✓ | ✓ | Audiobook MP4 (`aac`, `aac_at`, `alac`), Stream Copy, MP4 atoms + lyrics + cover artwork |
+| **M4R** | ✓ | ✓ | iPhone Ringtone (AAC in MP4/iPod container; trimmed to max 30 seconds by default on export) |
 | **AAC** | ✓ | ✓ | Raw ADTS AAC (`aac`, `aac_at`), Stream Copy, read-only technical inspection |
 | **OGG** | ✓ | ✓ | `libopus` (CBR/VBR), experimental `vorbis`, and Ogg `flac`, Vorbis comments + lyrics |
 | **OPUS** | ✓ | ✓ | `libopus` 48 kHz CBR/VBR (32–480 kbps in Audio Toolbox), Stream Copy, Vorbis stream comments + lyrics |
@@ -151,25 +169,26 @@ Read-only formats are **inputs only** (they can be converted to compatible writa
 
 ---
 
-## 5. Subtitles (`SubtitleConversionEngine`)
+## 5. Subtitles & Offline Speech-to-Text (`SubtitleConversionEngine` + `OfflineSpeechTranscriptionEngine`)
 
 | Format | Read | Write | Notes |
 |---|:---:|:---:|---|
 | **SRT / VTT / ASS / SSA** | ✓ | ✓ | Cross-convert text subtitles + extract text subtitle tracks from video |
 | **SUB (MicroDVD)** | ✓ | — | **Read-only** text subtitle input → SRT/VTT/ASS/SSA |
 | **SUP (Blu-ray PGS)** | ✓ (detected) | — | Bitmap subtitle format — incompatible with text-only extraction/conversion without OCR |
+| **Offline Speech-to-Text** | Audio / Video | TXT, SRT (→ VTT) | On-device Apple `SFSpeechRecognizer` (`requiresOnDeviceRecognition = true`) exports `TXT` and `SRT` directly; `SRT` outputs can be converted to `VTT` (WebVTT) / `ASS` / `SSA` via `SubtitleConversionEngine` |
 
 ---
 
-## 6. Archives (`ArchiveConversionEngine` — macOS `libarchive`/`bsdtar`, `gzip`, `bzip2`)
+## 6. Archives (`ArchiveConversionEngine` & `ArchiveInspectorEngine` — macOS `libarchive`/`bsdtar`, `gzip`, `bzip2`, `unzip`)
 
 | Format | Read | Write | Notes |
 |---|:---:|:---:|---|
-| **ZIP** | ✓ | ✓ | Path-traversal, symlink, bomb & encryption guards applied |
-| **7Z** | ✓ | ✓ | Bundled macOS `bsdtar --format=7zip` |
-| **TAR** | ✓ | ✓ | POSIX/pax TAR archive |
-| **TAR.GZ (.tgz)** | ✓ | ✓ | Gzipped tar archive |
-| **TAR.BZ2 (.tbz2)** | ✓ | ✓ | Bzip2-compressed tar archive |
-| **TAR.XZ (.txz)** | ✓ | ✓ | XZ-compressed tar archive |
+| **ZIP** | ✓ | ✓ | Path-traversal (Zip-Slip), symlink, bomb & encryption guards applied; `ArchiveInspectorEngine` supports entry inspection, selective extraction, and passphrase-protected ZIP extraction |
+| **7Z** | ✓ | ✓ | Bundled macOS `bsdtar --format=7zip`; browsable & extractable in `ArchiveInspectorEngine` |
+| **TAR** | ✓ | ✓ | POSIX/pax TAR archive; browsable & extractable in `ArchiveInspectorEngine` |
+| **TAR.GZ (.tgz)** | ✓ | ✓ | Gzipped tar archive; browsable & extractable in `ArchiveInspectorEngine` |
+| **TAR.BZ2 (.tbz2)** | ✓ | ✓ | Bzip2-compressed tar archive; browsable & extractable in `ArchiveInspectorEngine` |
+| **TAR.XZ (.txz)** | ✓ | ✓ | XZ-compressed tar archive; browsable & extractable in `ArchiveInspectorEngine` |
 | **GZ / BZ2** | ✓ | ✓ | Single-file stream compression (unpacks / repacks single-file payloads cleanly) |
 | **RAR** | ✓ | — | **Read-only** unpacking via macOS libarchive (encrypted/unsupported solid RARs rejected cleanly) |

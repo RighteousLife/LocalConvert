@@ -10,6 +10,9 @@ struct ContentView: View {
     @ObservedObject var commandPalette: CommandPaletteController
     @ObservedObject var shortcutsController: KeyboardShortcutsSheetController
     @ObservedObject var quickQRController: QuickQRGeneratorController
+    @ObservedObject var duplicateFinderController: DuplicateFinderSheetController
+    @ObservedObject var textAndArchiveController: TextAndArchiveUtilityController
+    @ObservedObject private var voiceRecorder = QuickVoiceRecorderService.shared
     let metadataManager: MetadataManager
 
     init(
@@ -18,6 +21,8 @@ struct ContentView: View {
         commandPalette: CommandPaletteController = .shared,
         shortcutsController: KeyboardShortcutsSheetController = .shared,
         quickQRController: QuickQRGeneratorController = .shared,
+        duplicateFinderController: DuplicateFinderSheetController = .shared,
+        textAndArchiveController: TextAndArchiveUtilityController = .shared,
         metadataManager: MetadataManager = .shared
     ) {
         self.undoCoordinator = undoCoordinator
@@ -25,6 +30,8 @@ struct ContentView: View {
         self.commandPalette = commandPalette
         self.shortcutsController = shortcutsController
         self.quickQRController = quickQRController
+        self.duplicateFinderController = duplicateFinderController
+        self.textAndArchiveController = textAndArchiveController
         self.metadataManager = metadataManager
     }
 
@@ -64,9 +71,44 @@ struct ContentView: View {
                     }
 
                     Button {
+                        ScreenTextOCRService.shared.triggerCaptureFromUI(appState: appState)
+                    } label: {
+                        Label("Capture Screen Text (OCR)", systemImage: "text.viewfinder")
+                    }
+
+                    Button {
+                        QuickVoiceRecorderService.shared.toggleRecording(into: appState)
+                    } label: {
+                        Label(
+                            voiceRecorder.isRecording ? String(localized: "Stop Voice Memo Recording") : String(localized: "Record Voice Memo"),
+                            systemImage: voiceRecorder.isRecording ? "stop.circle.fill" : "mic.fill"
+                        )
+                    }
+
+                    Divider()
+
+                    Button {
                         quickQRController.open()
                     } label: {
                         Label("Quick QR Generator...", systemImage: "qrcode")
+                    }
+
+                    Button {
+                        duplicateFinderController.open(directoryURL: nil)
+                    } label: {
+                        Label("Find Duplicate Files (SHA-256)...", systemImage: "doc.on.doc.fill")
+                    }
+
+                    Button {
+                        textAndArchiveController.open(mode: .archive)
+                    } label: {
+                        Label("Archive Inspector & Encrypted ZIP...", systemImage: "archivebox.fill")
+                    }
+
+                    Button {
+                        textAndArchiveController.open(mode: .textTools)
+                    } label: {
+                        Label("Markdown / JSON / Base64 / URL-to-PDF...", systemImage: "curlybraces")
                     }
 
                     Divider()
@@ -164,6 +206,14 @@ struct ContentView: View {
         }
         .sheet(isPresented: $quickQRController.isPresented) {
             QuickQRGeneratorSheetView(controller: quickQRController)
+                .preferredColorScheme(preferredColorScheme)
+        }
+        .sheet(isPresented: $duplicateFinderController.isPresented) {
+            DuplicateFinderSheetView(controller: duplicateFinderController)
+                .preferredColorScheme(preferredColorScheme)
+        }
+        .sheet(isPresented: $textAndArchiveController.isPresented) {
+            TextAndArchiveUtilitySheetView(controller: textAndArchiveController)
                 .preferredColorScheme(preferredColorScheme)
         }
     }

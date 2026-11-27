@@ -78,9 +78,22 @@ protocol TargetSizeVideoCompressionRunner: Sendable {
 
 struct LiveTargetSizeVideoRunner: TargetSizeVideoCompressionRunner {
     let provider: BundledFFmpegProvider
+    let encoderAvailabilityCheck: (@Sendable (String) async -> Bool)?
 
-    init(provider: BundledFFmpegProvider = BundledFFmpegProvider(fallbackToSystem: BundledBinarySecurityPolicy.allowsSystemFallback)) {
+    init(
+        provider: BundledFFmpegProvider = BundledFFmpegProvider(fallbackToSystem: BundledBinarySecurityPolicy.allowsSystemFallback),
+        encoderAvailabilityCheck: (@Sendable (String) async -> Bool)? = nil
+    ) {
         self.provider = provider
+        self.encoderAvailabilityCheck = encoderAvailabilityCheck
+    }
+
+    static func resolveHardwareFallbackEncoder(
+        outputFormat: FileFormat,
+        isEncoderAvailable: @Sendable (String) async -> Bool
+    ) async -> String? {
+        guard outputFormat != .webm else { return nil }
+        return await isEncoderAvailable("libx264") ? "libx264" : nil
     }
 
     func probeDurationSeconds(url: URL) async throws -> Double {
@@ -154,9 +167,22 @@ struct LiveTargetSizeVideoRunner: TargetSizeVideoCompressionRunner {
             let stderrText = String(data: output.stderr, encoding: .utf8) ?? ""
             if !useWebM && BaseFFmpegProvider.isVideoToolboxHardwareFailure(stderr: stderrText, arguments: args) {
                 try? FileManager.default.removeItem(at: tempOutputURL)
+                let availabilityCheck = encoderAvailabilityCheck
+                let fallbackEncoder = await Self.resolveHardwareFallbackEncoder(outputFormat: outputFormat) { encoder in
+                    if let availabilityCheck {
+                        return await availabilityCheck(encoder)
+                    }
+                    return await provider.supportsVideoEncoder(encoder, ffmpegPath: ffmpegPath)
+                }
+                guard let fallbackEncoder else {
+                    throw ConversionError.engineExecutionFailed(
+                        "Hardware VideoToolbox H.264 encoding failed and no software H.264 encoder is available in the bundled FFmpeg build. Try WebM output or retry once GPU resources are available.",
+                        underlyingError: BaseFFmpegProvider.videoToolboxDiagnosticSummary(from: stderrText)
+                    )
+                }
                 var swArgs = args
                 if let idx = swArgs.firstIndex(of: "h264_videotoolbox") {
-                    swArgs[idx] = "libx264"
+                    swArgs[idx] = fallbackEncoder
                 }
                 let swProc = Process()
                 swProc.executableURL = URL(fileURLWithPath: ffmpegPath)

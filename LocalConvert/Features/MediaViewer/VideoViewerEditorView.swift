@@ -522,7 +522,7 @@ struct VideoViewerEditorView: View {
                     HStack(spacing: AppTheme.Spacing.xs) {
                         HStack(spacing: AppTheme.Spacing.xs) {
                             if rotation != .deg0 {
-                                AppStatusBadge(text: String(localized: "Rotate \(rotation.label)"), tint: .white)
+                                AppStatusBadge(text: String(localized: "Rotate \(rotation.label)"), tint: AppTheme.Colors.accent)
                             }
                             if isMuted {
                                 AppStatusBadge(text: String(localized: "Muted"), tint: AppTheme.Colors.warning)
@@ -543,8 +543,13 @@ struct VideoViewerEditorView: View {
                                 AppStatusBadge(text: String(localized: "Trim Silence"), tint: AppTheme.Colors.warning)
                             }
                         }
-                        .padding(4)
-                        .background(.ultraThinMaterial, in: Capsule())
+                        .padding(.horizontal, 6)
+                        .padding(.vertical, 4)
+                        .background(AppTheme.Colors.cardBackground.opacity(0.94), in: Capsule())
+                        .overlay(
+                            Capsule()
+                                .strokeBorder(AppTheme.Colors.cardBorder, lineWidth: 1)
+                        )
                         Spacer()
                     }
                     .padding(AppTheme.Spacing.sm)
@@ -1101,7 +1106,7 @@ struct VideoViewerEditorView: View {
     ) -> some View {
         let fillColor: Color = segment.isKept
             ? AppTheme.Colors.accent.opacity(isSelected ? 0.34 : 0.20)
-            : AppTheme.Colors.neutralTint.opacity(0.55)
+            : AppTheme.Colors.neutralTint.opacity(0.78)
         let borderColor: Color = isSelected
             ? AppTheme.Colors.accent
             : (segment.isKept ? AppTheme.Colors.accent.opacity(0.45) : AppTheme.Colors.cardBorder)
@@ -1130,7 +1135,7 @@ struct VideoViewerEditorView: View {
             if width >= 46 {
                 Text(segment.isKept ? String(localized: "Seg \(index + 1)") : String(localized: "Cut"))
                     .font(.caption2.weight(.semibold))
-                    .foregroundStyle(segment.isKept ? Color.primary : Color.secondary)
+                    .foregroundStyle(segment.isKept ? Color.primary : Color.primary.opacity(0.65))
                     .strikethrough(!segment.isKept)
                     .lineLimit(1)
             }
@@ -1195,17 +1200,30 @@ struct VideoViewerEditorView: View {
                                 ) {
                                     ForEach(VideoCropAspectRatio.allCases) { ratio in
                                         let isSelected = cropConfig.aspectRatio == ratio
-                                        Button {
-                                            selectCropAspectRatio(ratio)
-                                        } label: {
-                                            Text(LocalizedStringKey(ratio.rawValue))
-                                                .font(AppTheme.Typography.caption.weight(isSelected ? .semibold : .regular))
-                                                .frame(maxWidth: .infinity)
+                                        if isSelected {
+                                            Button {
+                                                selectCropAspectRatio(ratio)
+                                            } label: {
+                                                Text(LocalizedStringKey(ratio.rawValue))
+                                                    .font(AppTheme.Typography.caption.weight(.semibold))
+                                                    .frame(maxWidth: .infinity)
+                                            }
+                                            .buttonStyle(.borderedProminent)
+                                            .tint(AppTheme.Colors.accent)
+                                            .controlSize(.small)
+                                            .accessibilityIdentifier("videoViewer.cropAspectButton_\(ratio.rawValue)")
+                                        } else {
+                                            Button {
+                                                selectCropAspectRatio(ratio)
+                                            } label: {
+                                                Text(LocalizedStringKey(ratio.rawValue))
+                                                    .font(AppTheme.Typography.caption)
+                                                    .frame(maxWidth: .infinity)
+                                            }
+                                            .buttonStyle(.bordered)
+                                            .controlSize(.small)
+                                            .accessibilityIdentifier("videoViewer.cropAspectButton_\(ratio.rawValue)")
                                         }
-                                        .buttonStyle(.bordered)
-                                        .tint(isSelected ? AppTheme.Colors.accent : nil)
-                                        .controlSize(.small)
-                                        .accessibilityIdentifier("videoViewer.cropAspectButton_\(ratio.rawValue)")
                                     }
                                 }
 
@@ -1277,6 +1295,10 @@ struct VideoViewerEditorView: View {
                                     .padding(6)
                                     .background(AppTheme.Colors.subtleSurface)
                                     .clipShape(RoundedRectangle(cornerRadius: AppTheme.Radius.xs))
+                                    .overlay(
+                                        RoundedRectangle(cornerRadius: AppTheme.Radius.xs)
+                                            .strokeBorder(AppTheme.Colors.cardBorder, lineWidth: 1)
+                                    )
                                 }
                             }
                             .padding(.top, AppTheme.Spacing.xs)
@@ -1289,12 +1311,14 @@ struct VideoViewerEditorView: View {
                             VStack(alignment: .leading, spacing: AppTheme.Spacing.sm) {
                                 Toggle("Loudness Normalize (-16 LUFS)", isOn: $audioProcessing.loudnessNormalize)
                                     .font(AppTheme.Typography.caption)
+                                    .foregroundStyle(.primary)
                                     .toggleStyle(.switch)
                                     .controlSize(.mini)
                                     .accessibilityIdentifier("videoViewer.loudnormToggle")
 
                                 Toggle("Trim Silence (-50 dB)", isOn: $audioProcessing.trimSilence)
                                     .font(AppTheme.Typography.caption)
+                                    .foregroundStyle(.primary)
                                     .toggleStyle(.switch)
                                     .controlSize(.mini)
                                     .accessibilityIdentifier("videoViewer.trimSilenceToggle")
@@ -1384,6 +1408,10 @@ struct VideoViewerEditorView: View {
                                     .padding(.vertical, 4)
                                     .background(AppTheme.Colors.subtleSurface)
                                     .clipShape(RoundedRectangle(cornerRadius: AppTheme.Radius.xs))
+                                    .overlay(
+                                        RoundedRectangle(cornerRadius: AppTheme.Radius.xs)
+                                            .strokeBorder(AppTheme.Colors.cardBorder, lineWidth: 1)
+                                    )
                                 }
 
                                 HStack(spacing: AppTheme.Spacing.xs) {

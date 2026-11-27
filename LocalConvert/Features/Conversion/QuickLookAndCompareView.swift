@@ -594,10 +594,32 @@ struct QuickLookAndCompareView: View {
         var id: String { rawValue }
     }
 
+    private enum PresentationContent {
+        case comparison(BeforeAfterComparisonItem)
+        case archive(URL)
+    }
+
     @Environment(\.dismiss) private var dismiss
 
-    let item: BeforeAfterComparisonItem
+    private let content: PresentationContent
     var onQuickLook: ((URL) -> Void)? = nil
+
+    init(item: BeforeAfterComparisonItem, onQuickLook: ((URL) -> Void)? = nil) {
+        self.content = .comparison(item)
+        self.onQuickLook = onQuickLook
+    }
+
+    init(archiveURL: URL, onQuickLook: ((URL) -> Void)? = nil) {
+        self.content = .archive(archiveURL)
+        self.onQuickLook = onQuickLook
+    }
+
+    private var comparisonItem: BeforeAfterComparisonItem? {
+        if case .comparison(let item) = content {
+            return item
+        }
+        return nil
+    }
 
     @State private var viewMode: ViewMode = .splitSlider
     @State private var splitRatio: Double = 0.5
@@ -609,6 +631,17 @@ struct QuickLookAndCompareView: View {
     @State private var afterDimensions: (width: Int, height: Int)? = nil
     @State private var isLoading: Bool = true
 
+    // Archive preview state
+    @State private var archiveInspection: ArchiveInspectionResult? = nil
+    @State private var archiveSearchQuery: String = ""
+    @State private var selectedArchiveEntryPath: String? = nil
+    @State private var archivePassword: String = ""
+    @State private var isLoadingArchive: Bool = false
+    @State private var isExtractingArchiveEntry: Bool = false
+    @State private var archiveStatusMessage: String? = nil
+    @State private var archiveErrorMessage: String? = nil
+    @State private var extractedFileURL: URL? = nil
+
     private var splitRatioBinding: Binding<Double> {
         Binding(
             get: { BeforeAfterComparisonMath.clampSplitRatio(splitRatio) },
@@ -617,26 +650,47 @@ struct QuickLookAndCompareView: View {
     }
 
     private var renderTaskKey: String {
-        "\(item.id.uuidString)-\(item.inputURL.path)-\(item.outputURL.path)-\(currentPageIndex)"
+        switch content {
+        case .comparison(let item):
+            return "compare-\(item.id.uuidString)-\(item.inputURL.path)-\(item.outputURL.path)-\(currentPageIndex)"
+        case .archive(let archiveURL):
+            return "archive-\(archiveURL.path)"
+        }
     }
 
     var body: some View {
         VStack(spacing: 0) {
-            headerBar
-            AppDivider()
-            controlsBar
-            AppDivider()
-            canvasArea
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-                .background(AppTheme.Colors.elevatedSurface)
-                .clipped()
-            AppDivider()
-            footerBar
+            switch content {
+            case .comparison(let item):
+                headerBar(for: item)
+                AppDivider()
+                controlsBar(for: item)
+                AppDivider()
+                canvasArea(for: item)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .background(AppTheme.Colors.elevatedSurface)
+                    .clipped()
+                AppDivider()
+                footerBar(for: item)
+
+            case .archive(let archiveURL):
+                archiveHeaderBar(for: archiveURL)
+                AppDivider()
+                archiveContentArea(for: archiveURL)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                AppDivider()
+                archiveFooterBar(for: archiveURL)
+            }
         }
         .frame(minWidth: 660, idealWidth: 780, maxWidth: 960, minHeight: 450, idealHeight: 530, maxHeight: 700)
         .background(AppTheme.Colors.workspaceBackground)
         .task(id: renderTaskKey) {
-            await loadAssets()
+            switch content {
+            case .comparison(let item):
+                await loadAssets(for: item)
+            case .archive(let archiveURL):
+                await loadArchiveEntries(for: archiveURL)
+            }
         }
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("quickCompare.sheet")
@@ -644,7 +698,7 @@ struct QuickLookAndCompareView: View {
 
     // MARK: - Header
 
-    private var headerBar: some View {
+    private func headerBar(for item: BeforeAfterComparisonItem) -> some View {
         HStack(spacing: AppTheme.Spacing.md) {
             VStack(alignment: .leading, spacing: AppTheme.Spacing.xxs) {
                 Text("Before & After Comparison")
@@ -715,7 +769,7 @@ struct QuickLookAndCompareView: View {
 
     // MARK: - Controls Bar
 
-    private var controlsBar: some View {
+    private func controlsBar(for item: BeforeAfterComparisonItem) -> some View {
         HStack(spacing: AppTheme.Spacing.md) {
             Picker("View Mode", selection: $viewMode) {
                 ForEach(ViewMode.allCases) { mode in
@@ -776,7 +830,7 @@ struct QuickLookAndCompareView: View {
     // MARK: - Comparison Canvas
 
     @ViewBuilder
-    private var canvasArea: some View {
+    private func canvasArea(for item: BeforeAfterComparisonItem) -> some View {
         if isLoading && beforeImage == nil && afterImage == nil {
             AppLoadingStateView(message: "Rendering comparison preview...")
         } else if beforeImage != nil || afterImage != nil {
@@ -943,7 +997,7 @@ struct QuickLookAndCompareView: View {
 
     @ViewBuilder
     private var canvasBackdrop: some View {
-        if item.involvesPDF {
+        if comparisonItem?.involvesPDF == true {
             AppTheme.Colors.elevatedSurface
         } else {
             CheckerboardPattern()
@@ -977,12 +1031,12 @@ struct QuickLookAndCompareView: View {
 
     // MARK: - Footer Bar
 
-    private var footerBar: some View {
+    private func footerBar(for item: BeforeAfterComparisonItem) -> some View {
         ViewThatFits(in: .horizontal) {
             HStack(spacing: AppTheme.Spacing.md) {
                 splitFooterControls
                 Spacer(minLength: AppTheme.Spacing.sm)
-                byteComparisonFooterLabel
+                byteComparisonFooterLabel(for: item)
             }
 
             VStack(alignment: .leading, spacing: AppTheme.Spacing.xs) {
@@ -991,7 +1045,7 @@ struct QuickLookAndCompareView: View {
                 }
                 HStack {
                     Spacer(minLength: 0)
-                    byteComparisonFooterLabel
+                    byteComparisonFooterLabel(for: item)
                 }
             }
         }
@@ -1026,7 +1080,7 @@ struct QuickLookAndCompareView: View {
         }
     }
 
-    private var byteComparisonFooterLabel: some View {
+    private func byteComparisonFooterLabel(for item: BeforeAfterComparisonItem) -> some View {
         HStack(spacing: AppTheme.Spacing.xs) {
             Text("Before: \(ByteCountFormatter.string(fromByteCount: item.inputBytes, countStyle: .file))")
                 .font(AppTheme.Typography.monoCaption)
@@ -1041,23 +1095,266 @@ struct QuickLookAndCompareView: View {
         .fixedSize(horizontal: true, vertical: false)
     }
 
+    // MARK: - Archive Preview Mode
+
+    private var filteredArchiveEntries: [ArchiveEntry] {
+        guard let entries = archiveInspection?.entries else { return [] }
+        let query = archiveSearchQuery.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !query.isEmpty else { return entries }
+        return entries.filter { $0.path.localizedCaseInsensitiveContains(query) }
+    }
+
+    private var selectedArchiveEntry: ArchiveEntry? {
+        guard let selectedArchiveEntryPath else { return nil }
+        return archiveInspection?.entries.first(where: { $0.path == selectedArchiveEntryPath })
+    }
+
+    private func archiveHeaderBar(for archiveURL: URL) -> some View {
+        HStack(spacing: AppTheme.Spacing.md) {
+            VStack(alignment: .leading, spacing: AppTheme.Spacing.xxs) {
+                Text("Archive Contents")
+                    .font(AppTheme.Typography.sectionTitle)
+                    .lineLimit(1)
+
+                Text(archiveURL.lastPathComponent)
+                    .font(AppTheme.Typography.caption)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+                    .truncationMode(.middle)
+            }
+
+            Spacer(minLength: AppTheme.Spacing.sm)
+
+            if let result = archiveInspection {
+                AppHeaderPill(
+                    text: String(localized: "\(result.entries.count) items · \(ByteCountFormatter.string(fromByteCount: result.totalUncompressedBytes, countStyle: .file))")
+                )
+            }
+
+            if let onQuickLook {
+                Button {
+                    onQuickLook(archiveURL)
+                } label: {
+                    Label("Quick Look", systemImage: "eye")
+                }
+                .buttonStyle(.bordered)
+                .controlSize(.small)
+                .fixedSize()
+                .accessibilityIdentifier("quickCompare.quickLookButton")
+            }
+
+            Button {
+                NSWorkspace.shared.activateFileViewerSelecting([archiveURL])
+            } label: {
+                Label("Reveal", systemImage: "folder")
+            }
+            .buttonStyle(.bordered)
+            .controlSize(.small)
+            .fixedSize()
+            .accessibilityIdentifier("quickCompare.revealButton")
+
+            Button("Done") {
+                dismiss()
+            }
+            .buttonStyle(.borderedProminent)
+            .controlSize(.small)
+            .keyboardShortcut(.cancelAction)
+            .fixedSize()
+            .accessibilityIdentifier("quickCompare.doneButton")
+        }
+        .padding(.horizontal, AppTheme.Spacing.lg)
+        .padding(.vertical, AppTheme.Spacing.md)
+        .background(AppTheme.Colors.subtleSurface)
+    }
+
+    private func archiveContentArea(for archiveURL: URL) -> some View {
+        VStack(alignment: .leading, spacing: AppTheme.Spacing.sm) {
+            HStack(spacing: AppTheme.Spacing.sm) {
+                TextField("Filter archive entries...", text: $archiveSearchQuery)
+                    .textFieldStyle(.roundedBorder)
+
+                if archiveInspection?.hasEncryptedEntries == true {
+                    SecureField("Password (if encrypted)", text: $archivePassword)
+                        .textFieldStyle(.roundedBorder)
+                        .frame(width: 190)
+                }
+            }
+            .padding(.horizontal, AppTheme.Spacing.lg)
+            .padding(.top, AppTheme.Spacing.md)
+
+            if isLoadingArchive {
+                AppLoadingStateView(message: String(localized: "Inspecting archive entries..."))
+            } else if let inspection = archiveInspection {
+                if inspection.entries.isEmpty {
+                    AppEmptyStateView(
+                        icon: "archivebox",
+                        title: String(localized: "Empty Archive"),
+                        subtitle: String(localized: "This archive does not contain any inspectable entries.")
+                    )
+                } else {
+                    List(filteredArchiveEntries, selection: $selectedArchiveEntryPath) { entry in
+                        HStack(spacing: AppTheme.Spacing.sm) {
+                            Image(systemName: entry.isDirectory ? "folder.fill" : "doc.text")
+                                .foregroundStyle(entry.isDirectory ? AppTheme.Colors.accent : .secondary)
+                                .frame(width: 18)
+
+                            Text(entry.path)
+                                .font(AppTheme.Typography.subheadline)
+                                .lineLimit(1)
+                                .truncationMode(.middle)
+
+                            Spacer(minLength: AppTheme.Spacing.sm)
+
+                            if entry.isEncrypted {
+                                Image(systemName: "lock.fill")
+                                    .font(.caption)
+                                    .foregroundStyle(AppTheme.Colors.warning)
+                            }
+
+                            Text(entry.formattedSize)
+                                .font(AppTheme.Typography.monoCaption)
+                                .foregroundStyle(.secondary)
+                        }
+                        .tag(entry.path)
+                    }
+                    .listStyle(.inset)
+                    .clipShape(RoundedRectangle(cornerRadius: AppTheme.Radius.sm))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: AppTheme.Radius.sm)
+                            .strokeBorder(AppTheme.Colors.cardBorder, lineWidth: 1)
+                    )
+                    .padding(.horizontal, AppTheme.Spacing.lg)
+                    .accessibilityIdentifier("quickCompare.archiveList")
+                }
+            } else {
+                AppEmptyStateView(
+                    icon: "doc.zipper",
+                    title: String(localized: "Unable to Inspect Archive"),
+                    subtitle: archiveErrorMessage ?? String(localized: "This archive format could not be inspected.")
+                )
+            }
+
+            if let archiveErrorMessage {
+                AppInfoBanner(
+                    style: .error,
+                    message: archiveErrorMessage,
+                    onDismiss: { self.archiveErrorMessage = nil }
+                )
+                .padding(.horizontal, AppTheme.Spacing.lg)
+            } else if let archiveStatusMessage {
+                AppInfoBanner(
+                    style: .success,
+                    message: archiveStatusMessage,
+                    actionTitle: extractedFileURL != nil ? String(localized: "Reveal") : nil,
+                    onAction: extractedFileURL.map { url in
+                        { NSWorkspace.shared.activateFileViewerSelecting([url]) }
+                    },
+                    onDismiss: {
+                        self.archiveStatusMessage = nil
+                        self.extractedFileURL = nil
+                    }
+                )
+                .padding(.horizontal, AppTheme.Spacing.lg)
+            }
+        }
+        .padding(.bottom, AppTheme.Spacing.sm)
+    }
+
+    private func archiveFooterBar(for archiveURL: URL) -> some View {
+        HStack(spacing: AppTheme.Spacing.sm) {
+            Button {
+                dismiss()
+                TextAndArchiveUtilityController.shared.open(mode: .archive, archiveURL: archiveURL)
+            } label: {
+                Label("Open in Archive Utility", systemImage: "archivebox")
+            }
+            .buttonStyle(.bordered)
+            .controlSize(.small)
+
+            Spacer(minLength: 0)
+
+            Button {
+                Task { await extractSelectedArchiveEntry(from: archiveURL) }
+            } label: {
+                if isExtractingArchiveEntry {
+                    ProgressView().controlSize(.small)
+                } else {
+                    Label("Extract Selected File", systemImage: "square.and.arrow.down")
+                }
+            }
+            .buttonStyle(.borderedProminent)
+            .controlSize(.small)
+            .disabled(selectedArchiveEntry == nil || selectedArchiveEntry?.isDirectory == true || isExtractingArchiveEntry)
+            .accessibilityIdentifier("quickCompare.extractSelectedButton")
+        }
+        .padding(.horizontal, AppTheme.Spacing.lg)
+        .padding(.vertical, AppTheme.Spacing.sm)
+        .background(AppTheme.Colors.subtleSurface)
+    }
+
     // MARK: - Helpers
 
     private var beforeBadgeText: String {
+        let label = comparisonItem?.beforeLabel ?? ""
         if let dims = beforeDimensions {
-            return "BEFORE · \(item.beforeLabel) · \(dims.width)×\(dims.height)"
+            return "BEFORE · \(label) · \(dims.width)×\(dims.height)"
         }
-        return "BEFORE · \(item.beforeLabel)"
+        return "BEFORE · \(label)"
     }
 
     private var afterBadgeText: String {
+        let label = comparisonItem?.afterLabel ?? ""
         if let dims = afterDimensions {
-            return "AFTER · \(item.afterLabel) · \(dims.width)×\(dims.height)"
+            return "AFTER · \(label) · \(dims.width)×\(dims.height)"
         }
-        return "AFTER · \(item.afterLabel)"
+        return "AFTER · \(label)"
     }
 
-    private func loadAssets() async {
+    private func loadArchiveEntries(for archiveURL: URL) async {
+        isLoadingArchive = true
+        archiveErrorMessage = nil
+        archiveStatusMessage = nil
+        extractedFileURL = nil
+        defer { isLoadingArchive = false }
+
+        do {
+            let result = try await ArchiveInspectorEngine.listEntries(in: archiveURL)
+            guard !Task.isCancelled else { return }
+            archiveInspection = result
+            selectedArchiveEntryPath = result.regularFileEntries.first?.path ?? result.entries.first?.path
+        } catch {
+            guard !Task.isCancelled else { return }
+            archiveInspection = nil
+            selectedArchiveEntryPath = nil
+            archiveErrorMessage = error.localizedDescription
+        }
+    }
+
+    private func extractSelectedArchiveEntry(from archiveURL: URL) async {
+        guard let entry = selectedArchiveEntry else { return }
+        archiveErrorMessage = nil
+        archiveStatusMessage = nil
+        extractedFileURL = nil
+        isExtractingArchiveEntry = true
+        defer { isExtractingArchiveEntry = false }
+
+        let destinationDirectory = archiveURL.deletingLastPathComponent()
+        do {
+            let extracted = try await ArchiveInspectorEngine.extractEntry(
+                entry.path,
+                from: archiveURL,
+                to: destinationDirectory,
+                password: archivePassword.isEmpty ? nil : archivePassword,
+                policy: .createUnique
+            )
+            extractedFileURL = extracted
+            archiveStatusMessage = String(localized: "Extracted \"\(extracted.lastPathComponent)\".")
+        } catch {
+            archiveErrorMessage = error.localizedDescription
+        }
+    }
+
+    private func loadAssets(for item: BeforeAfterComparisonItem) async {
         isLoading = true
         let pageIndex = currentPageIndex
         let inputURL = item.inputURL

@@ -21,17 +21,17 @@ struct AudioLibrarySidebarView: View {
         VStack(spacing: 0) {
             List(selection: $localSelection) {
                 Section("Library") {
-                    sidebarRow(.allTracks, title: "All Tracks", icon: "music.note.list")
+                    sidebarRow(.allTracks, title: String(localized: "All Tracks"), icon: "music.note.list")
                         .accessibilityIdentifier("audioworkspace.sidebar.all_tracks")
-                    sidebarRow(.recentlyAdded, title: "Recently Added", icon: "clock")
+                    sidebarRow(.recentlyAdded, title: String(localized: "Recently Added"), icon: "clock")
                         .accessibilityIdentifier("audioworkspace.sidebar.recently_added")
-                    sidebarRow(.recentlyPlayed, title: "Recently Played", icon: "play.circle")
+                    sidebarRow(.recentlyPlayed, title: String(localized: "Recently Played"), icon: "play.circle")
                         .accessibilityIdentifier("audioworkspace.sidebar.recently_played")
-                    sidebarRow(.artists, title: "Artists", icon: "music.mic")
+                    sidebarRow(.artists, title: String(localized: "Artists"), icon: "music.mic")
                         .accessibilityIdentifier("audioworkspace.sidebar.artists")
-                    sidebarRow(.albums, title: "Albums", icon: "square.stack")
+                    sidebarRow(.albums, title: String(localized: "Albums"), icon: "square.stack")
                         .accessibilityIdentifier("audioworkspace.sidebar.albums")
-                    sidebarRow(.genres, title: "Genres", icon: "guitars")
+                    sidebarRow(.genres, title: String(localized: "Genres"), icon: "guitars")
                         .accessibilityIdentifier("audioworkspace.sidebar.genres")
                 }
 
@@ -44,7 +44,7 @@ struct AudioLibrarySidebarView: View {
                             .accessibilityLabel("Missing Files, \(store.missingFileCount) tracks")
                             .accessibilityIdentifier("audioworkspace.sidebar.missing_files")
                     } else {
-                        sidebarRow(.missingFiles, title: "Missing Files", icon: "exclamationmark.triangle")
+                        sidebarRow(.missingFiles, title: String(localized: "Missing Files"), icon: "exclamationmark.triangle")
                             .accessibilityIdentifier("audioworkspace.sidebar.missing_files")
                     }
 
@@ -55,17 +55,17 @@ struct AudioLibrarySidebarView: View {
                             .accessibilityLabel("Duplicates, \(store.duplicateReport.totalGroupCount) groups")
                             .accessibilityIdentifier("audioworkspace.sidebar.duplicates")
                     } else {
-                        sidebarRow(.duplicates, title: "Duplicates", icon: "square.on.square")
+                        sidebarRow(.duplicates, title: String(localized: "Duplicates"), icon: "square.on.square")
                             .accessibilityIdentifier("audioworkspace.sidebar.duplicates")
                     }
                 }
 
                 Section("Collections") {
-                    sidebarRow(.favorites, title: "Favorites", icon: "star.fill")
+                    sidebarRow(.favorites, title: String(localized: "Favorites"), icon: "star.fill")
                         .accessibilityIdentifier("audioworkspace.sidebar.favorites")
-                    sidebarRow(.lossless, title: "Lossless", icon: "waveform")
+                    sidebarRow(.lossless, title: String(localized: "Lossless"), icon: "waveform")
                         .accessibilityIdentifier("audioworkspace.sidebar.lossless")
-                    sidebarRow(.hiRes, title: "Hi-Res Audio", icon: "hifispeaker")
+                    sidebarRow(.hiRes, title: String(localized: "Hi-Res Audio"), icon: "hifispeaker")
                         .accessibilityIdentifier("audioworkspace.sidebar.hires")
 
                     ForEach(store.smartCollections) { col in
@@ -334,7 +334,7 @@ struct AudioLibrarySidebarView: View {
 
     private func folderHelpText(_ folder: LibraryRootFolder) -> String {
         if let scanned = folder.lastScannedAt {
-            return "\(folder.path)\nLast scanned: \(scanned.formatted(date: .abbreviated, time: .shortened))"
+            return String(localized: "\(folder.path)\nLast scanned: \(scanned.formatted(date: .abbreviated, time: .shortened))")
         }
         return folder.path
     }
@@ -351,7 +351,7 @@ struct AudioLibrarySidebarView: View {
             return
         }
         let panel = NSOpenPanel()
-        panel.title = "Add Audio Library Folder"
+        panel.title = String(localized: "Add Audio Library Folder")
         panel.canChooseDirectories = true
         panel.canChooseFiles = false
         panel.allowsMultipleSelection = false

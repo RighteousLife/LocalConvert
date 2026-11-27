@@ -45,6 +45,13 @@ enum CommandPaletteAction: Equatable, Hashable, Sendable {
     case captureScreen(ScreenCaptureDelay)
     case openQuickQRGenerator
     case openKeyboardShortcuts
+    case batchRenameFiles
+    case findDuplicateFiles
+    case openArchiveInspector
+    case openTextAndURLUtility
+    case captureScreenTextOCR
+    case recordVoiceMemo
+    case exportRedactedDiagnostics
     case pdfTool(operationID: String)
     case imageSection(ImageToolboxSection)
     case audioWorkspaceMode(AudioWorkspaceMode)
@@ -359,6 +366,97 @@ enum CommandPaletteCatalog {
                 keywords: ["shortcuts", "cheatsheet", "hotkeys", "keys", "help"],
                 shortcutHint: "⌘/",
                 action: .openKeyboardShortcuts
+            )
+        )
+
+        items.append(
+            CommandPaletteItem(
+                id: "tools.batch_rename",
+                title: "Batch Rename Files",
+                subtitle: "Rename queued files with live Before → After preview, numbering, and undo",
+                category: .tools,
+                systemImage: "pencil.and.list.clipboard",
+                keywords: ["batch", "rename", "files", "prefix", "suffix", "numbering", "replace", "case"],
+                shortcutHint: nil,
+                action: .batchRenameFiles
+            )
+        )
+
+        items.append(
+            CommandPaletteItem(
+                id: "tools.duplicate_finder",
+                title: "Find Duplicate Files (SHA-256)",
+                subtitle: "Scan a folder for byte-identical duplicates and move extras safely to Trash",
+                category: .tools,
+                systemImage: "doc.on.doc.fill",
+                keywords: ["duplicate", "finder", "sha256", "sha-256", "hash", "cleanup", "trash"],
+                shortcutHint: nil,
+                action: .findDuplicateFiles
+            )
+        )
+
+        items.append(
+            CommandPaletteItem(
+                id: "tools.archive_inspector",
+                title: "Archive Inspector & Encrypted ZIP",
+                subtitle: "Inspect .zip/.tar/.tgz contents, extract single files, or create encrypted ZIPs",
+                category: .tools,
+                systemImage: "archivebox.fill",
+                keywords: ["archive", "zip", "tar", "tgz", "inspect", "extract", "encrypt", "password"],
+                shortcutHint: nil,
+                action: .openArchiveInspector
+            )
+        )
+
+        items.append(
+            CommandPaletteItem(
+                id: "tools.text_and_url_utility",
+                title: "Markdown / JSON / Base64 / URL-to-PDF",
+                subtitle: "Convert Markdown, format JSON, encode/decode Base64, or save a URL to PDF",
+                category: .tools,
+                systemImage: "curlybraces",
+                keywords: ["markdown", "json", "base64", "url", "pdf", "html", "pretty", "minify", "encode", "decode"],
+                shortcutHint: nil,
+                action: .openTextAndURLUtility
+            )
+        )
+
+        items.append(
+            CommandPaletteItem(
+                id: "tools.screen_text_ocr",
+                title: "Capture Screen Text (OCR)",
+                subtitle: "Recognize text on screen locally with Apple Vision and copy to clipboard",
+                category: .tools,
+                systemImage: "text.viewfinder",
+                keywords: ["ocr", "screen", "text", "clipboard", "textsniper", "capture", "vision"],
+                shortcutHint: nil,
+                action: .captureScreenTextOCR
+            )
+        )
+
+        items.append(
+            CommandPaletteItem(
+                id: "tools.voice_memo",
+                title: "Record Voice Memo",
+                subtitle: "Record an on-device .m4a voice memo and queue it for conversion or transcription",
+                category: .tools,
+                systemImage: "mic.fill",
+                keywords: ["voice", "memo", "record", "audio", "microphone", "m4a", "transcribe"],
+                shortcutHint: nil,
+                action: .recordVoiceMemo
+            )
+        )
+
+        items.append(
+            CommandPaletteItem(
+                id: "tools.export_diagnostics",
+                title: "Export Redacted Diagnostics",
+                subtitle: "Open Privacy & Diagnostics in Settings to export a redacted .zip bundle",
+                category: .tools,
+                systemImage: "stethoscope",
+                keywords: ["diagnostics", "logs", "export", "zip", "redact", "privacy", "support"],
+                shortcutHint: nil,
+                action: .exportRedactedDiagnostics
             )
         )
 
@@ -852,6 +950,33 @@ enum CommandPaletteRouter {
 
         case .openKeyboardShortcuts:
             KeyboardShortcutsSheetController.shared.open()
+
+        case .batchRenameFiles:
+            appState.selectedTab = .convert
+            if !appState.droppedFiles.isEmpty {
+                BatchRenamerSheetController.shared.open()
+            } else {
+                appState.dropFeedbackText = String(localized: "Queue files in Convert first to use Batch Rename.")
+            }
+
+        case .findDuplicateFiles:
+            DuplicateFinderSheetController.shared.open(directoryURL: nil)
+
+        case .openArchiveInspector:
+            TextAndArchiveUtilityController.shared.open(mode: .archive)
+
+        case .openTextAndURLUtility:
+            TextAndArchiveUtilityController.shared.open(mode: .textTools)
+
+        case .captureScreenTextOCR:
+            ScreenTextOCRService.shared.triggerCaptureFromUI(appState: appState)
+
+        case .recordVoiceMemo:
+            QuickVoiceRecorderService.shared.toggleRecording(into: appState)
+
+        case .exportRedactedDiagnostics:
+            appState.selectedTab = .settings
+            SettingsNavigationCoordinator.shared.openAdvancedDiagnostics()
 
         case .pdfTool:
             appState.selectedTab = .pdfToolbox

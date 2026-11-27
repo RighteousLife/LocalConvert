@@ -280,9 +280,9 @@ struct PDFPageOrganizerAndSecurityView: View {
         ViewThatFits(in: .horizontal) {
             HStack(alignment: .top, spacing: AppTheme.Spacing.md) {
                 redactCanvasColumn(totalPages: totalPages, currentThumb: currentThumb)
-                    .frame(minWidth: 220, maxWidth: .infinity)
+                    .frame(minWidth: 210, maxWidth: .infinity)
                 redactControlsColumn(file: file)
-                    .frame(width: 240)
+                    .frame(minWidth: 210, maxWidth: 240)
             }
             VStack(alignment: .leading, spacing: AppTheme.Spacing.md) {
                 redactCanvasColumn(totalPages: totalPages, currentThumb: currentThumb)
@@ -392,7 +392,14 @@ struct PDFPageOrganizerAndSecurityView: View {
                         }
                 )
             }
-            .frame(minHeight: 220, maxHeight: 280)
+            .frame(minHeight: 200, maxHeight: 260)
+            .padding(AppTheme.Spacing.xs)
+            .background(AppTheme.Colors.subtleSurface)
+            .clipShape(RoundedRectangle(cornerRadius: AppTheme.Radius.md))
+            .overlay(
+                RoundedRectangle(cornerRadius: AppTheme.Radius.md)
+                    .strokeBorder(AppTheme.Colors.cardBorder, lineWidth: 1)
+            )
         }
     }
 
@@ -441,26 +448,51 @@ struct PDFPageOrganizerAndSecurityView: View {
         let totalPages = max(1, thumbnails.count)
         AppCard(title: String(localized: "Trackpad / Mouse Signature Stamp"), icon: "signature") {
             VStack(alignment: .leading, spacing: AppTheme.Spacing.sm) {
-                HStack(spacing: AppTheme.Spacing.md) {
-                    Stepper("Target Page: \(signaturePageIndex + 1) / \(totalPages)", value: $signaturePageIndex, in: 0...max(0, totalPages - 1))
-                        .fixedSize()
+                ViewThatFits(in: .horizontal) {
+                    HStack(spacing: AppTheme.Spacing.md) {
+                        Stepper("Target Page: \(signaturePageIndex + 1) / \(totalPages)", value: $signaturePageIndex, in: 0...max(0, totalPages - 1))
+                            .fixedSize()
 
-                    Picker("Placement", selection: $signaturePlacement) {
-                        ForEach(SignaturePlacementPreset.allCases) { p in
-                            Text(LocalizedStringKey(p.rawValue)).tag(p)
+                        Picker("Placement", selection: $signaturePlacement) {
+                            ForEach(SignaturePlacementPreset.allCases) { p in
+                                Text(LocalizedStringKey(p.rawValue)).tag(p)
+                            }
                         }
-                    }
-                    .frame(maxWidth: 160)
+                        .frame(maxWidth: 160)
 
-                    Spacer()
+                        Spacer()
 
-                    Button("Clear Pad") {
-                        signatureStrokes.removeAll()
-                        activeSignatureStroke.removeAll()
+                        Button("Clear Pad") {
+                            signatureStrokes.removeAll()
+                            activeSignatureStroke.removeAll()
+                        }
+                        .buttonStyle(.bordered)
+                        .controlSize(.small)
+                        .fixedSize(horizontal: true, vertical: false)
+                        .disabled(signatureStrokes.isEmpty && activeSignatureStroke.isEmpty)
                     }
-                    .buttonStyle(.bordered)
-                    .controlSize(.small)
-                    .disabled(signatureStrokes.isEmpty && activeSignatureStroke.isEmpty)
+
+                    VStack(alignment: .leading, spacing: AppTheme.Spacing.xs) {
+                        HStack(spacing: AppTheme.Spacing.sm) {
+                            Stepper("Target Page: \(signaturePageIndex + 1) / \(totalPages)", value: $signaturePageIndex, in: 0...max(0, totalPages - 1))
+                                .fixedSize()
+                            Spacer()
+                            Button("Clear Pad") {
+                                signatureStrokes.removeAll()
+                                activeSignatureStroke.removeAll()
+                            }
+                            .buttonStyle(.bordered)
+                            .controlSize(.small)
+                            .fixedSize(horizontal: true, vertical: false)
+                            .disabled(signatureStrokes.isEmpty && activeSignatureStroke.isEmpty)
+                        }
+                        Picker("Placement", selection: $signaturePlacement) {
+                            ForEach(SignaturePlacementPreset.allCases) { p in
+                                Text(LocalizedStringKey(p.rawValue)).tag(p)
+                            }
+                        }
+                        .frame(maxWidth: 200)
+                    }
                 }
 
                 GeometryReader { geo in
@@ -494,7 +526,7 @@ struct PDFPageOrganizerAndSecurityView: View {
                         if signatureStrokes.isEmpty && activeSignatureStroke.isEmpty {
                             Text("Sign here using trackpad or mouse")
                                 .font(AppTheme.Typography.caption)
-                                .foregroundStyle(Color.secondary.opacity(0.65))
+                                .foregroundStyle(Color.black.opacity(0.45))
                                 .padding(8)
                                 .allowsHitTesting(false)
                         }
@@ -514,14 +546,14 @@ struct PDFPageOrganizerAndSecurityView: View {
                             }
                     )
                 }
-                .frame(height: 150)
+                .frame(height: 144)
 
-                HStack {
+                HStack(spacing: AppTheme.Spacing.sm) {
                     Text("Stroke Width: \(String(format: "%.1f", signatureLineWidth)) pt")
                         .font(AppTheme.Typography.caption)
                         .foregroundStyle(.secondary)
                     Slider(value: $signatureLineWidth, in: 1.0...6.0, step: 0.5)
-                        .frame(maxWidth: 160)
+                        .frame(maxWidth: 150)
                     Spacer()
                     Button {
                         runStampSignature(on: file)
@@ -529,6 +561,8 @@ struct PDFPageOrganizerAndSecurityView: View {
                         Label("Stamp Signature to PDF", systemImage: "signature")
                     }
                     .buttonStyle(.borderedProminent)
+                    .controlSize(.small)
+                    .fixedSize(horizontal: true, vertical: false)
                     .disabled(signatureStrokes.isEmpty || isProcessing)
                 }
             }
@@ -541,10 +575,11 @@ struct PDFPageOrganizerAndSecurityView: View {
     private func stampAndFlattenPanel(for file: DroppedFile) -> some View {
         VStack(alignment: .leading, spacing: AppTheme.Spacing.md) {
             AppCard(title: String(localized: "Flatten PDF Annotations & Forms"), icon: "square.stack.3d.down.right") {
-                HStack {
+                HStack(spacing: AppTheme.Spacing.sm) {
                     Text("Permanently bakes interactive annotations and AcroForm widgets into static page graphics.")
                         .font(AppTheme.Typography.caption)
                         .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
                     Spacer()
                     Button {
                         runFlattenPDF(on: file)
@@ -552,50 +587,80 @@ struct PDFPageOrganizerAndSecurityView: View {
                         Label("Flatten PDF", systemImage: "square.stack.3d.down.right")
                     }
                     .buttonStyle(.borderedProminent)
+                    .controlSize(.small)
+                    .fixedSize(horizontal: true, vertical: false)
                     .disabled(isProcessing)
                 }
             }
 
             AppCard(title: String(localized: "Page Numbers (1 / N)"), icon: "number") {
-                HStack(spacing: AppTheme.Spacing.md) {
-                    Picker("Position", selection: $pageNumberPosition) {
-                        ForEach(PDFPageNumberPosition.allCases) { pos in
-                            Text(pos.rawValue).tag(pos)
+                ViewThatFits(in: .horizontal) {
+                    HStack(spacing: AppTheme.Spacing.md) {
+                        Picker("Position", selection: $pageNumberPosition) {
+                            ForEach(PDFPageNumberPosition.allCases) { pos in
+                                Text(pos.rawValue).tag(pos)
+                            }
                         }
-                    }
-                    .frame(maxWidth: 170)
+                        .frame(maxWidth: 170)
 
-                    Picker("Format", selection: $pageNumberFormat) {
-                        ForEach(PDFPageNumberFormat.allCases) { fmt in
-                            Text(fmt.rawValue).tag(fmt)
+                        Picker("Format", selection: $pageNumberFormat) {
+                            ForEach(PDFPageNumberFormat.allCases) { fmt in
+                                Text(fmt.rawValue).tag(fmt)
+                            }
                         }
-                    }
-                    .frame(maxWidth: 120)
+                        .frame(maxWidth: 120)
 
-                    Spacer()
+                        Spacer()
 
-                    Button {
-                        runAddPageNumbers(on: file)
-                    } label: {
-                        Label("Add Page Numbers", systemImage: "number")
+                        Button {
+                            runAddPageNumbers(on: file)
+                        } label: {
+                            Label("Add Page Numbers", systemImage: "number")
+                        }
+                        .buttonStyle(.bordered)
+                        .controlSize(.small)
+                        .fixedSize(horizontal: true, vertical: false)
+                        .disabled(isProcessing)
                     }
-                    .buttonStyle(.bordered)
-                    .disabled(isProcessing)
+
+                    VStack(alignment: .leading, spacing: AppTheme.Spacing.xs) {
+                        HStack(spacing: AppTheme.Spacing.sm) {
+                            Picker("Position", selection: $pageNumberPosition) {
+                                ForEach(PDFPageNumberPosition.allCases) { pos in
+                                    Text(pos.rawValue).tag(pos)
+                                }
+                            }
+                            Picker("Format", selection: $pageNumberFormat) {
+                                ForEach(PDFPageNumberFormat.allCases) { fmt in
+                                    Text(fmt.rawValue).tag(fmt)
+                                }
+                            }
+                        }
+                        Button {
+                            runAddPageNumbers(on: file)
+                        } label: {
+                            Label("Add Page Numbers", systemImage: "number")
+                        }
+                        .buttonStyle(.bordered)
+                        .controlSize(.small)
+                        .fixedSize(horizontal: true, vertical: false)
+                        .disabled(isProcessing)
+                    }
                 }
             }
 
             AppCard(title: String(localized: "Diagonal Translucent Watermark"), icon: "textformat.alt") {
-                VStack(alignment: .leading, spacing: AppTheme.Spacing.sm) {
+                ViewThatFits(in: .horizontal) {
                     HStack(spacing: AppTheme.Spacing.md) {
                         TextField("Watermark text", text: $watermarkText)
                             .textFieldStyle(.roundedBorder)
-                            .frame(maxWidth: 220)
+                            .frame(minWidth: 140, maxWidth: 200)
 
                         Text("Opacity \(Int((watermarkOpacity * 100).rounded()))%")
                             .font(AppTheme.Typography.monoCaption)
                             .foregroundStyle(.secondary)
                         Slider(value: $watermarkOpacity, in: 0.1...0.75, step: 0.05)
-                            .frame(maxWidth: 130)
+                            .frame(maxWidth: 120)
 
                         Spacer()
 
@@ -605,7 +670,29 @@ struct PDFPageOrganizerAndSecurityView: View {
                             Label("Apply Watermark", systemImage: "sparkles")
                         }
                         .buttonStyle(.bordered)
+                        .controlSize(.small)
+                        .fixedSize(horizontal: true, vertical: false)
                         .disabled(watermarkText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || isProcessing)
+                    }
+
+                    VStack(alignment: .leading, spacing: AppTheme.Spacing.xs) {
+                        TextField("Watermark text", text: $watermarkText)
+                            .textFieldStyle(.roundedBorder)
+                        HStack(spacing: AppTheme.Spacing.sm) {
+                            Text("Opacity \(Int((watermarkOpacity * 100).rounded()))%")
+                                .font(AppTheme.Typography.monoCaption)
+                                .foregroundStyle(.secondary)
+                            Slider(value: $watermarkOpacity, in: 0.1...0.75, step: 0.05)
+                            Button {
+                                runAddWatermark(on: file)
+                            } label: {
+                                Label("Apply Watermark", systemImage: "sparkles")
+                            }
+                            .buttonStyle(.bordered)
+                            .controlSize(.small)
+                            .fixedSize(horizontal: true, vertical: false)
+                            .disabled(watermarkText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || isProcessing)
+                        }
                     }
                 }
             }
@@ -619,11 +706,19 @@ struct PDFPageOrganizerAndSecurityView: View {
         VStack(alignment: .leading, spacing: AppTheme.Spacing.md) {
             AppCard(title: String(localized: "Encrypt PDF with Password"), icon: "lock.fill") {
                 VStack(alignment: .leading, spacing: AppTheme.Spacing.sm) {
-                    HStack(spacing: AppTheme.Spacing.md) {
-                        SecureField("User / Open Password", text: $newUserPassword)
-                            .textFieldStyle(.roundedBorder)
-                        SecureField("Owner / Permissions Password", text: $newOwnerPassword)
-                            .textFieldStyle(.roundedBorder)
+                    ViewThatFits(in: .horizontal) {
+                        HStack(spacing: AppTheme.Spacing.md) {
+                            SecureField("User / Open Password", text: $newUserPassword)
+                                .textFieldStyle(.roundedBorder)
+                            SecureField("Owner / Permissions Password", text: $newOwnerPassword)
+                                .textFieldStyle(.roundedBorder)
+                        }
+                        VStack(spacing: AppTheme.Spacing.xs) {
+                            SecureField("User / Open Password", text: $newUserPassword)
+                                .textFieldStyle(.roundedBorder)
+                            SecureField("Owner / Permissions Password", text: $newOwnerPassword)
+                                .textFieldStyle(.roundedBorder)
+                        }
                     }
                     HStack {
                         Spacer()
@@ -633,6 +728,8 @@ struct PDFPageOrganizerAndSecurityView: View {
                             Label("Encrypt to New PDF", systemImage: "lock.fill")
                         }
                         .buttonStyle(.borderedProminent)
+                        .controlSize(.small)
+                        .fixedSize(horizontal: true, vertical: false)
                         .disabled((newUserPassword.isEmpty && newOwnerPassword.isEmpty) || isProcessing)
                     }
                 }
@@ -648,6 +745,8 @@ struct PDFPageOrganizerAndSecurityView: View {
                         Label("Unlock to New PDF", systemImage: "lock.open.fill")
                     }
                     .buttonStyle(.bordered)
+                    .controlSize(.small)
+                    .fixedSize(horizontal: true, vertical: false)
                     .disabled(isProcessing)
                 }
             }

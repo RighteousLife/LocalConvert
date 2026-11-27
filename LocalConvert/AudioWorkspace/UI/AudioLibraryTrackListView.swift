@@ -133,7 +133,7 @@ struct AudioLibraryTrackListView: View {
                     HStack(spacing: 6) {
                         ForEach(AudioLibraryQuickFilter.allCases) { filter in
                             let isActive = store.quickFilter == filter
-                            Button(filter.rawValue) {
+                            Button(LocalizedStringKey(filter.rawValue)) {
                                 Task {
                                     store.quickFilter = filter
                                     await store.reloadMetadataAndTracks()
@@ -231,8 +231,8 @@ struct AudioLibraryTrackListView: View {
                 Image(systemName: localSortAscending ? "arrow.up" : "arrow.down")
             }
             .buttonStyle(.bordered)
-            .help(localSortAscending ? "Ascending order" : "Descending order")
-            .accessibilityLabel(localSortAscending ? "Sort ascending" : "Sort descending")
+            .help(localSortAscending ? String(localized: "Ascending order") : String(localized: "Descending order"))
+            .accessibilityLabel(localSortAscending ? String(localized: "Sort ascending") : String(localized: "Sort descending"))
             .accessibilityIdentifier("audioworkspace.library.sort_direction")
         }
         .fixedSize(horizontal: true, vertical: false)
@@ -245,7 +245,7 @@ struct AudioLibraryTrackListView: View {
                 Button {
                     Task { await store.refreshDuplicates() }
                 } label: {
-                    Label(store.isCheckingDuplicates ? "Scanning..." : "Scan Duplicates", systemImage: "square.on.square")
+                    Label(store.isCheckingDuplicates ? String(localized: "Scanning...") : String(localized: "Scan Duplicates"), systemImage: "square.on.square")
                         .lineLimit(1)
                 }
                 .buttonStyle(.bordered)
@@ -310,7 +310,7 @@ struct AudioLibraryTrackListView: View {
             .tint(coordinator.isInspectorVisible ? AppTheme.Colors.accent : .secondary)
             .help("Toggle Track Inspector (⌘I)")
             .accessibilityLabel("Toggle Inspector")
-            .accessibilityValue(coordinator.isInspectorVisible ? "Shown" : "Hidden")
+            .accessibilityValue(coordinator.isInspectorVisible ? String(localized: "Shown") : String(localized: "Hidden"))
             .accessibilityIdentifier("audioworkspace.library.inspector_toggle")
         }
         .fixedSize(horizontal: true, vertical: false)
@@ -322,7 +322,7 @@ struct AudioLibraryTrackListView: View {
                 HStack(spacing: AppTheme.Spacing.sm) {
                     ProgressView()
                         .controlSize(.small)
-                    Text("\(prog.phase): \(prog.rootFolderName) (\(prog.processedCount)/\(max(prog.discoveredCount, prog.processedCount)))")
+                    Text("\(String(localized: String.LocalizationValue(prog.phase))): \(prog.rootFolderName) (\(prog.processedCount)/\(max(prog.discoveredCount, prog.processedCount)))")
                         .font(AppTheme.Typography.caption)
                     Spacer()
                 }
@@ -387,7 +387,7 @@ struct AudioLibraryTrackListView: View {
     private var categoryFilterBar: some View {
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: AppTheme.Spacing.xs) {
-                categoryChip(title: "All", isSelected: store.selectedCategoryFilter == nil) {
+                categoryChip(title: String(localized: "All"), isSelected: store.selectedCategoryFilter == nil) {
                     store.selectedCategoryFilter = nil
                     Task { await store.reloadMetadataAndTracks() }
                 }
@@ -433,9 +433,9 @@ struct AudioLibraryTrackListView: View {
         } else if store.rootFolders.isEmpty && store.displayedRecords.isEmpty {
             AppEmptyStateView(
                 icon: "music.note.house",
-                title: "Audio Library Is Empty",
-                subtitle: "Drop folders or audio files here to index tracks, inspect tags, build playlists, and play losslessly inside LocalConvert.",
-                primaryButtonTitle: "Add Audio Folder...",
+                title: String(localized: "Audio Library Is Empty"),
+                subtitle: String(localized: "Drop folders or audio files here to index tracks, inspect tags, build playlists, and play losslessly inside LocalConvert."),
+                primaryButtonTitle: String(localized: "Add Audio Folder..."),
                 primaryButtonIcon: "folder.badge.plus",
                 onPrimaryAction: {
                     let env = ProcessInfo.processInfo.environment
@@ -459,8 +459,10 @@ struct AudioLibraryTrackListView: View {
         } else if store.displayedRecords.isEmpty {
             AppEmptyStateView(
                 icon: "magnifyingglass",
-                title: "No Matching Tracks",
-                subtitle: localSearchText.isEmpty ? "This section currently contains no indexed tracks." : "No tracks matched \"\(localSearchText)\"."
+                title: String(localized: "No Matching Tracks"),
+                subtitle: localSearchText.isEmpty
+                    ? String(localized: "This section currently contains no indexed tracks.")
+                    : String(localized: "No tracks matched \"\(localSearchText)\".")
             )
             .frame(maxWidth: .infinity, maxHeight: .infinity)
         } else {
@@ -481,8 +483,8 @@ struct AudioLibraryTrackListView: View {
         } else if store.duplicateReport.allGroups.isEmpty {
             AppEmptyStateView(
                 icon: "checkmark.seal",
-                title: "No Duplicate Tracks Detected",
-                subtitle: "Exact binary SHA-256 and normalized Title + Artist (±1s duration) checks found no duplicates."
+                title: String(localized: "No Duplicate Tracks Detected"),
+                subtitle: String(localized: "Exact binary SHA-256 and normalized Title + Artist (±1s duration) checks found no duplicates.")
             )
             .frame(maxWidth: .infinity, maxHeight: .infinity)
         } else {
@@ -530,7 +532,7 @@ struct AudioLibraryTrackListView: View {
                         }
                     } header: {
                         HStack {
-                            Label(group.kind.badgeTitle, systemImage: group.kind.systemImage)
+                            Label(LocalizedStringKey(group.kind.badgeTitle), systemImage: group.kind.systemImage)
                                 .font(AppTheme.Typography.cardTitle)
                             Spacer()
                             Text("\(group.records.count) files · Reclaimable index size: \(ByteCountFormatter.string(fromByteCount: group.potentialReclaimableBytes, countStyle: .file))")
@@ -635,7 +637,7 @@ struct AudioLibraryTrackListView: View {
                     .foregroundStyle(record.asset.isFavorite ? AppTheme.Colors.warning : .secondary)
             }
             .buttonStyle(.plain)
-            .accessibilityLabel(record.asset.isFavorite ? "Remove from Favorites" : "Mark as Favorite")
+            .accessibilityLabel(record.asset.isFavorite ? String(localized: "Remove from Favorites") : String(localized: "Mark as Favorite"))
 
             Text(Self.formatDuration(record.asset.durationSeconds))
                 .font(AppTheme.Typography.monoCaption)
@@ -673,7 +675,7 @@ struct AudioLibraryTrackListView: View {
             Button("Play Next") {
                 Task { await playback.enqueueNext(record) }
             }
-            Button(targetRecords.count > 1 ? "Add \(targetRecords.count) Tracks to Queue" : "Add to Queue") {
+            Button(targetRecords.count > 1 ? String(localized: "Add \(targetRecords.count) Tracks to Queue") : String(localized: "Add to Queue")) {
                 Task { await playback.enqueue(targetRecords) }
             }
             if !store.playlists.isEmpty {
@@ -694,7 +696,7 @@ struct AudioLibraryTrackListView: View {
                 coordinator.isInspectorVisible = true
             }
             Divider()
-            Button(record.asset.isFavorite ? "Remove from Favorites" : "Add to Favorites") {
+            Button(record.asset.isFavorite ? String(localized: "Remove from Favorites") : String(localized: "Add to Favorites")) {
                 Task { await store.toggleFavorite(assetID: record.asset.id) }
             }
             if record.asset.status == .missing {
@@ -767,34 +769,36 @@ struct AudioLibraryTrackListView: View {
 
     private var sectionTitle: String {
         switch store.sidebarSection {
-        case .allTracks: return "All Tracks"
-        case .recentlyAdded: return "Recently Added"
-        case .recentlyPlayed: return "Recently Played"
-        case .artists: return store.selectedCategoryFilter ?? "Artists"
-        case .albums: return store.selectedCategoryFilter ?? "Albums"
-        case .genres: return store.selectedCategoryFilter ?? "Genres"
-        case .favorites: return "Favorites"
-        case .lossless: return "Lossless Audio"
-        case .hiRes: return "Hi-Res Audio"
-        case .missingFiles: return "Missing Files"
-        case .duplicates: return "Duplicates"
-        case .playlist(let id): return store.playlists.first { $0.id == id }?.name ?? "Playlist"
-        case .collection(let id): return store.smartCollections.first { $0.id == id }?.name ?? "Collection"
+        case .allTracks: return String(localized: "All Tracks")
+        case .recentlyAdded: return String(localized: "Recently Added")
+        case .recentlyPlayed: return String(localized: "Recently Played")
+        case .artists: return store.selectedCategoryFilter ?? String(localized: "Artists")
+        case .albums: return store.selectedCategoryFilter ?? String(localized: "Albums")
+        case .genres: return store.selectedCategoryFilter ?? String(localized: "Genres")
+        case .favorites: return String(localized: "Favorites")
+        case .lossless: return String(localized: "Lossless Audio")
+        case .hiRes: return String(localized: "Hi-Res Audio")
+        case .missingFiles: return String(localized: "Missing Files")
+        case .duplicates: return String(localized: "Duplicates")
+        case .playlist(let id): return store.playlists.first { $0.id == id }?.name ?? String(localized: "Playlist")
+        case .collection(let id): return store.smartCollections.first { $0.id == id }?.name ?? String(localized: "Collection")
         case .folder(let id):
             if let path = store.rootFolders.first(where: { $0.id == id })?.path {
                 return URL(fileURLWithPath: path).lastPathComponent
             }
-            return "Folder"
+            return String(localized: "Folder")
         }
     }
 
     private var sectionSubtitle: String {
         if store.sidebarSection == .duplicates {
-            return "\(store.duplicateReport.exactBinaryGroups.count) exact binary · \(store.duplicateReport.normalizedMetadataGroups.count) metadata (±1s)"
+            return String(localized: "\(store.duplicateReport.exactBinaryGroups.count) exact binary · \(store.duplicateReport.normalizedMetadataGroups.count) metadata (±1s)")
         }
         let count = store.displayedRecords.count
-        let mode = store.fts5Available ? "FTS5" : "LIKE Fallback"
-        return "\(count) track\(count == 1 ? "" : "s") · Search index: \(mode)"
+        let mode = store.fts5Available ? String(localized: "FTS5") : String(localized: "LIKE Fallback")
+        return count == 1
+            ? String(localized: "1 track · Search index: \(mode)")
+            : String(localized: "\(count) tracks · Search index: \(mode)")
     }
 
     private func formatTechBadge(_ asset: AudioAsset) -> String {

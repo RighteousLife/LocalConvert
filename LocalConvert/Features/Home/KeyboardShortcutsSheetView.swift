@@ -43,7 +43,8 @@ enum KeyboardShortcutsCatalog: Sendable {
         "Edit",
         "Conversion",
         "Navigation",
-        "Media Viewer"
+        "Media Viewer",
+        "Audio Workspace"
     ]
 
     static var allEntries: [AppShortcutEntry] {
@@ -65,8 +66,21 @@ enum KeyboardShortcutsCatalog: Sendable {
             AppShortcutEntry(id: "mv_shuttle", action: "Shuttle Reverse / Pause / Forward", shortcut: "J / K / L", category: "Media Viewer"),
             AppShortcutEntry(id: "mv_trim_in_out", action: "Set Trim In / Out Point", shortcut: "I / O", category: "Media Viewer"),
             AppShortcutEntry(id: "mv_split_marker", action: "Split Segment / Add Marker", shortcut: "⌘B / ⌘M", category: "Media Viewer"),
-            AppShortcutEntry(id: "mv_rotate", action: "Rotate Image Left / Right", shortcut: "← / →", category: "Media Viewer"),
-            AppShortcutEntry(id: "mv_reset_zoom", action: "Reset Zoom", shortcut: "0", category: "Media Viewer")
+            AppShortcutEntry(id: "mv_sibling_nav", action: "Previous / Next Photo", shortcut: "← / →", category: "Media Viewer"),
+            AppShortcutEntry(id: "mv_reset_zoom", action: "Reset Zoom", shortcut: "0", category: "Media Viewer"),
+            AppShortcutEntry(id: "aw_play_pause", action: "Play / Pause Audio", shortcut: "Space", category: "Audio Workspace"),
+            AppShortcutEntry(id: "aw_step_playhead", action: "Step Playhead Left / Right", shortcut: "← / →", category: "Audio Workspace"),
+            AppShortcutEntry(id: "aw_nudge_selection", action: "Nudge Selection Left / Right", shortcut: "⇧← / ⇧→", category: "Audio Workspace"),
+            AppShortcutEntry(id: "aw_track_nav", action: "Previous / Next Track", shortcut: "⌘← / ⌘→", category: "Audio Workspace"),
+            AppShortcutEntry(id: "aw_split", action: "Split at Playhead", shortcut: "B / S / ⌘E", category: "Audio Workspace"),
+            AppShortcutEntry(id: "aw_trim", action: "Trim to Selection", shortcut: "⌘T", category: "Audio Workspace"),
+            AppShortcutEntry(id: "aw_delete", action: "Delete / Ripple Delete Selection", shortcut: "⌫ / ⌥⌫", category: "Audio Workspace"),
+            AppShortcutEntry(id: "aw_loop", action: "Toggle Loop", shortcut: "L", category: "Audio Workspace"),
+            AppShortcutEntry(id: "aw_marker", action: "Add Marker", shortcut: "M", category: "Audio Workspace"),
+            AppShortcutEntry(id: "aw_zoom", action: "Zoom In / Out / Fit", shortcut: "⌘+ / ⌘- / ⌘0", category: "Audio Workspace"),
+            AppShortcutEntry(id: "aw_inspector", action: "Toggle Inspector", shortcut: "⌘I", category: "Audio Workspace"),
+            AppShortcutEntry(id: "aw_search", action: "Focus Library Search", shortcut: "⌘F", category: "Audio Workspace"),
+            AppShortcutEntry(id: "aw_beginning", action: "Return to Beginning", shortcut: "Home", category: "Audio Workspace")
         ]
 
         let existingIDs = Set(entries.map(\.id))

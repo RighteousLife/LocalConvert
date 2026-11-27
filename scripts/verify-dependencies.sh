@@ -275,11 +275,12 @@ if [[ -n "${APP_BUNDLE}" ]]; then
             FAILURES=$((FAILURES + 1))
         fi
     done
+    EXPECTED_APP_VERSION=$(/usr/libexec/PlistBuddy -c "Print :CFBundleShortVersionString" "${REPO_ROOT}/LocalConvert/Info.plist" 2>/dev/null || echo "")
     APP_VERSION=$(/usr/libexec/PlistBuddy -c "Print :CFBundleShortVersionString" "${APP_BUNDLE}/Contents/Info.plist" 2>/dev/null || echo "")
-    if [[ "${APP_VERSION}" == "1.0.0" ]]; then
-        echo "✅ App CFBundleShortVersionString is 1.0.0"
+    if [[ -n "${EXPECTED_APP_VERSION}" && "${APP_VERSION}" == "${EXPECTED_APP_VERSION}" ]]; then
+        echo "✅ App CFBundleShortVersionString is ${APP_VERSION}"
     else
-        echo "❌ Expected CFBundleShortVersionString 1.0.0, found '${APP_VERSION}'"
+        echo "❌ Expected CFBundleShortVersionString ${EXPECTED_APP_VERSION}, found '${APP_VERSION}'"
         FAILURES=$((FAILURES + 1))
     fi
 fi

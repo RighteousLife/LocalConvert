@@ -98,8 +98,8 @@ final class Milestone13SystemAndParityTests: XCTestCase {
         let extPlist = try XCTUnwrap(
             PropertyListSerialization.propertyList(from: extPlistData, format: nil) as? [String: Any]
         )
-        XCTAssertEqual(extPlist["CFBundleShortVersionString"] as? String, "1.0.0")
-        XCTAssertEqual(extPlist["CFBundleVersion"] as? String, "1")
+        XCTAssertEqual(extPlist["CFBundleShortVersionString"] as? String, "2.0.0")
+        XCTAssertEqual(extPlist["CFBundleVersion"] as? String, "2")
         XCTAssertEqual(extPlist["CFBundlePackageType"] as? String, "XPC!")
 
         let nsExt = try XCTUnwrap(extPlist["NSExtension"] as? [String: Any])

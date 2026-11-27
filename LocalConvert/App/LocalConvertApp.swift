@@ -245,6 +245,9 @@ struct LocalConvertApp: App {
     @ObservedObject private var commandPalette = CommandPaletteController.shared
     @ObservedObject private var shortcutsController = KeyboardShortcutsSheetController.shared
     @ObservedObject private var quickQRController = QuickQRGeneratorController.shared
+    @ObservedObject private var duplicateFinderController = DuplicateFinderSheetController.shared
+    @ObservedObject private var textAndArchiveController = TextAndArchiveUtilityController.shared
+    @ObservedObject private var voiceRecorder = QuickVoiceRecorderService.shared
     @StateObject private var escapeMonitor = EscapeCancelMonitor()
 
     private let isUITestingSession: Bool
@@ -583,9 +586,36 @@ struct LocalConvertApp: App {
                     }
                 }
 
+                Button("Capture Screen Text (OCR)") {
+                    AppLifecycleManager.shared.restoreOrActivateMainWindow(appState: appState)
+                    ScreenTextOCRService.shared.triggerCaptureFromUI(appState: appState)
+                }
+
+                Button(voiceRecorder.isRecording ? String(localized: "Stop Voice Memo Recording") : String(localized: "Record Voice Memo")) {
+                    AppLifecycleManager.shared.restoreOrActivateMainWindow(appState: appState)
+                    voiceRecorder.toggleRecording(into: appState)
+                }
+
+                Divider()
+
                 Button("Quick QR Generator...") {
                     AppLifecycleManager.shared.restoreOrActivateMainWindow(appState: appState)
                     quickQRController.open()
+                }
+
+                Button("Find Duplicate Files (SHA-256)...") {
+                    AppLifecycleManager.shared.restoreOrActivateMainWindow(appState: appState)
+                    duplicateFinderController.open(directoryURL: nil)
+                }
+
+                Button("Archive Inspector & Encrypted ZIP...") {
+                    AppLifecycleManager.shared.restoreOrActivateMainWindow(appState: appState)
+                    textAndArchiveController.open(mode: .archive)
+                }
+
+                Button("Markdown / JSON / Base64 / URL-to-PDF...") {
+                    AppLifecycleManager.shared.restoreOrActivateMainWindow(appState: appState)
+                    textAndArchiveController.open(mode: .textTools)
                 }
             }
 
@@ -613,10 +643,38 @@ struct LocalConvertApp: App {
         }
     }
 
+    private var isAnyModalEscapeBlocked: Bool {
+        Self.isModalEscapeBlocked(
+            monitorBlocked: escapeMonitor.isEscapeBlocked,
+            isMediaViewerPresented: appState.isMediaViewerPresented,
+            isShortcutsPresented: shortcutsController.isPresented,
+            isQuickQRPresented: quickQRController.isPresented,
+            isDuplicateFinderPresented: duplicateFinderController.isPresented,
+            isTextAndArchivePresented: textAndArchiveController.isPresented
+        )
+    }
+
+    @MainActor
+    static func isModalEscapeBlocked(
+        monitorBlocked: Bool,
+        isMediaViewerPresented: Bool,
+        isShortcutsPresented: Bool,
+        isQuickQRPresented: Bool,
+        isDuplicateFinderPresented: Bool,
+        isTextAndArchivePresented: Bool
+    ) -> Bool {
+        monitorBlocked
+            || isMediaViewerPresented
+            || isShortcutsPresented
+            || isQuickQRPresented
+            || isDuplicateFinderPresented
+            || isTextAndArchivePresented
+    }
+
     private var isEscapeCancelShortcutEnabled: Bool {
         EscapeCancelMonitor.shouldAllowEscapeCancelShortcut(
             isConverting: appState.isConverting,
-            isEscapeBlocked: escapeMonitor.isEscapeBlocked || appState.isMediaViewerPresented || shortcutsController.isPresented || quickQRController.isPresented,
+            isEscapeBlocked: isAnyModalEscapeBlocked,
             isTextInputActive: undoMenu.isTextInputActive,
             isEditingHistoryPresented: undoCoordinator.isEditingHistoryPresented,
             isURLConfirmationPresented: urlSchemeCoordinator.isConfirmationPresented,
@@ -628,7 +686,7 @@ struct LocalConvertApp: App {
     private var isPasteToConvertShortcutEnabled: Bool {
         Self.shouldAllowPasteToConvertShortcut(
             isConverting: appState.isConverting,
-            isEscapeBlocked: escapeMonitor.isEscapeBlocked || appState.isMediaViewerPresented || shortcutsController.isPresented || quickQRController.isPresented,
+            isEscapeBlocked: isAnyModalEscapeBlocked,
             isTextInputActive: undoMenu.isTextInputActive,
             isEditingHistoryPresented: undoCoordinator.isEditingHistoryPresented,
             isURLConfirmationPresented: urlSchemeCoordinator.isConfirmationPresented,

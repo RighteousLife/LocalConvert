@@ -2,10 +2,17 @@ import SwiftUI
 import UniformTypeIdentifiers
 
 struct FileListView: View {
+    private struct ArchivePreviewItem: Identifiable {
+        let id: URL
+        var url: URL { id }
+    }
+
     @EnvironmentObject var appState: AppState
+    @ObservedObject private var batchRenamerController = BatchRenamerSheetController.shared
     @State private var isTargeted = false
     @State private var selectedFileID: UUID? = nil
     @State private var activeComparisonItem: BeforeAfterComparisonItem? = nil
+    @State private var activeArchivePreview: ArchivePreviewItem? = nil
     @StateObject private var quickLookCoordinator = QuickLookPanelCoordinator()
     
     var body: some View {
@@ -47,7 +54,10 @@ struct FileListView: View {
             QuickLookKeyMonitorHost(
                 coordinator: quickLookCoordinator,
                 isBlocked: {
-                    appState.showError || activeComparisonItem != nil
+                    appState.showError
+                        || activeComparisonItem != nil
+                        || batchRenamerController.isPresented
+                        || activeArchivePreview != nil
                 },
                 onSpaceKey: {
                     toggleQuickLookForSelectedFile()
@@ -73,6 +83,18 @@ struct FileListView: View {
                 }
             )
         }
+        .sheet(item: $activeArchivePreview) { archiveItem in
+            QuickLookAndCompareView(
+                archiveURL: archiveItem.url,
+                onQuickLook: { url in
+                    quickLookCoordinator.togglePreviewPanel(urls: [url], selectedIndex: 0)
+                }
+            )
+        }
+        .sheet(isPresented: $batchRenamerController.isPresented) {
+            BatchRenamerSheetView(controller: batchRenamerController)
+                .environmentObject(appState)
+        }
         .onChange(of: appState.droppedFiles.map(\.id)) { _, newIDs in
             if let current = selectedFileID, !newIDs.contains(current) {
                 selectedFileID = newIDs.first
@@ -93,103 +115,158 @@ struct FileListView: View {
     
     @ViewBuilder
     private var toolbarArea: some View {
-        HStack(alignment: .center, spacing: AppTheme.Spacing.sm) {
-            VStack(alignment: .leading, spacing: AppTheme.Spacing.xxs) {
-                Text(
-                    appState.droppedFiles.count == 1
-                        ? String(localized: "1 file in queue")
-                        : String(localized: "\(appState.droppedFiles.count) files in queue")
-                )
-                    .font(AppTheme.Typography.sectionTitle)
-                    .lineLimit(1)
-                    .accessibilityIdentifier("filelist.countLabel")
-                
-                if appState.isConverting {
-                    Text(String(localized: "\(appState.activeJobCount) active • \(appState.completedJobCount) / \(appState.totalJobCount) completed"))
-                        .font(AppTheme.Typography.monoCaption)
-                        .foregroundStyle(.secondary)
-                        .lineLimit(1)
-                }
+        ViewThatFits(in: .horizontal) {
+            HStack(alignment: .center, spacing: AppTheme.Spacing.sm) {
+                toolbarCountAndProgress
+                Spacer(minLength: AppTheme.Spacing.sm)
+                toolbarPreviewAndInspectControls
+                toolbarActionControls
             }
-            
-            Spacer(minLength: AppTheme.Spacing.sm)
 
-            if toolbarComparisonItem != nil || !resolvedQueueQuickLookItems.urls.isEmpty {
+            VStack(alignment: .leading, spacing: AppTheme.Spacing.xs + 2) {
+                HStack(alignment: .center, spacing: AppTheme.Spacing.sm) {
+                    toolbarCountAndProgress
+                    Spacer(minLength: AppTheme.Spacing.sm)
+                    toolbarPreviewAndInspectControls
+                }
                 HStack(spacing: AppTheme.Spacing.xs + 2) {
-                    if let compareTarget = toolbarComparisonItem {
-                        Button(action: {
-                            selectedFileID = compareTarget.id
-                            activeComparisonItem = compareTarget
-                        }) {
-                            Label("Compare", systemImage: "square.split.2x1")
-                        }
-                        .buttonStyle(.bordered)
-                        .controlSize(.small)
-                        .fixedSize(horizontal: true, vertical: false)
-                        .help(String(localized: "Compare before and after for \(compareTarget.fileName)"))
-                        .accessibilityLabel("Compare before and after")
-                        .accessibilityIdentifier("filelist.compareButton")
-                    }
-
-                    if !resolvedQueueQuickLookItems.urls.isEmpty {
-                        Button(action: {
-                            _ = toggleQuickLookForSelectedFile()
-                        }) {
-                            Image(systemName: "eye")
-                        }
-                        .buttonStyle(.bordered)
-                        .controlSize(.small)
-                        .fixedSize(horizontal: true, vertical: false)
-                        .help("Quick Look selected file (Space)")
-                        .accessibilityLabel("Quick Look selected file")
-                        .accessibilityIdentifier("filelist.quickLookButton")
-                    }
+                    Spacer(minLength: 0)
+                    toolbarActionControls
                 }
-
-                AppDivider()
-                    .frame(width: 1, height: 16)
-            }
-            
-            HStack(spacing: AppTheme.Spacing.xs + 2) {
-                Menu {
-                    ForEach(PresetManager.shared.presets) { preset in
-                        Button(action: {
-                            PresetManager.shared.apply(preset: preset, to: appState)
-                        }) {
-                            Label(preset.name, systemImage: "wand.and.stars")
-                        }
-                    }
-                } label: {
-                    Label("Apply Preset", systemImage: "wand.and.stars")
-                }
-                .controlSize(.small)
-                .fixedSize(horizontal: true, vertical: false)
-                .disabled(appState.isConverting || appState.droppedFiles.isEmpty)
-                .accessibilityLabel("Apply saved preset to queue")
-                
-                Button(action: addMoreFiles) {
-                    Label("Add Files", systemImage: "plus")
-                }
-                .buttonStyle(.bordered)
-                .controlSize(.small)
-                .fixedSize(horizontal: true, vertical: false)
-                .disabled(appState.isConverting)
-                .keyboardShortcut("o", modifiers: .command)
-                .accessibilityLabel("Add files")
-                
-                Button(role: .destructive, action: { appState.removeAllFiles() }) {
-                    Label("Clear All", systemImage: "trash")
-                }
-                .buttonStyle(.bordered)
-                .controlSize(.small)
-                .fixedSize(horizontal: true, vertical: false)
-                .disabled(appState.isConverting)
-                .accessibilityLabel("Clear all files")
-                .accessibilityIdentifier("filelist.clearAll")
             }
         }
         .padding(.horizontal, AppTheme.Spacing.lg)
         .padding(.vertical, AppTheme.Spacing.md)
+    }
+
+    @ViewBuilder
+    private var toolbarCountAndProgress: some View {
+        VStack(alignment: .leading, spacing: AppTheme.Spacing.xxs) {
+            Text(
+                appState.droppedFiles.count == 1
+                    ? String(localized: "1 file in queue")
+                    : String(localized: "\(appState.droppedFiles.count) files in queue")
+            )
+                .font(AppTheme.Typography.sectionTitle)
+                .lineLimit(1)
+                .accessibilityIdentifier("filelist.countLabel")
+            
+            if appState.isConverting {
+                Text(String(localized: "\(appState.activeJobCount) active • \(appState.completedJobCount) / \(appState.totalJobCount) completed"))
+                    .font(AppTheme.Typography.monoCaption)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var toolbarPreviewAndInspectControls: some View {
+        if toolbarComparisonItem != nil || selectedInspectableArchiveURL != nil || !resolvedQueueQuickLookItems.urls.isEmpty {
+            HStack(spacing: AppTheme.Spacing.xs + 2) {
+                if let compareTarget = toolbarComparisonItem {
+                    Button(action: {
+                        selectedFileID = compareTarget.id
+                        activeComparisonItem = compareTarget
+                    }) {
+                        Label("Compare", systemImage: "square.split.2x1")
+                    }
+                    .buttonStyle(.bordered)
+                    .controlSize(.small)
+                    .fixedSize(horizontal: true, vertical: false)
+                    .help(String(localized: "Compare before and after for \(compareTarget.fileName)"))
+                    .accessibilityLabel("Compare before and after")
+                    .accessibilityIdentifier("filelist.compareButton")
+                }
+
+                if let archiveURL = selectedInspectableArchiveURL {
+                    Button(action: {
+                        activeArchivePreview = ArchivePreviewItem(id: archiveURL)
+                    }) {
+                        Label("Inspect Archive", systemImage: "archivebox")
+                    }
+                    .buttonStyle(.bordered)
+                    .controlSize(.small)
+                    .fixedSize(horizontal: true, vertical: false)
+                    .help("Inspect archive contents and extract files")
+                    .accessibilityLabel("Inspect archive contents")
+                    .accessibilityIdentifier("filelist.inspectArchiveButton")
+                }
+
+                if !resolvedQueueQuickLookItems.urls.isEmpty {
+                    Button(action: {
+                        _ = toggleQuickLookForSelectedFile()
+                    }) {
+                        Image(systemName: "eye")
+                    }
+                    .buttonStyle(.bordered)
+                    .controlSize(.small)
+                    .fixedSize(horizontal: true, vertical: false)
+                    .help("Quick Look selected file (Space)")
+                    .accessibilityLabel("Quick Look selected file")
+                    .accessibilityIdentifier("filelist.quickLookButton")
+                }
+            }
+
+            AppDivider()
+                .frame(width: 1, height: 16)
+        }
+    }
+
+    @ViewBuilder
+    private var toolbarActionControls: some View {
+        HStack(spacing: AppTheme.Spacing.xs + 2) {
+            if !appState.droppedFiles.isEmpty {
+                Button(action: {
+                    BatchRenamerSheetController.shared.open()
+                }) {
+                    Label("Batch Rename", systemImage: "character.cursor.ibeam")
+                }
+                .buttonStyle(.bordered)
+                .controlSize(.small)
+                .fixedSize(horizontal: true, vertical: false)
+                .disabled(appState.isConverting)
+                .help("Batch rename queued files with live preview")
+                .accessibilityLabel("Batch rename queued files")
+                .accessibilityIdentifier("filelist.batchRenameButton")
+            }
+
+            Menu {
+                ForEach(PresetManager.shared.presets) { preset in
+                    Button(action: {
+                        PresetManager.shared.apply(preset: preset, to: appState)
+                    }) {
+                        Label(preset.name, systemImage: "wand.and.stars")
+                    }
+                }
+            } label: {
+                Label("Apply Preset", systemImage: "wand.and.stars")
+            }
+            .controlSize(.small)
+            .fixedSize(horizontal: true, vertical: false)
+            .disabled(appState.isConverting || appState.droppedFiles.isEmpty)
+            .accessibilityLabel("Apply saved preset to queue")
+            
+            Button(action: addMoreFiles) {
+                Label("Add Files", systemImage: "plus")
+            }
+            .buttonStyle(.bordered)
+            .controlSize(.small)
+            .fixedSize(horizontal: true, vertical: false)
+            .disabled(appState.isConverting)
+            .keyboardShortcut("o", modifiers: .command)
+            .accessibilityLabel("Add files")
+            
+            Button(role: .destructive, action: { appState.removeAllFiles() }) {
+                Label("Clear All", systemImage: "trash")
+            }
+            .buttonStyle(.bordered)
+            .controlSize(.small)
+            .fixedSize(horizontal: true, vertical: false)
+            .disabled(appState.isConverting)
+            .accessibilityLabel("Clear all files")
+            .accessibilityIdentifier("filelist.clearAll")
+        }
     }
     
     // MARK: - Folder Rejection Notice
@@ -587,12 +664,50 @@ struct FileListView: View {
         return nil
     }
 
+    private var selectedInspectableArchiveURL: URL? {
+        let candidateFile: DroppedFile?
+        if let selectedID = effectiveSelectedFileID,
+           let selected = appState.droppedFiles.first(where: { $0.id == selectedID }) {
+            candidateFile = selected
+        } else if appState.droppedFiles.count == 1 {
+            candidateFile = appState.droppedFiles.first
+        } else {
+            candidateFile = nil
+        }
+
+        guard let file = candidateFile,
+              isInspectableArchive(url: file.url, format: file.detectedFormat),
+              QueueQuickLookResolver.isExistingRegularFile(at: file.url) else {
+            return nil
+        }
+        return file.url
+    }
+
+    private func isInspectableArchive(url: URL, format: FileFormat? = nil) -> Bool {
+        if let format, [.zip, .tar, .tgz, .gz].contains(format) {
+            return true
+        }
+        let lower = url.lastPathComponent.lowercased()
+        return lower.hasSuffix(".zip")
+            || lower.hasSuffix(".tar")
+            || lower.hasSuffix(".tgz")
+            || lower.hasSuffix(".tar.gz")
+            || lower.hasSuffix(".gz")
+    }
+
     @discardableResult
     private func toggleQuickLookForSelectedFile() -> Bool {
         let resolved = resolvedQueueQuickLookItems
         guard !resolved.urls.isEmpty else { return false }
         if selectedFileID == nil {
             selectedFileID = effectiveSelectedFileID
+        }
+        if resolved.urls.indices.contains(resolved.selectedIndex) {
+            let previewURL = resolved.urls[resolved.selectedIndex]
+            if isInspectableArchive(url: previewURL) {
+                activeArchivePreview = ArchivePreviewItem(id: previewURL)
+                return true
+            }
         }
         quickLookCoordinator.togglePreviewPanel(urls: resolved.urls, selectedIndex: resolved.selectedIndex)
         return true
@@ -606,6 +721,13 @@ struct FileListView: View {
             selectedFileID: file.id
         )
         guard !resolved.urls.isEmpty else { return }
+        if resolved.urls.indices.contains(resolved.selectedIndex) {
+            let previewURL = resolved.urls[resolved.selectedIndex]
+            if isInspectableArchive(url: previewURL, format: file.detectedFormat) {
+                activeArchivePreview = ArchivePreviewItem(id: previewURL)
+                return
+            }
+        }
         quickLookCoordinator.togglePreviewPanel(urls: resolved.urls, selectedIndex: resolved.selectedIndex)
     }
 
