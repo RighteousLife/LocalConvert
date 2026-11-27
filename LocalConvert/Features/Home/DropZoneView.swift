@@ -87,7 +87,7 @@ struct DropZoneView: View {
                                 Label("Paste", systemImage: "doc.on.clipboard")
                                 Text(verbatim: "⌘V")
                                     .font(AppTheme.Typography.badge.monospaced())
-                                    .foregroundStyle(.secondary)
+                                    .foregroundStyle(.primary.opacity(0.82))
                                     .padding(.horizontal, 5)
                                     .padding(.vertical, 2)
                                     .background(AppTheme.Colors.neutralTint)
@@ -133,11 +133,11 @@ struct DropZoneView: View {
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
                 .background {
                     RoundedRectangle(cornerRadius: AppTheme.Radius.xl)
-                        .fill(isTargeted ? AppTheme.Colors.accentTint.opacity(0.35) : AppTheme.Colors.cardBackground.opacity(0.55))
+                        .fill(isTargeted ? AppTheme.Colors.accentTint.opacity(0.35) : AppTheme.Colors.cardBackground.opacity(0.85))
                         .overlay {
                             RoundedRectangle(cornerRadius: AppTheme.Radius.xl)
                                 .strokeBorder(
-                                    isTargeted ? AppTheme.Colors.accent : AppTheme.Colors.cardBorder,
+                                    isTargeted ? AppTheme.Colors.accent : Color.primary.opacity(0.18),
                                     style: StrokeStyle(lineWidth: isTargeted ? 2 : 1.5, dash: [7, 5])
                                 )
                         }
@@ -148,11 +148,11 @@ struct DropZoneView: View {
                 VStack(spacing: AppTheme.Spacing.xxs) {
                     Label("Your files, Your Mac.", systemImage: "lock.shield")
                         .font(AppTheme.Typography.subheadline.weight(.medium))
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(.primary.opacity(0.82))
                     
                     Text("All conversions happen locally on your Mac. No data is sent to the cloud.")
                         .font(AppTheme.Typography.caption)
-                        .foregroundStyle(.tertiary)
+                        .foregroundStyle(.secondary)
                         .multilineTextAlignment(.center)
                 }
                 .padding(.top, AppTheme.Spacing.xxs)

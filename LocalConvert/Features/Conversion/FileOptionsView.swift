@@ -11,9 +11,19 @@ struct FileOptionsView: View {
     var onOpenVideoTrim: (() -> Void)? = nil
     @Environment(\.dismiss) private var dismiss
     
+    @State private var customTargetMBInput: String = ""
+
     private var isImageOptions: Bool {
         descriptors.contains(where: { $0.id == "imageQuality" || $0.id == "webpLossless" })
             && !descriptors.contains(where: { $0.id == "pdfDPI" })
+    }
+
+    private var supportsTargetSizeChips: Bool {
+        isImageOptions
+            || inputFormat == .pdf
+            || inputFormat?.category == .video
+            || outputFormat?.category == .video
+            || descriptors.contains(where: { $0.id == "targetFileSizeMB" })
     }
 
     private var availableSmartPresets: [ConversionPreset] {
@@ -111,12 +121,100 @@ struct FileOptionsView: View {
                             descriptorRow(for: descriptor)
                         }
                     }
+
+                    if supportsTargetSizeChips {
+                        Divider()
+                        quickTargetSizeChipsSection
+                    }
                 }
                 .padding(AppTheme.Spacing.xl)
             }
         }
         .frame(minWidth: 340, idealWidth: 380, minHeight: 280, maxHeight: 520)
         .appWorkspaceSurface()
+    }
+
+    @ViewBuilder
+    private var quickTargetSizeChipsSection: some View {
+        VStack(alignment: .leading, spacing: AppTheme.Spacing.xs + 2) {
+            HStack {
+                Text("Quick Target File Size")
+                    .font(AppTheme.Typography.subheadline)
+                    .fontWeight(.medium)
+                Spacer()
+                if let activeBytes = options.effectiveTargetFileSizeBytes {
+                    Text(ByteCountFormatter.string(fromByteCount: activeBytes, countStyle: .file))
+                        .font(AppTheme.Typography.monoCaption)
+                        .foregroundStyle(AppTheme.Colors.accent)
+                    Button("Clear") {
+                        customTargetMBInput = ""
+                        updateOption {
+                            $0.targetFileSizeMB = nil
+                            $0.targetFileSizeBytes = nil
+                            if isImageOptions && $0.imageOptimizationMode == .targetFileSize {
+                                $0.imageOptimizationMode = .balanced
+                            }
+                        }
+                    }
+                    .buttonStyle(.borderless)
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+                }
+            }
+
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: AppTheme.Spacing.xs) {
+                    ForEach(TargetSizeQuickPreset.allCases) { preset in
+                        let isSelected = options.effectiveTargetFileSizeBytes == preset.targetBytes
+                        Button(preset.localizedTitle) {
+                            applyQuickTargetMB(preset.megabytes)
+                        }
+                        .buttonStyle(.bordered)
+                        .tint(isSelected ? AppTheme.Colors.accent : nil)
+                        .controlSize(.small)
+                        .accessibilityIdentifier("fileoptions.targetSize.\(preset.megabytes)")
+                    }
+                }
+            }
+
+            HStack(spacing: AppTheme.Spacing.xs) {
+                TextField("Custom MB", text: $customTargetMBInput)
+                    .textFieldStyle(.roundedBorder)
+                    .frame(width: 96)
+                    .accessibilityLabel("Custom target size in MB")
+                    .accessibilityIdentifier("fileoptions.targetSize.customInput")
+
+                Text("MB")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+
+                Button("Apply") {
+                    let normalized = customTargetMBInput
+                        .trimmingCharacters(in: .whitespacesAndNewlines)
+                        .replacingOccurrences(of: ",", with: ".")
+                    if let mb = Double(normalized), mb > 0 {
+                        applyQuickTargetMB(mb)
+                    }
+                }
+                .buttonStyle(.bordered)
+                .controlSize(.small)
+                .disabled((Double(customTargetMBInput.trimmingCharacters(in: .whitespacesAndNewlines).replacingOccurrences(of: ",", with: ".")) ?? 0) <= 0)
+                .accessibilityIdentifier("fileoptions.targetSize.applyCustom")
+            }
+        }
+        .padding(.vertical, AppTheme.Spacing.xxs)
+    }
+
+    private func applyQuickTargetMB(_ mb: Double) {
+        let bytes = Int64((mb * 1_000_000.0).rounded())
+        customTargetMBInput = mb.rounded() == mb ? "\(Int(mb))" : String(format: "%.1f", mb)
+        updateOption {
+            $0.targetFileSizeMB = mb
+            $0.targetFileSizeBytes = bytes
+            if isImageOptions {
+                $0.imageOptimizationMode = .targetFileSize
+            }
+        }
     }
 
     @ViewBuilder

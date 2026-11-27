@@ -16,6 +16,7 @@ final class VideoViewerPlayerController: ObservableObject {
     @Published private(set) var usesNativePlayer: Bool = false
     @Published var exportProgress: Double = 0
     @Published var exportStatusMessage: String = ""
+    @Published var quickActionStatusMessage: String = ""
 
     private var activeURL: URL?
     private var timeObserverToken: Any?
@@ -204,9 +205,31 @@ struct VideoViewerEditorView: View {
     @State private var segments: [VideoSegment] = QuickVideoCutterEngine.initialSegments(durationSeconds: 1.0)
     @State private var selectedSegmentID: UUID?
 
+    private enum VideoCropHandle: CaseIterable {
+        case topLeft, topRight, bottomLeft, bottomRight
+    }
+
     @State private var isMuted: Bool = false
     @State private var rotation: QuickVideoRotation = .deg0
     @State private var speedMultiplier: Double = 1.0
+
+    @State private var showStudioDrawer: Bool = false
+    @State private var isCropExpanded: Bool = true
+    @State private var isSubtitlesExpanded: Bool = true
+    @State private var isAudioExpanded: Bool = true
+    @State private var isConcatExpanded: Bool = false
+
+    @State private var cropConfig: VideoCropConfiguration = VideoCropConfiguration()
+    @State private var cropHandleStartRect: NormalizedRect? = nil
+    @State private var cropMoveStartRect: NormalizedRect? = nil
+
+    @State private var subtitleURL: URL? = nil
+    @State private var subtitleCueCount: Int = 0
+    @State private var audioProcessing: VideoAudioProcessingOptions = VideoAudioProcessingOptions()
+    @State private var concatClips: [URL] = []
+
+    @State private var isQuickActionRunning: Bool = false
+    @State private var quickActionTask: Task<Void, Never>? = nil
 
     @State private var isExportSheetPresented: Bool = false
     @State private var exportMode: QuickVideoExportMode = .losslessCut
@@ -258,36 +281,82 @@ struct VideoViewerEditorView: View {
         return keptSegmentCount > 1
     }
 
+    private var hasActiveStudioTransforms: Bool {
+        cropConfig.isActive || subtitleURL != nil || audioProcessing.hasAnyEffect
+    }
+
+    private var requiresReencode: Bool {
+        rotation != .deg0
+            || abs(speedMultiplier - 1.0) > 0.01
+            || cropConfig.isActive
+            || subtitleURL != nil
+            || audioProcessing.hasAnyEffect
+    }
+
+    private var effectiveRotatedDimensions: (width: Int, height: Int) {
+        let baseW = mediaInfo?.primaryVideoStream?.width ?? 1280
+        let baseH = mediaInfo?.primaryVideoStream?.height ?? 720
+        if rotation == .deg90 || rotation == .deg270 {
+            return (max(2, baseH), max(2, baseW))
+        }
+        return (max(2, baseW), max(2, baseH))
+    }
+
+    private var activeCropPixelSummary: String? {
+        guard cropConfig.isActive else { return nil }
+        let dims = effectiveRotatedDimensions
+        guard let px = QuickVideoCutterEngine.pixelCropRect(
+            from: cropConfig,
+            sourceWidth: dims.width,
+            sourceHeight: dims.height
+        ) else {
+            return nil
+        }
+        return "\(px.width)×\(px.height) px"
+    }
+
     var body: some View {
         VStack(spacing: 0) {
             headerBar
             AppDivider()
 
-            VStack(spacing: AppTheme.Spacing.sm) {
-                playerSurface
-                    .layoutPriority(1)
+            HStack(spacing: 0) {
+                VStack(spacing: AppTheme.Spacing.sm) {
+                    playerSurface
+                        .layoutPriority(1)
 
-                if let banner = bannerMessage {
-                    AppInfoBanner(
-                        style: banner.style,
-                        message: banner.text,
-                        actionTitle: banner.revealURL != nil ? String(localized: "Reveal") : nil,
-                        onAction: banner.revealURL.map { reveal in
-                            {
-                                NSWorkspace.shared.activateFileViewerSelecting([reveal])
+                    if let banner = bannerMessage {
+                        AppInfoBanner(
+                            style: banner.style,
+                            message: banner.text,
+                            actionTitle: banner.revealURL != nil ? String(localized: "Reveal") : nil,
+                            onAction: banner.revealURL.map { reveal in
+                                {
+                                    NSWorkspace.shared.activateFileViewerSelecting([reveal])
+                                }
+                            },
+                            onDismiss: {
+                                bannerMessage = nil
                             }
-                        },
-                        onDismiss: {
-                            bannerMessage = nil
-                        }
-                    )
-                }
+                        )
+                    }
 
-                transportToolbar
-                timelineSection
+                    transportToolbar
+                    timelineSection
+                }
+                .padding(.horizontal, showStudioDrawer ? AppTheme.Spacing.md : AppTheme.Spacing.lg)
+                .padding(.vertical, AppTheme.Spacing.md)
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+
+                if showStudioDrawer {
+                    AppDivider()
+                        .frame(width: 1)
+                    studioInspectorDrawer
+                        .frame(width: 254)
+                        .background(AppTheme.Colors.secondarySidebarBackground)
+                }
             }
-            .padding(.horizontal, AppTheme.Spacing.lg)
-            .padding(.vertical, AppTheme.Spacing.md)
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
 
             AppDivider()
             footerBar
@@ -302,6 +371,8 @@ struct VideoViewerEditorView: View {
         .onDisappear {
             exportTask?.cancel()
             exportTask = nil
+            quickActionTask?.cancel()
+            quickActionTask = nil
             playerController.cleanup()
         }
         .sheet(isPresented: $isExportSheetPresented) {
@@ -350,6 +421,20 @@ struct VideoViewerEditorView: View {
             }
 
             Spacer(minLength: AppTheme.Spacing.sm)
+
+            Button {
+                withAnimation(.easeInOut(duration: 0.16)) {
+                    showStudioDrawer.toggle()
+                }
+            } label: {
+                Label("Studio", systemImage: "slider.horizontal.3")
+            }
+            .buttonStyle(.bordered)
+            .tint(showStudioDrawer || hasActiveStudioTransforms ? AppTheme.Colors.accent : nil)
+            .controlSize(.small)
+            .fixedSize(horizontal: true, vertical: false)
+            .help("Toggle Video Studio tools (Crop, Subtitles, Audio, Join, Contact Sheet)")
+            .accessibilityIdentifier("videoViewer.studioToolsButton")
 
             if let onSendToConvertQueue {
                 Button {
@@ -412,6 +497,14 @@ struct VideoViewerEditorView: View {
                 }
             }
 
+            if cropConfig.aspectRatio != .none {
+                GeometryReader { geo in
+                    let videoFrame = fittedVideoFrame(in: geo.size)
+                    videoCropOverlay(in: videoFrame)
+                }
+                .clipShape(RoundedRectangle(cornerRadius: AppTheme.Radius.lg))
+            }
+
             if playerController.isLoadingFrame {
                 VStack {
                     HStack {
@@ -424,7 +517,7 @@ struct VideoViewerEditorView: View {
                 }
             }
 
-            if rotation != .deg0 || isMuted || abs(speedMultiplier - 1.0) > 0.01 {
+            if rotation != .deg0 || isMuted || abs(speedMultiplier - 1.0) > 0.01 || hasActiveStudioTransforms {
                 VStack {
                     HStack(spacing: AppTheme.Spacing.xs) {
                         HStack(spacing: AppTheme.Spacing.xs) {
@@ -437,6 +530,18 @@ struct VideoViewerEditorView: View {
                             if abs(speedMultiplier - 1.0) > 0.01 {
                                 AppStatusBadge(text: speedLabel(speedMultiplier), tint: AppTheme.Colors.accent)
                             }
+                            if cropConfig.isActive {
+                                AppStatusBadge(text: cropConfig.aspectRatio.rawValue, tint: AppTheme.Colors.info)
+                            }
+                            if subtitleURL != nil {
+                                AppStatusBadge(text: "SRT", tint: AppTheme.Colors.success)
+                            }
+                            if audioProcessing.loudnessNormalize {
+                                AppStatusBadge(text: "-16 LUFS", tint: AppTheme.Colors.accent)
+                            }
+                            if audioProcessing.trimSilence {
+                                AppStatusBadge(text: String(localized: "Trim Silence"), tint: AppTheme.Colors.warning)
+                            }
                         }
                         .padding(4)
                         .background(.ultraThinMaterial, in: Capsule())
@@ -447,14 +552,170 @@ struct VideoViewerEditorView: View {
                 }
             }
         }
-        .frame(maxWidth: .infinity, minHeight: 190, maxHeight: .infinity)
+        .frame(maxWidth: .infinity, minHeight: 150, maxHeight: .infinity)
         .overlay(
             RoundedRectangle(cornerRadius: AppTheme.Radius.lg)
                 .strokeBorder(AppTheme.Colors.cardBorder, lineWidth: 1)
         )
-        .accessibilityElement(children: .ignore)
+        .accessibilityElement(children: cropConfig.aspectRatio != .none ? .contain : .ignore)
         .accessibilityLabel("Video preview player")
         .accessibilityIdentifier("videoViewer.playerSurface")
+    }
+
+    private func fittedVideoFrame(in containerSize: CGSize) -> CGRect {
+        let dims = effectiveRotatedDimensions
+        let videoAspect = CGFloat(dims.width) / CGFloat(max(1, dims.height))
+        let containerAspect = max(1, containerSize.width) / max(1, containerSize.height)
+        let fittedSize: CGSize
+        if containerAspect > videoAspect {
+            fittedSize = CGSize(width: containerSize.height * videoAspect, height: containerSize.height)
+        } else {
+            fittedSize = CGSize(width: containerSize.width, height: containerSize.width / videoAspect)
+        }
+        return CGRect(
+            x: (containerSize.width - fittedSize.width) / 2.0,
+            y: (containerSize.height - fittedSize.height) / 2.0,
+            width: fittedSize.width,
+            height: fittedSize.height
+        )
+    }
+
+    private func videoCropOverlay(in frame: CGRect) -> some View {
+        let rect = CGRect(
+            x: frame.minX + CGFloat(cropConfig.normalizedRect.x) * frame.width,
+            y: frame.minY + CGFloat(cropConfig.normalizedRect.y) * frame.height,
+            width: CGFloat(cropConfig.normalizedRect.width) * frame.width,
+            height: CGFloat(cropConfig.normalizedRect.height) * frame.height
+        )
+        return ZStack {
+            Path { path in
+                path.addRect(frame)
+                path.addRect(rect)
+            }
+            .fill(Color.black.opacity(0.45), style: FillStyle(eoFill: true))
+            .allowsHitTesting(false)
+
+            Rectangle()
+                .fill(Color.white.opacity(0.001))
+                .frame(width: rect.width, height: rect.height)
+                .position(x: rect.midX, y: rect.midY)
+                .gesture(
+                    DragGesture(minimumDistance: 1)
+                        .onChanged { value in
+                            if cropMoveStartRect == nil { cropMoveStartRect = cropConfig.normalizedRect }
+                            guard let base = cropMoveStartRect else { return }
+                            let dx = Double(value.translation.width / max(1, frame.width))
+                            let dy = Double(value.translation.height / max(1, frame.height))
+                            let nx = max(0.0, min(1.0 - base.width, base.x + dx))
+                            let ny = max(0.0, min(1.0 - base.height, base.y + dy))
+                            cropConfig.normalizedRect = NormalizedRect(x: nx, y: ny, width: base.width, height: base.height)
+                        }
+                        .onEnded { _ in
+                            cropMoveStartRect = nil
+                        }
+                )
+
+            Rectangle()
+                .strokeBorder(Color.white, lineWidth: 1.5)
+                .frame(width: rect.width, height: rect.height)
+                .position(x: rect.midX, y: rect.midY)
+                .allowsHitTesting(false)
+
+            Path { path in
+                for step in [1.0 / 3.0, 2.0 / 3.0] {
+                    let x = rect.minX + rect.width * step
+                    path.move(to: CGPoint(x: x, y: rect.minY))
+                    path.addLine(to: CGPoint(x: x, y: rect.maxY))
+                    let y = rect.minY + rect.height * step
+                    path.move(to: CGPoint(x: rect.minX, y: y))
+                    path.addLine(to: CGPoint(x: rect.maxX, y: y))
+                }
+            }
+            .stroke(Color.white.opacity(0.35), lineWidth: 0.75)
+            .allowsHitTesting(false)
+
+            ForEach(VideoCropHandle.allCases, id: \.self) { handle in
+                let pt = cropHandlePoint(handle, in: rect)
+                Circle()
+                    .fill(Color.white)
+                    .frame(width: 11, height: 11)
+                    .overlay(Circle().stroke(AppTheme.Colors.accent, lineWidth: 2))
+                    .shadow(color: Color.black.opacity(0.35), radius: 2, y: 1)
+                    .position(pt)
+                    .gesture(
+                        DragGesture(minimumDistance: 1)
+                            .onChanged { value in
+                                if cropHandleStartRect == nil { cropHandleStartRect = cropConfig.normalizedRect }
+                                guard let base = cropHandleStartRect else { return }
+                                cropConfig.normalizedRect = resizedVideoCropRect(
+                                    base: base,
+                                    handle: handle,
+                                    translation: value.translation,
+                                    frameSize: frame.size
+                                )
+                            }
+                            .onEnded { _ in
+                                cropHandleStartRect = nil
+                            }
+                    )
+            }
+        }
+    }
+
+    private func cropHandlePoint(_ handle: VideoCropHandle, in rect: CGRect) -> CGPoint {
+        switch handle {
+        case .topLeft: return CGPoint(x: rect.minX, y: rect.minY)
+        case .topRight: return CGPoint(x: rect.maxX, y: rect.minY)
+        case .bottomLeft: return CGPoint(x: rect.minX, y: rect.maxY)
+        case .bottomRight: return CGPoint(x: rect.maxX, y: rect.maxY)
+        }
+    }
+
+    private func resizedVideoCropRect(
+        base: NormalizedRect,
+        handle: VideoCropHandle,
+        translation: CGSize,
+        frameSize: CGSize
+    ) -> NormalizedRect {
+        let dx = Double(translation.width / max(1, frameSize.width))
+        let dy = Double(translation.height / max(1, frameSize.height))
+        var minX = base.x
+        var minY = base.y
+        var maxX = base.x + base.width
+        var maxY = base.y + base.height
+        let minSpan = 0.08
+
+        switch handle {
+        case .topLeft:
+            minX = max(0, min(maxX - minSpan, base.x + dx))
+            minY = max(0, min(maxY - minSpan, base.y + dy))
+        case .topRight:
+            maxX = min(1, max(minX + minSpan, maxX + dx))
+            minY = max(0, min(maxY - minSpan, base.y + dy))
+        case .bottomLeft:
+            minX = max(0, min(maxX - minSpan, base.x + dx))
+            maxY = min(1, max(minY + minSpan, maxY + dy))
+        case .bottomRight:
+            maxX = min(1, max(minX + minSpan, maxX + dx))
+            maxY = min(1, max(minY + minSpan, maxY + dy))
+        }
+
+        var w = max(minSpan, maxX - minX)
+        var h = max(minSpan, maxY - minY)
+
+        if let targetRatio = cropConfig.aspectRatio.aspectRatio {
+            let dims = effectiveRotatedDimensions
+            let videoRatio = Double(dims.width) / Double(max(1, dims.height))
+            let desiredH = w * (videoRatio / targetRatio)
+            if minY + desiredH <= 1.0 && desiredH >= minSpan {
+                h = desiredH
+            } else {
+                h = min(1.0 - minY, h)
+                w = min(1.0 - minX, h * (targetRatio / videoRatio))
+            }
+        }
+
+        return NormalizedRect(x: minX, y: minY, width: w, height: h)
     }
 
     // MARK: - Transport & Transform Toolbar
@@ -574,6 +835,9 @@ struct VideoViewerEditorView: View {
 
             Button {
                 rotation = rotation.rotatedClockwise()
+                if cropConfig.aspectRatio != .none {
+                    selectCropAspectRatio(cropConfig.aspectRatio)
+                }
             } label: {
                 Label(rotation.label, systemImage: "rotate.right")
             }
@@ -738,6 +1002,20 @@ struct VideoViewerEditorView: View {
     }
 
     private var timelineActionButtons: some View {
+        ViewThatFits(in: .horizontal) {
+            HStack(spacing: AppTheme.Spacing.xs) {
+                timelineInOutSplitButtons
+                timelineToggleResetButtons
+            }
+
+            VStack(alignment: .leading, spacing: AppTheme.Spacing.xs) {
+                timelineInOutSplitButtons
+                timelineToggleResetButtons
+            }
+        }
+    }
+
+    private var timelineInOutSplitButtons: some View {
         HStack(spacing: AppTheme.Spacing.xs) {
             Button {
                 applySetIn()
@@ -746,6 +1024,7 @@ struct VideoViewerEditorView: View {
             }
             .buttonStyle(.bordered)
             .controlSize(.small)
+            .fixedSize(horizontal: true, vertical: false)
             .keyboardShortcut("i", modifiers: [])
             .help("Set active segment start to playhead (I)")
             .accessibilityIdentifier("videoViewer.setInButton")
@@ -757,6 +1036,7 @@ struct VideoViewerEditorView: View {
             }
             .buttonStyle(.bordered)
             .controlSize(.small)
+            .fixedSize(horizontal: true, vertical: false)
             .keyboardShortcut("o", modifiers: [])
             .help("Set active segment end to playhead (O)")
             .accessibilityIdentifier("videoViewer.setOutButton")
@@ -768,10 +1048,15 @@ struct VideoViewerEditorView: View {
             }
             .buttonStyle(.bordered)
             .controlSize(.small)
+            .fixedSize(horizontal: true, vertical: false)
             .keyboardShortcut("b", modifiers: .command)
             .help("Split segment at playhead (⌘B)")
             .accessibilityIdentifier("videoViewer.splitButton")
+        }
+    }
 
+    private var timelineToggleResetButtons: some View {
+        HStack(spacing: AppTheme.Spacing.xs) {
             Button {
                 toggleSelectedSegment()
             } label: {
@@ -783,6 +1068,7 @@ struct VideoViewerEditorView: View {
             }
             .buttonStyle(.bordered)
             .controlSize(.small)
+            .fixedSize(horizontal: true, vertical: false)
             .disabled(!canDeleteOrDisableSelectedSegment)
             .help("Toggle whether selected segment is kept or deleted")
             .accessibilityIdentifier("videoViewer.toggleSegmentButton")
@@ -793,6 +1079,7 @@ struct VideoViewerEditorView: View {
             }
             .buttonStyle(.bordered)
             .controlSize(.small)
+            .fixedSize(horizontal: true, vertical: false)
             .disabled(segments.count == 1 && segments.first?.isKept == true && segments.first?.startSeconds == 0)
         }
     }
@@ -853,6 +1140,299 @@ struct VideoViewerEditorView: View {
         .help("\(VideoTrimTimestamp.formatDisplay(seconds: segment.startSeconds)) → \(VideoTrimTimestamp.formatDisplay(seconds: segment.endSeconds)) (\(segment.isKept ? String(localized: "Kept") : String(localized: "Deleted")))")
     }
 
+    // MARK: - Studio Collapsible Inspector Drawer
+
+    private var studioInspectorDrawer: some View {
+        VStack(spacing: 0) {
+            HStack(spacing: AppTheme.Spacing.xs) {
+                Label("Video Studio", systemImage: "slider.horizontal.3")
+                    .font(AppTheme.Typography.sectionTitle)
+                    .lineLimit(1)
+                Spacer(minLength: 0)
+                Button {
+                    withAnimation(.easeInOut(duration: 0.16)) {
+                        showStudioDrawer = false
+                    }
+                } label: {
+                    Image(systemName: "xmark")
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(.secondary)
+                        .frame(width: 22, height: 22)
+                }
+                .buttonStyle(.plain)
+                .help("Collapse Video Studio")
+                .accessibilityLabel("Collapse Video Studio")
+            }
+            .padding(.horizontal, AppTheme.Spacing.md)
+            .padding(.vertical, AppTheme.Spacing.sm + 2)
+            .background(AppTheme.Colors.subtleSurface)
+
+            AppDivider()
+
+            ScrollView {
+                VStack(alignment: .leading, spacing: AppTheme.Spacing.sm) {
+                    if isQuickActionRunning {
+                        VStack(alignment: .leading, spacing: AppTheme.Spacing.xs) {
+                            ProgressView()
+                                .controlSize(.small)
+                            Text(playerController.quickActionStatusMessage)
+                                .font(AppTheme.Typography.caption)
+                                .foregroundStyle(.secondary)
+                                .lineLimit(2)
+                        }
+                        .padding(AppTheme.Spacing.sm)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .background(AppTheme.Colors.accentTint)
+                        .clipShape(RoundedRectangle(cornerRadius: AppTheme.Radius.sm))
+                    }
+
+                    studioSectionCard {
+                        DisclosureGroup("Crop & Aspect", isExpanded: $isCropExpanded) {
+                            VStack(alignment: .leading, spacing: AppTheme.Spacing.sm) {
+                                LazyVGrid(
+                                    columns: [GridItem(.adaptive(minimum: 64), spacing: 6)],
+                                    spacing: 6
+                                ) {
+                                    ForEach(VideoCropAspectRatio.allCases) { ratio in
+                                        let isSelected = cropConfig.aspectRatio == ratio
+                                        Button {
+                                            selectCropAspectRatio(ratio)
+                                        } label: {
+                                            Text(LocalizedStringKey(ratio.rawValue))
+                                                .font(AppTheme.Typography.caption.weight(isSelected ? .semibold : .regular))
+                                                .frame(maxWidth: .infinity)
+                                        }
+                                        .buttonStyle(.bordered)
+                                        .tint(isSelected ? AppTheme.Colors.accent : nil)
+                                        .controlSize(.small)
+                                        .accessibilityIdentifier("videoViewer.cropAspectButton_\(ratio.rawValue)")
+                                    }
+                                }
+
+                                if cropConfig.aspectRatio != .none {
+                                    HStack {
+                                        if let pxSummary = activeCropPixelSummary {
+                                            AppStatusBadge(text: pxSummary, tint: AppTheme.Colors.info)
+                                        }
+                                        Spacer(minLength: 0)
+                                        Button("Reset Crop") {
+                                            cropConfig = VideoCropConfiguration()
+                                        }
+                                        .buttonStyle(.bordered)
+                                        .controlSize(.mini)
+                                        .accessibilityIdentifier("videoViewer.resetCropButton")
+                                    }
+                                    Text("Drag box or corners on preview")
+                                        .font(AppTheme.Typography.caption)
+                                        .foregroundStyle(.secondary)
+                                }
+                            }
+                            .padding(.top, AppTheme.Spacing.xs)
+                        }
+                        .font(AppTheme.Typography.cardTitle)
+                    }
+
+                    studioSectionCard {
+                        DisclosureGroup("Subtitles (.srt)", isExpanded: $isSubtitlesExpanded) {
+                            VStack(alignment: .leading, spacing: AppTheme.Spacing.sm) {
+                                Button {
+                                    attachSubtitleFile()
+                                } label: {
+                                    Label(
+                                        subtitleURL == nil ? String(localized: "Attach .srt File...") : String(localized: "Replace .srt File..."),
+                                        systemImage: "captions.bubble"
+                                    )
+                                    .frame(maxWidth: .infinity)
+                                }
+                                .buttonStyle(.bordered)
+                                .controlSize(.small)
+                                .accessibilityIdentifier("videoViewer.attachSubtitleButton")
+
+                                if let subtitleURL {
+                                    HStack(spacing: AppTheme.Spacing.xs) {
+                                        Image(systemName: "text.bubble.fill")
+                                            .foregroundStyle(AppTheme.Colors.success)
+                                            .font(.caption)
+                                        VStack(alignment: .leading, spacing: 1) {
+                                            Text(subtitleURL.lastPathComponent)
+                                                .font(AppTheme.Typography.caption.weight(.medium))
+                                                .lineLimit(1)
+                                                .truncationMode(.middle)
+                                            Text(subtitleCueCount == 1 ? String(localized: "1 cue") : String(localized: "\(subtitleCueCount) cues"))
+                                                .font(.caption2)
+                                                .foregroundStyle(.secondary)
+                                        }
+                                        Spacer(minLength: 0)
+                                        Button {
+                                            self.subtitleURL = nil
+                                            self.subtitleCueCount = 0
+                                        } label: {
+                                            Image(systemName: "xmark.circle.fill")
+                                                .foregroundStyle(.secondary)
+                                        }
+                                        .buttonStyle(.plain)
+                                        .help("Remove subtitle track")
+                                        .accessibilityIdentifier("videoViewer.clearSubtitleButton")
+                                    }
+                                    .padding(6)
+                                    .background(AppTheme.Colors.subtleSurface)
+                                    .clipShape(RoundedRectangle(cornerRadius: AppTheme.Radius.xs))
+                                }
+                            }
+                            .padding(.top, AppTheme.Spacing.xs)
+                        }
+                        .font(AppTheme.Typography.cardTitle)
+                    }
+
+                    studioSectionCard {
+                        DisclosureGroup("Audio & Quick Export", isExpanded: $isAudioExpanded) {
+                            VStack(alignment: .leading, spacing: AppTheme.Spacing.sm) {
+                                Toggle("Loudness Normalize (-16 LUFS)", isOn: $audioProcessing.loudnessNormalize)
+                                    .font(AppTheme.Typography.caption)
+                                    .toggleStyle(.switch)
+                                    .controlSize(.mini)
+                                    .accessibilityIdentifier("videoViewer.loudnormToggle")
+
+                                Toggle("Trim Silence (-50 dB)", isOn: $audioProcessing.trimSilence)
+                                    .font(AppTheme.Typography.caption)
+                                    .toggleStyle(.switch)
+                                    .controlSize(.mini)
+                                    .accessibilityIdentifier("videoViewer.trimSilenceToggle")
+
+                                AppDivider()
+
+                                Text("1-Click Extract Audio")
+                                    .font(AppTheme.Typography.caption.weight(.semibold))
+                                    .foregroundStyle(.secondary)
+
+                                HStack(spacing: AppTheme.Spacing.xs) {
+                                    ForEach(VideoExtractAudioFormat.allCases) { fmt in
+                                        Button(fmt.rawValue) {
+                                            runExtractAudio(format: fmt)
+                                        }
+                                        .buttonStyle(.bordered)
+                                        .controlSize(.small)
+                                        .frame(maxWidth: .infinity)
+                                        .disabled(isProbing || probeError != nil || isQuickActionRunning || !(mediaInfo?.hasAudio ?? true))
+                                        .accessibilityIdentifier("videoViewer.extractAudioButton_\(fmt.fileExtension)")
+                                    }
+                                }
+
+                                AppDivider()
+
+                                Button {
+                                    runContactSheet()
+                                } label: {
+                                    Label("3×3 Contact Sheet PNG", systemImage: "square.grid.3x3")
+                                        .frame(maxWidth: .infinity)
+                                }
+                                .buttonStyle(.bordered)
+                                .controlSize(.small)
+                                .disabled(isProbing || probeError != nil || isQuickActionRunning)
+                                .accessibilityIdentifier("videoViewer.contactSheetButton")
+                            }
+                            .padding(.top, AppTheme.Spacing.xs)
+                        }
+                        .font(AppTheme.Typography.cardTitle)
+                    }
+
+                    studioSectionCard {
+                        DisclosureGroup("Multi-Clip Join", isExpanded: $isConcatExpanded) {
+                            VStack(alignment: .leading, spacing: AppTheme.Spacing.xs + 2) {
+                                ForEach(Array(concatClips.enumerated()), id: \.offset) { index, clipURL in
+                                    HStack(spacing: 4) {
+                                        Text("\(index + 1).")
+                                            .font(AppTheme.Typography.monoCaption)
+                                            .foregroundStyle(.secondary)
+                                        Text(clipURL.lastPathComponent)
+                                            .font(AppTheme.Typography.caption)
+                                            .lineLimit(1)
+                                            .truncationMode(.middle)
+                                        Spacer(minLength: 0)
+                                        Button {
+                                            moveConcatClip(at: index, direction: -1)
+                                        } label: {
+                                            Image(systemName: "chevron.up")
+                                                .font(.caption2)
+                                        }
+                                        .buttonStyle(.plain)
+                                        .disabled(index == 0)
+                                        .accessibilityLabel("Move clip up")
+
+                                        Button {
+                                            moveConcatClip(at: index, direction: 1)
+                                        } label: {
+                                            Image(systemName: "chevron.down")
+                                                .font(.caption2)
+                                        }
+                                        .buttonStyle(.plain)
+                                        .disabled(index >= concatClips.count - 1)
+                                        .accessibilityLabel("Move clip down")
+
+                                        Button {
+                                            removeConcatClip(at: index)
+                                        } label: {
+                                            Image(systemName: "xmark")
+                                                .font(.caption2)
+                                                .foregroundStyle(.secondary)
+                                        }
+                                        .buttonStyle(.plain)
+                                        .disabled(concatClips.count <= 1)
+                                        .accessibilityLabel("Remove clip")
+                                    }
+                                    .padding(.horizontal, 6)
+                                    .padding(.vertical, 4)
+                                    .background(AppTheme.Colors.subtleSurface)
+                                    .clipShape(RoundedRectangle(cornerRadius: AppTheme.Radius.xs))
+                                }
+
+                                HStack(spacing: AppTheme.Spacing.xs) {
+                                    Button {
+                                        addConcatClips()
+                                    } label: {
+                                        Label("Add Clips...", systemImage: "plus")
+                                            .frame(maxWidth: .infinity)
+                                    }
+                                    .buttonStyle(.bordered)
+                                    .controlSize(.small)
+                                    .accessibilityIdentifier("videoViewer.addClipsButton")
+
+                                    Button {
+                                        runJoinClips()
+                                    } label: {
+                                        Text(concatClips.count >= 2 ? String(localized: "Join (\(concatClips.count))...") : String(localized: "Join..."))
+                                            .frame(maxWidth: .infinity)
+                                    }
+                                    .buttonStyle(.borderedProminent)
+                                    .controlSize(.small)
+                                    .disabled(concatClips.count < 2 || isQuickActionRunning)
+                                    .accessibilityIdentifier("videoViewer.joinClipsButton")
+                                }
+                            }
+                            .padding(.top, AppTheme.Spacing.xs)
+                        }
+                        .font(AppTheme.Typography.cardTitle)
+                    }
+                }
+                .padding(AppTheme.Spacing.sm + 2)
+            }
+        }
+    }
+
+    private func studioSectionCard<Content: View>(
+        @ViewBuilder content: () -> Content
+    ) -> some View {
+        content()
+            .padding(AppTheme.Spacing.sm + 2)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(AppTheme.Colors.cardBackground)
+            .clipShape(RoundedRectangle(cornerRadius: AppTheme.Radius.md))
+            .overlay(
+                RoundedRectangle(cornerRadius: AppTheme.Radius.md)
+                    .strokeBorder(AppTheme.Colors.cardBorder, lineWidth: 1)
+            )
+    }
+
     // MARK: - Footer
 
     private var footerBar: some View {
@@ -866,9 +1446,7 @@ struct VideoViewerEditorView: View {
             Spacer(minLength: AppTheme.Spacing.sm)
 
             Button {
-                exportMode = (rotation != .deg0 || abs(speedMultiplier - 1.0) > 0.01)
-                    ? .compressedMP4
-                    : .losslessCut
+                exportMode = requiresReencode ? .compressedMP4 : .losslessCut
                 isExportSheetPresented = true
             } label: {
                 Label("Export...", systemImage: "square.and.arrow.up")
@@ -912,10 +1490,10 @@ struct VideoViewerEditorView: View {
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
 
-            if exportMode == .losslessCut && (rotation != .deg0 || abs(speedMultiplier - 1.0) > 0.01) {
+            if exportMode == .losslessCut && requiresReencode {
                 AppInfoBanner(
                     style: .warning,
-                    message: String(localized: "Lossless Cut preserves original encoded packets and does not apply rotation (\(rotation.label)) or speed (\(speedLabel(speedMultiplier))). Switch to Compressed MP4 or Quick GIF to bake transforms.")
+                    message: String(localized: "Lossless Cut preserves original encoded packets and does not apply rotation, speed, crop, subtitles, or audio filters. Switch to Compressed MP4 to bake all Studio edits.")
                 )
             }
 
@@ -925,6 +1503,11 @@ struct VideoViewerEditorView: View {
                     .foregroundStyle(.secondary)
                 Text("Audio: \(isMuted ? String(localized: "Muted") : String(localized: "Included")) · Rotation: \(rotation.label) · Speed: \(speedLabel(speedMultiplier))")
                     .font(AppTheme.Typography.caption)
+                if hasActiveStudioTransforms {
+                    Text(activeStudioSummaryLine)
+                        .font(AppTheme.Typography.caption)
+                        .foregroundStyle(.secondary)
+                }
             }
             .padding(AppTheme.Spacing.sm + 2)
             .frame(maxWidth: .infinity, alignment: .leading)
@@ -969,8 +1552,26 @@ struct VideoViewerEditorView: View {
             }
         }
         .padding(AppTheme.Spacing.lg)
-        .frame(width: 480, height: 320)
+        .frame(width: 490, height: 360)
         .background(AppTheme.Colors.workspaceBackground)
+    }
+
+    private var activeStudioSummaryLine: String {
+        var parts: [String] = []
+        if cropConfig.isActive {
+            let px = activeCropPixelSummary ?? cropConfig.aspectRatio.rawValue
+            parts.append("Crop: \(px)")
+        }
+        if let subtitleURL {
+            parts.append("SRT: \(subtitleURL.lastPathComponent)")
+        }
+        if audioProcessing.loudnessNormalize {
+            parts.append("Loudness -16 LUFS")
+        }
+        if audioProcessing.trimSilence {
+            parts.append("Trim Silence")
+        }
+        return parts.joined(separator: " · ")
     }
 
     // MARK: - Actions
@@ -978,6 +1579,10 @@ struct VideoViewerEditorView: View {
     private func loadVideo() async {
         isProbing = true
         probeError = nil
+        cropConfig = VideoCropConfiguration()
+        subtitleURL = nil
+        subtitleCueCount = 0
+        concatClips = [url]
         playerController.configure(for: url)
         playerController.setMuted(isMuted)
         playerController.setSpeed(speedMultiplier)
@@ -1009,6 +1614,222 @@ struct VideoViewerEditorView: View {
             }
             probeError = error.localizedDescription
             isProbing = false
+        }
+    }
+
+    private func selectCropAspectRatio(_ ratio: VideoCropAspectRatio) {
+        if ratio == .none {
+            cropConfig = VideoCropConfiguration(aspectRatio: .none, normalizedRect: NormalizedRect())
+            return
+        }
+        let dims = effectiveRotatedDimensions
+        let centered = VideoCropConfiguration.centeredNormalizedRect(
+            for: ratio,
+            sourceWidth: dims.width,
+            sourceHeight: dims.height
+        )
+        cropConfig = VideoCropConfiguration(aspectRatio: ratio, normalizedRect: centered)
+    }
+
+    private func attachSubtitleFile() {
+        let panel = NSOpenPanel()
+        panel.canChooseFiles = true
+        panel.canChooseDirectories = false
+        panel.allowsMultipleSelection = false
+        if let srtType = UTType(filenameExtension: "srt") {
+            panel.allowedContentTypes = [srtType, .plainText]
+        } else {
+            panel.allowedContentTypes = [.plainText]
+        }
+        guard panel.runModal() == .OK, let selectedURL = panel.url else {
+            return
+        }
+        do {
+            let cues = try QuickVideoCutterEngine.parseSRTFile(at: selectedURL)
+            guard !cues.isEmpty else {
+                bannerMessage = (.warning, String(localized: "No valid subtitle cues found in \(selectedURL.lastPathComponent)."), nil)
+                return
+            }
+            subtitleURL = selectedURL
+            subtitleCueCount = cues.count
+            bannerMessage = (.success, String(localized: "Attached \(selectedURL.lastPathComponent) (\(cues.count) cues)."), nil)
+        } catch {
+            bannerMessage = (.error, error.localizedDescription, nil)
+        }
+    }
+
+    private func addConcatClips() {
+        let panel = NSOpenPanel()
+        panel.canChooseFiles = true
+        panel.canChooseDirectories = false
+        panel.allowsMultipleSelection = true
+        panel.allowedContentTypes = [.movie, .mpeg4Movie, .quickTimeMovie, .avi]
+        guard panel.runModal() == .OK else { return }
+        let added = panel.urls
+        if !added.isEmpty {
+            concatClips.append(contentsOf: added)
+        }
+    }
+
+    private func moveConcatClip(at index: Int, direction: Int) {
+        let target = index + direction
+        guard concatClips.indices.contains(index), concatClips.indices.contains(target) else { return }
+        concatClips.swapAt(index, target)
+    }
+
+    private func removeConcatClip(at index: Int) {
+        guard concatClips.count > 1, concatClips.indices.contains(index) else { return }
+        concatClips.remove(at: index)
+    }
+
+    private func runExtractAudio(format: VideoExtractAudioFormat) {
+        let defaultURL = QuickVideoCutterEngine.defaultExtractAudioURL(for: url, format: format)
+        let panel = NSSavePanel()
+        panel.canCreateDirectories = true
+        panel.allowedContentTypes = [format.utType]
+        panel.directoryURL = defaultURL.deletingLastPathComponent()
+        panel.nameFieldStringValue = defaultURL.lastPathComponent
+        guard panel.runModal() == .OK, let destinationURL = panel.url else { return }
+
+        let inputStd = url.standardizedFileURL.resolvingSymlinksInPath().path
+        let destStd = destinationURL.standardizedFileURL.resolvingSymlinksInPath().path
+        if inputStd == destStd {
+            bannerMessage = (.error, String(localized: "Cannot overwrite the source video file. Choose a different output name."), nil)
+            return
+        }
+
+        let inputURL = url
+        let activeSegments = segments
+        let activeSpeed = speedMultiplier
+        let activeAudioProcessing = audioProcessing
+        let controller = playerController
+
+        isQuickActionRunning = true
+        controller.quickActionStatusMessage = String(localized: "Extracting \(format.rawValue) audio...")
+
+        quickActionTask?.cancel()
+        quickActionTask = Task {
+            do {
+                let outputURL = try await QuickVideoCutterEngine.extractAudio(
+                    from: inputURL,
+                    to: destinationURL,
+                    format: format,
+                    segments: activeSegments,
+                    speedMultiplier: activeSpeed,
+                    audioProcessing: activeAudioProcessing,
+                    existingFileHandling: .overwrite
+                ) { [weak controller] prog in
+                    Task { @MainActor [weak controller] in
+                        controller?.quickActionStatusMessage = prog.statusMessage
+                    }
+                }
+                guard !Task.isCancelled else { return }
+                isQuickActionRunning = false
+                bannerMessage = (.success, String(localized: "Extracted audio to \(outputURL.lastPathComponent)"), outputURL)
+            } catch is CancellationError {
+                isQuickActionRunning = false
+            } catch {
+                isQuickActionRunning = false
+                bannerMessage = (.error, error.localizedDescription, nil)
+            }
+        }
+    }
+
+    private func runContactSheet() {
+        let defaultURL = QuickVideoCutterEngine.defaultContactSheetURL(for: url)
+        let panel = NSSavePanel()
+        panel.canCreateDirectories = true
+        panel.allowedContentTypes = [.png]
+        panel.directoryURL = defaultURL.deletingLastPathComponent()
+        panel.nameFieldStringValue = defaultURL.lastPathComponent
+        guard panel.runModal() == .OK, let destinationURL = panel.url else { return }
+
+        let inputStd = url.standardizedFileURL.resolvingSymlinksInPath().path
+        let destStd = destinationURL.standardizedFileURL.resolvingSymlinksInPath().path
+        if inputStd == destStd {
+            bannerMessage = (.error, String(localized: "Cannot overwrite the source video file. Choose a different output name."), nil)
+            return
+        }
+
+        let inputURL = url
+        let activeRotation = rotation
+        let activeCrop = cropConfig
+        let controller = playerController
+
+        isQuickActionRunning = true
+        controller.quickActionStatusMessage = String(localized: "Rendering 3×3 contact sheet...")
+
+        quickActionTask?.cancel()
+        quickActionTask = Task {
+            do {
+                let outputURL = try await QuickVideoCutterEngine.generateContactSheet(
+                    from: inputURL,
+                    to: destinationURL,
+                    rotation: activeRotation,
+                    cropConfiguration: activeCrop,
+                    existingFileHandling: .overwrite
+                ) { [weak controller] prog in
+                    Task { @MainActor [weak controller] in
+                        controller?.quickActionStatusMessage = prog.statusMessage
+                    }
+                }
+                guard !Task.isCancelled else { return }
+                isQuickActionRunning = false
+                bannerMessage = (.success, String(localized: "Saved 3×3 contact sheet to \(outputURL.lastPathComponent)"), outputURL)
+            } catch is CancellationError {
+                isQuickActionRunning = false
+            } catch {
+                isQuickActionRunning = false
+                bannerMessage = (.error, error.localizedDescription, nil)
+            }
+        }
+    }
+
+    private func runJoinClips() {
+        guard let firstClip = concatClips.first, concatClips.count >= 2 else { return }
+        let defaultURL = QuickVideoCutterEngine.defaultJoinedClipURL(for: firstClip)
+        let panel = NSSavePanel()
+        panel.canCreateDirectories = true
+        panel.allowedContentTypes = [.mpeg4Movie]
+        panel.directoryURL = defaultURL.deletingLastPathComponent()
+        panel.nameFieldStringValue = defaultURL.lastPathComponent
+        guard panel.runModal() == .OK, let destinationURL = panel.url else { return }
+
+        let destStd = destinationURL.standardizedFileURL.resolvingSymlinksInPath().path
+        if concatClips.contains(where: { $0.standardizedFileURL.resolvingSymlinksInPath().path == destStd }) {
+            bannerMessage = (.error, String(localized: "Cannot overwrite a source clip. Choose a different output name."), nil)
+            return
+        }
+
+        let request = MultiClipJoinRequest(
+            clipURLs: concatClips,
+            destinationURL: destinationURL,
+            existingFileHandling: .overwrite,
+            audioProcessing: audioProcessing,
+            subtitleURL: subtitleURL
+        )
+        let controller = playerController
+
+        isQuickActionRunning = true
+        controller.quickActionStatusMessage = String(localized: "Joining \(concatClips.count) clips...")
+
+        quickActionTask?.cancel()
+        quickActionTask = Task {
+            do {
+                let outputURL = try await QuickVideoCutterEngine.joinClips(request) { [weak controller] prog in
+                    Task { @MainActor [weak controller] in
+                        controller?.quickActionStatusMessage = prog.statusMessage
+                    }
+                }
+                guard !Task.isCancelled else { return }
+                isQuickActionRunning = false
+                bannerMessage = (.success, String(localized: "Joined clips to \(outputURL.lastPathComponent)"), outputURL)
+            } catch is CancellationError {
+                isQuickActionRunning = false
+            } catch {
+                isQuickActionRunning = false
+                bannerMessage = (.error, error.localizedDescription, nil)
+            }
         }
     }
 
@@ -1143,7 +1964,10 @@ struct VideoViewerEditorView: View {
             isMuted: isMuted,
             rotation: rotation,
             speedMultiplier: speedMultiplier,
-            existingFileHandling: .overwrite
+            existingFileHandling: .overwrite,
+            cropConfiguration: cropConfig,
+            subtitleURL: subtitleURL,
+            audioProcessing: audioProcessing
         )
 
         isExporting = true

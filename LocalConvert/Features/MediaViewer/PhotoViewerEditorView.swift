@@ -1,6 +1,8 @@
 import SwiftUI
 import AppKit
+import CoreGraphics
 import UniformTypeIdentifiers
+import Vision
 
 // MARK: - Photo Viewer & Quick Editor View (Milestone 11A)
 
@@ -11,6 +13,7 @@ struct PhotoViewerEditorView: View {
         case adjust = "Adjust"
         case markup = "Markup"
         case backdrop = "Backdrop"
+        case colors = "Colors"
 
         var id: String { rawValue }
 
@@ -19,6 +22,7 @@ struct PhotoViewerEditorView: View {
             case .adjust: return "slider.horizontal.3"
             case .markup: return "pencil.tip.crop.circle"
             case .backdrop: return "macwindow"
+            case .colors: return "paintpalette"
             }
         }
     }
@@ -32,6 +36,7 @@ struct PhotoViewerEditorView: View {
     private let onDismiss: (() -> Void)?
 
     @StateObject private var model: QuickPhotoEditorModel
+    @StateObject private var eyedropper: PhotoEyedropperCoordinator
 
     @State private var activeInspector: InspectorPanel? = nil
     @State private var showFilmstrip: Bool = false
@@ -61,6 +66,12 @@ struct PhotoViewerEditorView: View {
     @State private var isRunningOCR: Bool = false
     @State private var isSavingOutput: Bool = false
     @State private var localBannerError: String? = nil
+    @State private var localStatusToast: String? = nil
+
+    // Milestone 13 photo inspection tools
+    @State private var detectedBarcodes: [DetectedPhotoBarcode] = []
+    @State private var dominantSwatches: [DominantColorSwatch] = []
+    @State private var isExtractingPalette: Bool = false
 
     // Bounded filmstrip thumbnail cache
     @State private var thumbnailCache: [URL: NSImage] = [:]
@@ -70,12 +81,18 @@ struct PhotoViewerEditorView: View {
     init(
         url: URL,
         onSendToConvertQueue: ((URL) -> Void)? = nil,
-        onDismiss: (() -> Void)? = nil
+        onDismiss: (() -> Void)? = nil,
+        colorSampler: (any ScreenColorSampling)? = nil
     ) {
         self.initialURL = url
         self.onSendToConvertQueue = onSendToConvertQueue
         self.onDismiss = onDismiss
         self._model = StateObject(wrappedValue: QuickPhotoEditorModel(url: url))
+        self._eyedropper = StateObject(
+            wrappedValue: PhotoEyedropperCoordinator(
+                sampler: colorSampler ?? SystemScreenColorSampler()
+            )
+        )
     }
 
     private var displayedImage: NSImage? {
@@ -84,6 +101,13 @@ struct PhotoViewerEditorView: View {
 
     private var isEditingText: Bool {
         pendingTextPoint != nil || isTextInputFocused
+    }
+
+    private var analysisTaskKey: String {
+        if let cg = model.sourceCGImage {
+            return "\(model.currentURL.standardizedFileURL.path)|\(cg.width)x\(cg.height)|\(ObjectIdentifier(cg).debugDescription)"
+        }
+        return "\(model.currentURL.standardizedFileURL.path)|none"
     }
 
     var body: some View {
@@ -118,10 +142,16 @@ struct PhotoViewerEditorView: View {
         .task(id: initialURL) {
             await model.load(url: initialURL)
         }
+        .task(id: analysisTaskKey) {
+            await analyzeLoadedPhoto()
+        }
         .onChange(of: model.currentURL) { _, _ in
             resetViewportTransform()
             pendingTextPoint = nil
             activeDragAnnotation = nil
+            detectedBarcodes = []
+            dominantSwatches = []
+            localStatusToast = nil
         }
         .confirmationDialog(
             "Overwrite Original Photo?",
@@ -156,28 +186,16 @@ struct PhotoViewerEditorView: View {
     // MARK: - Top Toolbar
 
     private var topToolbar: some View {
-        ViewThatFits(in: .horizontal) {
+        VStack(alignment: .leading, spacing: AppTheme.Spacing.xs + 2) {
             HStack(spacing: AppTheme.Spacing.sm) {
                 siblingNavigationGroup
-                AppDivider().frame(width: 1, height: 18)
-                zoomToolbarGroup
-                Spacer(minLength: AppTheme.Spacing.xs)
+                Spacer(minLength: 0)
                 historyAndUtilityGroup
-                AppDivider().frame(width: 1, height: 18)
-                inspectorToggleGroup
             }
-
-            VStack(alignment: .leading, spacing: AppTheme.Spacing.xs + 2) {
-                HStack(spacing: AppTheme.Spacing.sm) {
-                    siblingNavigationGroup
-                    Spacer(minLength: 0)
-                    historyAndUtilityGroup
-                }
-                HStack(spacing: AppTheme.Spacing.sm) {
-                    zoomToolbarGroup
-                    Spacer(minLength: 0)
-                    inspectorToggleGroup
-                }
+            HStack(spacing: AppTheme.Spacing.sm) {
+                zoomToolbarGroup
+                Spacer(minLength: 0)
+                inspectorToggleGroup
             }
         }
         .padding(.horizontal, AppTheme.Spacing.md)
@@ -328,6 +346,34 @@ struct PhotoViewerEditorView: View {
             .accessibilityLabel("Copy Image")
             .accessibilityIdentifier("photoviewer.copyButton")
 
+            Button {
+                pinCurrentImageToScreen()
+            } label: {
+                Image(systemName: "pin")
+            }
+            .buttonStyle(.bordered)
+            .controlSize(.small)
+            .disabled(model.sourceCGImage == nil)
+            .help("Pin Image to Screen")
+            .accessibilityLabel("Pin to Screen")
+            .accessibilityIdentifier("photoviewer.pinButton")
+
+            Button {
+                pickColorWithEyedropper()
+            } label: {
+                if eyedropper.isSampling {
+                    ProgressView().controlSize(.mini)
+                } else {
+                    Image(systemName: "eyedropper")
+                }
+            }
+            .buttonStyle(.bordered)
+            .controlSize(.small)
+            .disabled(eyedropper.isSampling)
+            .help("Pick Color from Screen")
+            .accessibilityLabel("Color Eyedropper")
+            .accessibilityIdentifier("photoviewer.eyedropperButton")
+
             Toggle(isOn: $showEXIFHUD) {
                 Image(systemName: "info.circle")
             }
@@ -351,31 +397,57 @@ struct PhotoViewerEditorView: View {
     }
 
     private var inspectorToggleGroup: some View {
-        HStack(spacing: AppTheme.Spacing.xs) {
-            ForEach(InspectorPanel.allCases) { panel in
-                let isSelected = (activeInspector == panel)
-                if isSelected {
-                    Button {
-                        toggleInspector(panel)
-                    } label: {
-                        Label(String(localized: String.LocalizationValue(panel.rawValue)), systemImage: panel.systemImage)
-                    }
-                    .controlSize(.small)
-                    .buttonStyle(.borderedProminent)
-                    .fixedSize(horizontal: true, vertical: false)
-                    .accessibilityIdentifier(inspectorIdentifier(for: panel))
-                } else {
-                    Button {
-                        toggleInspector(panel)
-                    } label: {
-                        Label(String(localized: String.LocalizationValue(panel.rawValue)), systemImage: panel.systemImage)
-                    }
-                    .controlSize(.small)
-                    .buttonStyle(.bordered)
-                    .fixedSize(horizontal: true, vertical: false)
-                    .accessibilityIdentifier(inspectorIdentifier(for: panel))
+        ViewThatFits(in: .horizontal) {
+            HStack(spacing: AppTheme.Spacing.xs) {
+                ForEach(InspectorPanel.allCases) { panel in
+                    inspectorToggleButton(panel, compact: false)
                 }
             }
+
+            HStack(spacing: AppTheme.Spacing.xs) {
+                ForEach(InspectorPanel.allCases) { panel in
+                    inspectorToggleButton(panel, compact: true)
+                }
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func inspectorToggleButton(_ panel: InspectorPanel, compact: Bool) -> some View {
+        let isSelected = (activeInspector == panel)
+        let title = String(localized: String.LocalizationValue(panel.rawValue))
+        if isSelected {
+            Button {
+                toggleInspector(panel)
+            } label: {
+                if compact {
+                    Image(systemName: panel.systemImage)
+                } else {
+                    Label(title, systemImage: panel.systemImage)
+                }
+            }
+            .controlSize(.small)
+            .buttonStyle(.borderedProminent)
+            .fixedSize(horizontal: true, vertical: false)
+            .help(title)
+            .accessibilityLabel(title)
+            .accessibilityIdentifier(inspectorIdentifier(for: panel))
+        } else {
+            Button {
+                toggleInspector(panel)
+            } label: {
+                if compact {
+                    Image(systemName: panel.systemImage)
+                } else {
+                    Label(title, systemImage: panel.systemImage)
+                }
+            }
+            .controlSize(.small)
+            .buttonStyle(.bordered)
+            .fixedSize(horizontal: true, vertical: false)
+            .help(title)
+            .accessibilityLabel(title)
+            .accessibilityIdentifier(inspectorIdentifier(for: panel))
         }
     }
 
@@ -384,6 +456,7 @@ struct PhotoViewerEditorView: View {
         case .adjust: return "photoviewer.adjustToggle"
         case .markup: return "photoviewer.markupToggle"
         case .backdrop: return "photoviewer.backdropToggle"
+        case .colors: return "photoviewer.colorsToggle"
         }
     }
 
@@ -484,6 +557,19 @@ struct PhotoViewerEditorView: View {
                 }
                 .padding(AppTheme.Spacing.md)
 
+                // Auto-detected QR / Barcode chip (bottom-left)
+                if !detectedBarcodes.isEmpty && pendingTextPoint == nil,
+                   let firstBarcode = detectedBarcodes.first {
+                    VStack {
+                        Spacer()
+                        HStack {
+                            detectedBarcodeChip(firstBarcode, extraCount: detectedBarcodes.count - 1)
+                            Spacer()
+                        }
+                    }
+                    .padding(AppTheme.Spacing.md)
+                }
+
                 // Inline Text Annotation Popover Bar
                 if pendingTextPoint != nil {
                     VStack {
@@ -560,6 +646,45 @@ struct PhotoViewerEditorView: View {
         .shadow(color: Color.black.opacity(0.18), radius: 8, y: 4)
         .frame(maxWidth: 260, alignment: .leading)
         .accessibilityIdentifier("photoviewer.exifHUD")
+    }
+
+    private func detectedBarcodeChip(_ barcode: DetectedPhotoBarcode, extraCount: Int) -> some View {
+        HStack(spacing: AppTheme.Spacing.xs + 2) {
+            Image(systemName: "qrcode.viewfinder")
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(AppTheme.Colors.accent)
+
+            Text(barcode.payload)
+                .font(AppTheme.Typography.monoCaption)
+                .lineLimit(1)
+                .truncationMode(.middle)
+                .frame(maxWidth: 220, alignment: .leading)
+
+            if extraCount > 0 {
+                AppStatusBadge(text: "+\(extraCount)", tint: AppTheme.Colors.accent)
+            }
+
+            Button("Copy QR Payload") {
+                copyTextToPasteboard(
+                    barcode.payload,
+                    feedback: String(localized: "Copied QR payload to clipboard.")
+                )
+            }
+            .buttonStyle(.borderedProminent)
+            .controlSize(.mini)
+            .fixedSize(horizontal: true, vertical: false)
+            .accessibilityIdentifier("photoviewer.copyQRPayloadButton")
+        }
+        .padding(.horizontal, AppTheme.Spacing.sm + 2)
+        .padding(.vertical, AppTheme.Spacing.xs + 2)
+        .background(AppTheme.Colors.cardBackground.opacity(0.95))
+        .clipShape(Capsule())
+        .overlay(
+            Capsule()
+                .strokeBorder(AppTheme.Colors.cardBorder, lineWidth: 1)
+        )
+        .shadow(color: Color.black.opacity(0.18), radius: 8, y: 3)
+        .accessibilityIdentifier("photoviewer.detectedBarcodeChip")
     }
 
     private var inlineTextEntryBar: some View {
@@ -971,6 +1096,8 @@ struct PhotoViewerEditorView: View {
                         markupInspectorContent
                     case .backdrop:
                         backdropInspectorContent
+                    case .colors:
+                        colorsInspectorContent
                     }
                 }
                 .padding(AppTheme.Spacing.md)
@@ -1408,6 +1535,140 @@ struct PhotoViewerEditorView: View {
         }
     }
 
+    private var colorsInspectorContent: some View {
+        VStack(alignment: .leading, spacing: AppTheme.Spacing.sm) {
+            inspectorSectionCard(title: "Color Eyedropper") {
+                Button {
+                    pickColorWithEyedropper()
+                } label: {
+                    Label(
+                        eyedropper.isSampling ? String(localized: "Sampling…") : String(localized: "Pick Screen Color"),
+                        systemImage: "eyedropper"
+                    )
+                    .frame(maxWidth: .infinity)
+                }
+                .buttonStyle(.borderedProminent)
+                .controlSize(.small)
+                .disabled(eyedropper.isSampling)
+                .accessibilityIdentifier("photoviewer.inspectorEyedropperButton")
+
+                if let picked = eyedropper.lastSampledColor {
+                    HStack(spacing: AppTheme.Spacing.sm) {
+                        RoundedRectangle(cornerRadius: AppTheme.Radius.xs)
+                            .fill(Color(red: Double(picked.red) / 255.0, green: Double(picked.green) / 255.0, blue: Double(picked.blue) / 255.0))
+                            .frame(width: 28, height: 28)
+                            .overlay(
+                                RoundedRectangle(cornerRadius: AppTheme.Radius.xs)
+                                    .strokeBorder(AppTheme.Colors.cardBorder, lineWidth: 1)
+                            )
+
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(picked.hex)
+                                .font(AppTheme.Typography.monoCaption.weight(.semibold))
+                            Text(picked.rgbString)
+                                .font(AppTheme.Typography.monoCaption)
+                                .foregroundStyle(.secondary)
+                        }
+                        Spacer(minLength: 0)
+                    }
+                    .accessibilityIdentifier("photoviewer.lastPickedColorCard")
+
+                    HStack(spacing: AppTheme.Spacing.xs) {
+                        Button("Copy #HEX") {
+                            copyTextToPasteboard(
+                                picked.hex,
+                                feedback: String(localized: "Copied \(picked.hex) to clipboard.")
+                            )
+                        }
+                        .buttonStyle(.bordered)
+                        .controlSize(.mini)
+
+                        Button("Copy RGB") {
+                            copyTextToPasteboard(
+                                picked.rgbString,
+                                feedback: String(localized: "Copied \(picked.rgbString) to clipboard.")
+                            )
+                        }
+                        .buttonStyle(.bordered)
+                        .controlSize(.mini)
+                    }
+                } else {
+                    Text("Copies #HEX and RGB(r, g, b) to the clipboard.")
+                        .font(AppTheme.Typography.caption)
+                        .foregroundStyle(.secondary)
+                }
+            }
+
+            inspectorSectionCard(title: "Dominant Palette") {
+                if isExtractingPalette {
+                    HStack(spacing: AppTheme.Spacing.xs) {
+                        ProgressView().controlSize(.small)
+                        Text("Extracting colors…")
+                            .font(AppTheme.Typography.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                } else if dominantSwatches.isEmpty {
+                    Text("No palette colors extracted.")
+                        .font(AppTheme.Typography.caption)
+                        .foregroundStyle(.secondary)
+                } else {
+                    VStack(spacing: AppTheme.Spacing.xs) {
+                        ForEach(dominantSwatches) { swatch in
+                            Button {
+                                copyTextToPasteboard(
+                                    swatch.hex,
+                                    feedback: String(localized: "Copied \(swatch.hex) to clipboard.")
+                                )
+                            } label: {
+                                HStack(spacing: AppTheme.Spacing.sm) {
+                                    RoundedRectangle(cornerRadius: AppTheme.Radius.xs)
+                                        .fill(Color(red: Double(swatch.red) / 255.0, green: Double(swatch.green) / 255.0, blue: Double(swatch.blue) / 255.0))
+                                        .frame(width: 20, height: 20)
+                                        .overlay(
+                                            RoundedRectangle(cornerRadius: AppTheme.Radius.xs)
+                                                .strokeBorder(AppTheme.Colors.cardBorder, lineWidth: 1)
+                                        )
+
+                                    Text(swatch.hex)
+                                        .font(AppTheme.Typography.monoCaption.weight(.medium))
+                                        .foregroundStyle(.primary)
+
+                                    Spacer(minLength: 0)
+
+                                    Text("\(Int(swatch.percentage.rounded()))%")
+                                        .font(AppTheme.Typography.monoCaption)
+                                        .foregroundStyle(.secondary)
+
+                                    Image(systemName: "doc.on.doc")
+                                        .font(.caption2)
+                                        .foregroundStyle(.secondary)
+                                }
+                                .padding(.horizontal, AppTheme.Spacing.xs + 2)
+                                .padding(.vertical, 4)
+                                .background(AppTheme.Colors.subtleSurface)
+                                .clipShape(RoundedRectangle(cornerRadius: AppTheme.Radius.xs))
+                            }
+                            .buttonStyle(.plain)
+                            .help("Copy \(swatch.hex)")
+                            .accessibilityIdentifier("photoviewer.paletteSwatch.\(swatch.id)")
+                        }
+                    }
+
+                    Button("Copy All #HEX") {
+                        let joined = dominantSwatches.map(\.hex).joined(separator: ", ")
+                        copyTextToPasteboard(
+                            joined,
+                            feedback: String(localized: "Copied palette colors to clipboard.")
+                        )
+                    }
+                    .buttonStyle(.bordered)
+                    .controlSize(.small)
+                    .accessibilityIdentifier("photoviewer.copyAllPaletteButton")
+                }
+            }
+        }
+    }
+
     private func sliderRow(
         label: LocalizedStringKey,
         value: Binding<Double>,
@@ -1491,22 +1752,21 @@ struct PhotoViewerEditorView: View {
 
     // MARK: - Bottom Action Bar
 
+    private var hasStatusSummary: Bool {
+        model.exifSummary != nil
+            || model.hasUnsavedChanges
+            || localBannerError != nil
+            || localStatusToast != nil
+            || model.statusMessage != nil
+    }
+
     private var bottomActionBar: some View {
         AppBottomActionBar {
-            ViewThatFits(in: .horizontal) {
-                HStack(spacing: AppTheme.Spacing.sm) {
+            VStack(alignment: .leading, spacing: AppTheme.Spacing.xs) {
+                if hasStatusSummary {
                     statusSummaryArea
-                    Spacer(minLength: AppTheme.Spacing.sm)
-                    bottomActionButtons
                 }
-
-                VStack(alignment: .leading, spacing: AppTheme.Spacing.xs) {
-                    statusSummaryArea
-                    HStack {
-                        Spacer(minLength: 0)
-                        bottomActionButtons
-                    }
-                }
+                bottomActionButtons
             }
         }
     }
@@ -1522,7 +1782,7 @@ struct PhotoViewerEditorView: View {
             if model.hasUnsavedChanges {
                 AppStatusBadge(text: String(localized: "Edited"), tint: AppTheme.Colors.accent)
             }
-            if let msg = localBannerError ?? model.statusMessage {
+            if let msg = localBannerError ?? localStatusToast ?? model.statusMessage {
                 Text(msg)
                     .font(AppTheme.Typography.caption)
                     .foregroundStyle(localBannerError != nil ? AppTheme.Colors.error : .secondary)
@@ -1533,15 +1793,51 @@ struct PhotoViewerEditorView: View {
     }
 
     private var bottomActionButtons: some View {
+        ViewThatFits(in: .horizontal) {
+            HStack(spacing: AppTheme.Spacing.sm) {
+                bottomSecondaryActionsGroup
+                Spacer(minLength: AppTheme.Spacing.xs)
+                bottomPrimaryActionsGroup
+            }
+
+            VStack(alignment: .trailing, spacing: AppTheme.Spacing.xs) {
+                bottomSecondaryActionsGroup
+                bottomPrimaryActionsGroup
+            }
+            .frame(maxWidth: .infinity, alignment: .trailing)
+        }
+    }
+
+    private var bottomSecondaryActionsGroup: some View {
         HStack(spacing: AppTheme.Spacing.xs + 2) {
+            if model.sourceCGImage != nil {
+                Label("Drag Output", systemImage: "arrow.up.forward.square")
+                    .font(AppTheme.Typography.caption.weight(.medium))
+                    .padding(.horizontal, AppTheme.Spacing.sm)
+                    .padding(.vertical, 4)
+                    .background(AppTheme.Colors.neutralTint)
+                    .foregroundStyle(.primary)
+                    .clipShape(RoundedRectangle(cornerRadius: AppTheme.Radius.sm))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: AppTheme.Radius.sm)
+                            .strokeBorder(AppTheme.Colors.cardBorder, lineWidth: 1)
+                    )
+                    .fixedSize(horizontal: true, vertical: false)
+                    .onDrag { makeDragItemProvider() }
+                    .help("Drag image to Finder or another app")
+                    .accessibilityLabel("Drag Output File")
+                    .accessibilityIdentifier("photoviewer.dragOutputChip")
+            }
+
             Button(role: .destructive) {
                 showTrashConfirmation = true
             } label: {
-                Label("Trash", systemImage: "trash")
+                Image(systemName: "trash")
             }
             .buttonStyle(.bordered)
             .controlSize(.small)
             .help("Move to Trash (⌘⌫)")
+            .accessibilityLabel("Trash")
             .accessibilityIdentifier("photoviewer.trashButton")
 
             if let onSendToConvertQueue {
@@ -1552,15 +1848,21 @@ struct PhotoViewerEditorView: View {
                 }
                 .controlSize(.small)
                 .buttonStyle(.bordered)
+                .fixedSize(horizontal: true, vertical: false)
                 .accessibilityIdentifier("photoviewer.sendToQueueButton")
             }
+        }
+    }
 
+    private var bottomPrimaryActionsGroup: some View {
+        HStack(spacing: AppTheme.Spacing.xs + 2) {
             if model.canOverwriteOriginal {
                 Button("Overwrite Original") {
                     showOverwriteConfirmation = true
                 }
                 .buttonStyle(.bordered)
                 .controlSize(.small)
+                .fixedSize(horizontal: true, vertical: false)
                 .disabled(isSavingOutput || !model.hasUnsavedChanges)
                 .accessibilityIdentifier("photoviewer.overwriteButton")
             }
@@ -1570,6 +1872,7 @@ struct PhotoViewerEditorView: View {
             }
             .controlSize(.small)
             .buttonStyle(.borderedProminent)
+            .fixedSize(horizontal: true, vertical: false)
             .disabled(model.sourceCGImage == nil || isSavingOutput)
             .help("Save Copy (⌘S)")
             .accessibilityIdentifier("photoviewer.saveCopyButton")
@@ -1580,6 +1883,7 @@ struct PhotoViewerEditorView: View {
                 }
                 .buttonStyle(.bordered)
                 .controlSize(.small)
+                .fixedSize(horizontal: true, vertical: false)
                 .accessibilityIdentifier("photoviewer.dismissButton")
             }
         }
@@ -1627,7 +1931,7 @@ struct PhotoViewerEditorView: View {
             activeInspector = panel
             if panel == .markup {
                 model.activeTool = .annotation
-            } else if panel == .adjust && model.activeTool == .annotation {
+            } else if model.activeTool == .annotation {
                 model.activeTool = .none
             }
         }
@@ -1766,6 +2070,391 @@ struct PhotoViewerEditorView: View {
                 let evicted = thumbnailOrder.removeFirst()
                 thumbnailCache.removeValue(forKey: evicted)
             }
+        }
+    }
+
+    // MARK: - Milestone 13 Photo Tools (Pin, Drag Export, QR/Barcode, Eyedropper, Palette)
+
+    private func analyzeLoadedPhoto() async {
+        guard let cg = model.sourceCGImage else {
+            detectedBarcodes = []
+            dominantSwatches = []
+            isExtractingPalette = false
+            return
+        }
+        let targetURL = model.currentURL
+        isExtractingPalette = true
+
+        async let barcodesTask = (try? PhotoBarcodeAnalyzer.detectBarcodes(in: cg)) ?? []
+        async let paletteTask = Task.detached(priority: .utility) {
+            PhotoColorPaletteExtractor.extractDominantColors(from: cg, maxColors: 5)
+        }.value
+
+        let (barcodes, swatches) = await (barcodesTask, paletteTask)
+        guard !Task.isCancelled, model.currentURL == targetURL else { return }
+        detectedBarcodes = barcodes
+        dominantSwatches = swatches
+        isExtractingPalette = false
+    }
+
+    private func pinCurrentImageToScreen() {
+        let title = model.currentURL.lastPathComponent
+        let sourceURL = model.currentURL
+        Task {
+            let renderedCG = await model.renderFullResolutionCGImageAsync()
+            let pinImage: NSImage?
+            if let cg = renderedCG {
+                pinImage = NSImage(cgImage: cg, size: NSSize(width: cg.width, height: cg.height))
+            } else {
+                pinImage = displayedImage
+            }
+            guard let pinImage else { return }
+            PinnedImageWindowController.pin(image: pinImage, title: title, sourceURL: sourceURL)
+            localStatusToast = String(localized: "Pinned image to screen.")
+        }
+    }
+
+    private func pickColorWithEyedropper() {
+        Task {
+            if let picked = await eyedropper.pickColor() {
+                localStatusToast = String(localized: "Picked \(picked.hex) (\(picked.rgbString)).")
+            }
+        }
+    }
+
+    private func copyTextToPasteboard(_ text: String, feedback: String) {
+        NSPasteboard.general.clearContents()
+        NSPasteboard.general.setString(text, forType: .string)
+        localStatusToast = feedback
+    }
+
+    private func makeDragItemProvider() -> NSItemProvider {
+        if !model.hasUnsavedChanges {
+            return NSItemProvider(object: model.currentURL as NSURL)
+        }
+        guard let sourceCG = model.sourceCGImage else {
+            return NSItemProvider(object: model.currentURL as NSURL)
+        }
+
+        let editSnapshot = model.editState
+        let suggestedFilename = model.suggestedCopyURL().lastPathComponent
+        let baseName = FileFormat.baseNameByStrippingExtension(from: model.suggestedCopyURL())
+        let provider = NSItemProvider()
+        provider.suggestedName = suggestedFilename
+
+        provider.registerFileRepresentation(
+            forTypeIdentifier: UTType.png.identifier,
+            fileOptions: [],
+            visibility: .all
+        ) { completion in
+            Task.detached(priority: .userInitiated) {
+                do {
+                    guard let rendered = QuickPhotoRenderEngine.renderCGImage(from: sourceCG, state: editSnapshot) else {
+                        completion(nil, false, ConversionError.engineExecutionFailed("Failed to render image for drag export.", underlyingError: nil))
+                        return
+                    }
+                    let pngData = try ImageProcessor.encodeToMemory(
+                        cgImage: rendered,
+                        format: .png,
+                        quality: 1.0,
+                        lossless: true,
+                        sourceProperties: nil,
+                        preserveMetadata: false
+                    )
+                    let dragDir = FileManager.default.temporaryDirectory
+                        .appendingPathComponent("LocalConvert-PhotoDrag", isDirectory: true)
+                    try FileManager.default.createDirectory(at: dragDir, withIntermediateDirectories: true)
+                    let destinationURL = try OutputReservationCoordinator.reserveUniqueOutputURL(
+                        directory: dragDir,
+                        baseName: baseName.isEmpty ? "LocalConvert-Export" : baseName,
+                        extension: "png",
+                        policy: .createUnique
+                    )
+                    defer { OutputReservationCoordinator.releaseReservedOutputURL(destinationURL) }
+                    let stageURL = dragDir.appendingPathComponent(".stage-\(UUID().uuidString).png")
+                    defer { try? FileManager.default.removeItem(at: stageURL) }
+                    try pngData.write(to: stageURL, options: [.atomic])
+                    let committed = try OutputReservationCoordinator.moveOrReplaceTempFile(
+                        stageURL,
+                        to: destinationURL,
+                        policy: .createUnique
+                    )
+                    completion(committed, false, nil)
+                } catch {
+                    completion(nil, false, error)
+                }
+            }
+            return nil
+        }
+        return provider
+    }
+}
+
+// MARK: - Auto QR / Barcode Detector
+
+struct DetectedPhotoBarcode: Identifiable, Sendable, Equatable, Hashable {
+    let id: String
+    let payload: String
+    let symbology: String
+}
+
+enum PhotoBarcodeAnalyzer: Sendable {
+    static func detectBarcodes(in cgImage: CGImage) async throws -> [DetectedPhotoBarcode] {
+        guard cgImage.width >= 2, cgImage.height >= 2 else {
+            return []
+        }
+        return try await Task.detached(priority: .utility) {
+            let request = VNDetectBarcodesRequest()
+            let handler = VNImageRequestHandler(cgImage: cgImage, options: [:])
+            try handler.perform([request])
+            let observations = request.results ?? []
+            var seen = Set<String>()
+            var detected: [DetectedPhotoBarcode] = []
+            for obs in observations {
+                guard let payload = obs.payloadStringValue?.trimmingCharacters(in: .whitespacesAndNewlines),
+                      !payload.isEmpty else {
+                    continue
+                }
+                let symbology = obs.symbology.rawValue
+                let key = "\(symbology)|\(payload)"
+                if seen.insert(key).inserted {
+                    detected.append(DetectedPhotoBarcode(id: key, payload: payload, symbology: symbology))
+                }
+            }
+            return detected
+        }.value
+    }
+}
+
+// MARK: - Native Color Eyedropper Wrapper
+
+struct SampledPhotoColor: Sendable, Equatable, Hashable {
+    let red: Int
+    let green: Int
+    let blue: Int
+
+    var hex: String {
+        String(format: "#%02X%02X%02X", red, green, blue)
+    }
+
+    var rgbString: String {
+        "RGB(\(red), \(green), \(blue))"
+    }
+
+    var clipboardSummary: String {
+        "\(hex) · \(rgbString)"
+    }
+
+    init(red: Int, green: Int, blue: Int) {
+        self.red = max(0, min(255, red))
+        self.green = max(0, min(255, green))
+        self.blue = max(0, min(255, blue))
+    }
+
+    init?(nsColor: NSColor) {
+        guard let srgb = nsColor.usingColorSpace(.sRGB) else { return nil }
+        let r = Int((max(0.0, min(1.0, srgb.redComponent)) * 255.0).rounded())
+        let g = Int((max(0.0, min(1.0, srgb.greenComponent)) * 255.0).rounded())
+        let b = Int((max(0.0, min(1.0, srgb.blueComponent)) * 255.0).rounded())
+        self.init(red: r, green: g, blue: b)
+    }
+}
+
+@MainActor
+protocol ScreenColorSampling: AnyObject {
+    func sampleColor() async -> NSColor?
+}
+
+@MainActor
+final class SystemScreenColorSampler: ScreenColorSampling {
+    func sampleColor() async -> NSColor? {
+        await NSColorSampler().sample()
+    }
+}
+
+@MainActor
+final class PhotoEyedropperCoordinator: ObservableObject {
+    @Published private(set) var lastSampledColor: SampledPhotoColor?
+    @Published private(set) var isSampling: Bool = false
+
+    private let sampler: any ScreenColorSampling
+    private let copyTextHandler: @MainActor (String) -> Void
+
+    init(
+        sampler: any ScreenColorSampling = SystemScreenColorSampler(),
+        copyTextHandler: (@MainActor (String) -> Void)? = nil
+    ) {
+        self.sampler = sampler
+        self.copyTextHandler = copyTextHandler ?? { text in
+            NSPasteboard.general.clearContents()
+            NSPasteboard.general.setString(text, forType: .string)
+        }
+    }
+
+    @discardableResult
+    func pickColor() async -> SampledPhotoColor? {
+        guard !isSampling else { return nil }
+        isSampling = true
+        defer { isSampling = false }
+
+        guard let pickedNSColor = await sampler.sampleColor(),
+              let sampled = SampledPhotoColor(nsColor: pickedNSColor) else {
+            return nil
+        }
+        lastSampledColor = sampled
+        copyTextHandler(sampled.clipboardSummary)
+        return sampled
+    }
+}
+
+// MARK: - Dominant Color Palette Extractor (Pure CoreGraphics Quantized Histogram)
+
+struct DominantColorSwatch: Identifiable, Sendable, Equatable, Hashable {
+    let id: Int
+    let red: Int
+    let green: Int
+    let blue: Int
+    let percentage: Double
+
+    var hex: String {
+        String(format: "#%02X%02X%02X", red, green, blue)
+    }
+
+    var rgbString: String {
+        "RGB(\(red), \(green), \(blue))"
+    }
+}
+
+enum PhotoColorPaletteExtractor: Sendable {
+    static func extractDominantColors(
+        from nsImage: NSImage,
+        maxColors: Int = 5,
+        maxSampleDimension: Int = 128,
+        quantizationBitsPerChannel: Int = 4
+    ) -> [DominantColorSwatch] {
+        var proposed = NSRect(origin: .zero, size: nsImage.size)
+        guard let cgImage = nsImage.cgImage(forProposedRect: &proposed, context: nil, hints: nil) else {
+            return []
+        }
+        return extractDominantColors(
+            from: cgImage,
+            maxColors: maxColors,
+            maxSampleDimension: maxSampleDimension,
+            quantizationBitsPerChannel: quantizationBitsPerChannel
+        )
+    }
+
+    static func extractDominantColors(
+        from cgImage: CGImage,
+        maxColors: Int = 5,
+        maxSampleDimension: Int = 128,
+        quantizationBitsPerChannel: Int = 4
+    ) -> [DominantColorSwatch] {
+        guard maxColors > 0, cgImage.width > 0, cgImage.height > 0 else {
+            return []
+        }
+
+        let bits = max(2, min(6, quantizationBitsPerChannel))
+        let shift = 8 - bits
+        let cappedDim = max(8, min(512, maxSampleDimension))
+        let scale = min(1.0, Double(cappedDim) / Double(max(cgImage.width, cgImage.height)))
+        let dstW = max(1, Int((Double(cgImage.width) * scale).rounded()))
+        let dstH = max(1, Int((Double(cgImage.height) * scale).rounded()))
+
+        guard let srgb = CGColorSpace(name: CGColorSpace.sRGB) ?? cgImage.colorSpace else {
+            return []
+        }
+
+        var rgba = [UInt8](repeating: 0, count: dstW * dstH * 4)
+        let drawn = rgba.withUnsafeMutableBytes { ptr -> Bool in
+            guard let ctx = CGContext(
+                data: ptr.baseAddress,
+                width: dstW,
+                height: dstH,
+                bitsPerComponent: 8,
+                bytesPerRow: dstW * 4,
+                space: srgb,
+                bitmapInfo: CGBitmapInfo.byteOrder32Big.rawValue | CGImageAlphaInfo.premultipliedLast.rawValue
+            ) else {
+                return false
+            }
+            ctx.interpolationQuality = .medium
+            ctx.draw(cgImage, in: CGRect(x: 0, y: 0, width: dstW, height: dstH))
+            return true
+        }
+        guard drawn else { return [] }
+
+        struct HistogramBucket {
+            var sumR: Int = 0
+            var sumG: Int = 0
+            var sumB: Int = 0
+            var count: Int = 0
+        }
+
+        var buckets: [Int: HistogramBucket] = [:]
+        var totalOpaquePixels = 0
+        let pixelCount = dstW * dstH
+
+        for i in 0..<pixelCount {
+            let offset = i * 4
+            let a = Int(rgba[offset + 3])
+            guard a > 16 else { continue }
+
+            let rawR = Int(rgba[offset])
+            let rawG = Int(rgba[offset + 1])
+            let rawB = Int(rgba[offset + 2])
+
+            let r: Int
+            let g: Int
+            let b: Int
+            if a < 255 {
+                r = min(255, (rawR * 255 + a / 2) / a)
+                g = min(255, (rawG * 255 + a / 2) / a)
+                b = min(255, (rawB * 255 + a / 2) / a)
+            } else {
+                r = rawR
+                g = rawG
+                b = rawB
+            }
+
+            let rq = r >> shift
+            let gq = g >> shift
+            let bq = b >> shift
+            let key = (rq << (bits * 2)) | (gq << bits) | bq
+
+            var bucket = buckets[key] ?? HistogramBucket()
+            bucket.sumR += r
+            bucket.sumG += g
+            bucket.sumB += b
+            bucket.count += 1
+            buckets[key] = bucket
+            totalOpaquePixels += 1
+        }
+
+        guard totalOpaquePixels > 0 else { return [] }
+
+        let sortedBuckets = buckets
+            .sorted { lhs, rhs in
+                if lhs.value.count != rhs.value.count {
+                    return lhs.value.count > rhs.value.count
+                }
+                return lhs.key < rhs.key
+            }
+            .prefix(maxColors)
+
+        return sortedBuckets.enumerated().map { idx, entry in
+            let b = entry.value
+            let avgR = max(0, min(255, Int((Double(b.sumR) / Double(b.count)).rounded())))
+            let avgG = max(0, min(255, Int((Double(b.sumG) / Double(b.count)).rounded())))
+            let avgB = max(0, min(255, Int((Double(b.sumB) / Double(b.count)).rounded())))
+            let pct = (Double(b.count) / Double(totalOpaquePixels)) * 100.0
+            return DominantColorSwatch(
+                id: idx,
+                red: avgR,
+                green: avgG,
+                blue: avgB,
+                percentage: pct
+            )
         }
     }
 }

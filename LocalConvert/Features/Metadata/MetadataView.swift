@@ -1,10 +1,64 @@
 import SwiftUI
 import UniformTypeIdentifiers
+import CryptoKit
+import AppKit
+
+// MARK: - Offline Streaming File Checksum Calculator
+
+struct FileChecksums: Equatable, Sendable {
+    let sha256: String
+    let md5: String
+}
+
+enum FileChecksumCalculator {
+    static let defaultChunkSize = 1_048_576 // 1 MiB
+
+    static func computeChecksums(for url: URL, chunkSize: Int = defaultChunkSize) throws -> FileChecksums {
+        guard FileManager.default.fileExists(atPath: url.path) else {
+            throw ConversionError.inputFileNotFound(url)
+        }
+        let effectiveChunkSize = max(4096, chunkSize)
+        let handle = try FileHandle(forReadingFrom: url)
+        defer { try? handle.close() }
+
+        var sha256 = SHA256()
+        var md5 = Insecure.MD5()
+
+        while true {
+            try Task.checkCancellation()
+            let shouldContinue: Bool = try autoreleasepool {
+                guard let chunk = try handle.read(upToCount: effectiveChunkSize), !chunk.isEmpty else {
+                    return false
+                }
+                sha256.update(data: chunk)
+                md5.update(data: chunk)
+                return true
+            }
+            if !shouldContinue {
+                break
+            }
+        }
+
+        let shaDigest = sha256.finalize().map { String(format: "%02x", $0) }.joined()
+        let md5Digest = md5.finalize().map { String(format: "%02x", $0) }.joined()
+        return FileChecksums(sha256: shaDigest, md5: md5Digest)
+    }
+
+    static func computeChecksumsAsync(for url: URL, chunkSize: Int = defaultChunkSize) async throws -> FileChecksums {
+        try await Task.detached(priority: .utility) {
+            try computeChecksums(for: url, chunkSize: chunkSize)
+        }.value
+    }
+}
 
 struct MetadataView: View {
     @ObservedObject var metadataManager: MetadataManager
     @State private var isTargeted: Bool = false
     @State private var showDiscardAlert: Bool = false
+    @State private var fileChecksums: FileChecksums? = nil
+    @State private var checksumError: String? = nil
+    @State private var isComputingChecksums: Bool = false
+    @State private var copiedChecksumLabel: String? = nil
     
     init(metadataManager: MetadataManager = .shared) {
         self.metadataManager = metadataManager
@@ -23,6 +77,9 @@ struct MetadataView: View {
         }
         .navigationTitle("Metadata")
         .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .task(id: metadataManager.activeURL) {
+            await refreshChecksums(for: metadataManager.activeURL)
+        }
         .onDrop(of: [.fileURL], isTargeted: $isTargeted) { providers in
             guard let provider = providers.first else { return false }
             provider.loadItem(forTypeIdentifier: UTType.fileURL.identifier, options: nil) { item, _ in
@@ -127,6 +184,9 @@ struct MetadataView: View {
                             }
                         }
                     }
+
+                    // Offline File Checksums (SHA-256 & MD5)
+                    checksumsSection
                 }
                 .padding(AppTheme.Spacing.xl)
             }
@@ -299,6 +359,111 @@ struct MetadataView: View {
     }
     
     // MARK: - Subviews & Helpers
+
+    @ViewBuilder
+    private var checksumsSection: some View {
+        sectionContainer(title: String(localized: "File Checksums"), icon: "checkmark.shield") {
+            if isComputingChecksums {
+                HStack(spacing: AppTheme.Spacing.sm) {
+                    ProgressView()
+                        .controlSize(.small)
+                    Text("Calculating SHA-256 and MD5 checksums...")
+                        .font(AppTheme.Typography.caption)
+                        .foregroundStyle(.secondary)
+                }
+            } else if let checksumError {
+                Text(checksumError)
+                    .font(AppTheme.Typography.caption)
+                    .foregroundStyle(AppTheme.Colors.error)
+            } else if let fileChecksums {
+                VStack(alignment: .leading, spacing: AppTheme.Spacing.sm) {
+                    checksumRow(
+                        label: "SHA-256",
+                        digest: fileChecksums.sha256,
+                        identifier: "metadata.checksum.sha256"
+                    )
+                    AppDivider()
+                    checksumRow(
+                        label: "MD5",
+                        digest: fileChecksums.md5,
+                        identifier: "metadata.checksum.md5"
+                    )
+                }
+            } else {
+                Text("Select a file to compute offline cryptographic checksums.")
+                    .font(AppTheme.Typography.caption)
+                    .foregroundStyle(.secondary)
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func checksumRow(label: String, digest: String, identifier: String) -> some View {
+        let isCopied = (copiedChecksumLabel == label)
+        HStack(spacing: AppTheme.Spacing.sm) {
+            Text(label)
+                .font(AppTheme.Typography.caption.weight(.semibold))
+                .foregroundStyle(.secondary)
+                .frame(width: 58, alignment: .leading)
+
+            Text(digest)
+                .font(.system(.caption, design: .monospaced))
+                .textSelection(.enabled)
+                .lineLimit(1)
+                .truncationMode(.middle)
+                .accessibilityIdentifier(identifier)
+
+            Spacer(minLength: AppTheme.Spacing.xs)
+
+            Button {
+                copyChecksum(digest, label: label)
+            } label: {
+                Label(isCopied ? String(localized: "Copied") : String(localized: "Copy"), systemImage: isCopied ? "checkmark" : "doc.on.doc")
+                    .font(.caption2)
+            }
+            .buttonStyle(.bordered)
+            .controlSize(.mini)
+            .fixedSize(horizontal: true, vertical: false)
+            .accessibilityLabel("Copy \(label) checksum")
+            .accessibilityIdentifier("\(identifier).copy")
+        }
+    }
+
+    private func copyChecksum(_ value: String, label: String) {
+        NSPasteboard.general.clearContents()
+        NSPasteboard.general.setString(value, forType: .string)
+        copiedChecksumLabel = label
+        Task { @MainActor in
+            try? await Task.sleep(nanoseconds: 1_500_000_000)
+            if copiedChecksumLabel == label {
+                copiedChecksumLabel = nil
+            }
+        }
+    }
+
+    private func refreshChecksums(for url: URL?) async {
+        guard let url else {
+            fileChecksums = nil
+            checksumError = nil
+            isComputingChecksums = false
+            return
+        }
+        isComputingChecksums = true
+        checksumError = nil
+        do {
+            let result = try await FileChecksumCalculator.computeChecksumsAsync(for: url)
+            guard !Task.isCancelled, metadataManager.activeURL == url else { return }
+            fileChecksums = result
+            isComputingChecksums = false
+        } catch is CancellationError {
+            return
+        } catch {
+            guard !Task.isCancelled, metadataManager.activeURL == url else { return }
+            fileChecksums = nil
+            checksumError = error.localizedDescription
+            isComputingChecksums = false
+        }
+    }
     
     @ViewBuilder
     private var emptyDropZone: some View {

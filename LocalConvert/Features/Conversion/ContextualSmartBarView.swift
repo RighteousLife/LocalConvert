@@ -42,6 +42,7 @@ enum SmartSuggestionActionID: String, CaseIterable, Identifiable, Codable, Senda
     case removeBackground = "remove_background"
     case stripMetadata = "strip_metadata"
     case resizeImages = "resize_images"
+    case stitchImages = "stitch_images"
 
     // Audio / Video
     case extractMP3 = "extract_mp3"
@@ -49,6 +50,9 @@ enum SmartSuggestionActionID: String, CaseIterable, Identifiable, Codable, Senda
     case iphoneRingtoneM4R = "iphone_ringtone_m4r"
     case trimMedia = "trim_media"
     case transcribeSRT = "transcribe_srt"
+
+    // Target Size Compression
+    case targetSizeCompress = "target_size_compress"
 
     // Mixed Batch
     case applySavedPreset = "apply_saved_preset"
@@ -242,6 +246,12 @@ enum SmartSuggestionEngine: Sendable {
 
     static func suggest(for files: [DroppedFile]) -> SmartSuggestionPlan {
         var plan = suggest(for: files.map(\.detectedFormat))
+        let imageCount = files.filter { $0.detectedFormat?.category == .image }.count
+        let hasTargetCompressible = files.contains { file in
+            guard let fmt = file.detectedFormat else { return false }
+            return fmt == .pdf || fmt.category == .image || fmt.category == .video
+        }
+
         if plan.category == .audioVideo {
             var updatedActions = plan.actions
             updatedActions.append(
@@ -253,6 +263,17 @@ enum SmartSuggestionEngine: Sendable {
                     isEnabled: !files.isEmpty
                 )
             )
+            if hasTargetCompressible {
+                updatedActions.append(
+                    ContextualSmartAction(
+                        id: .targetSizeCompress,
+                        title: "Target Size",
+                        systemImage: "arrow.down.right.and.arrow.up.left",
+                        helpText: "Auto-compress queued files to fit a target file size (10 MB Discord, 25 MB Email, 5 MB, or custom MB)",
+                        isEnabled: true
+                    )
+                )
+            }
             plan = SmartSuggestionPlan(category: .audioVideo, actions: updatedActions)
         } else if plan.category == .mixed {
             let canConvert = files.contains { $0.detectedFormat != nil && $0.selectedOutputFormat != nil }
@@ -272,6 +293,34 @@ enum SmartSuggestionEngine: Sendable {
                 }
                 return action
             }
+            if imageCount >= 2 {
+                let stitchAction = ContextualSmartAction(
+                    id: .stitchImages,
+                    title: "Stitch Images",
+                    systemImage: "rectangle.split.2x1",
+                    helpText: "Combine 2 or more queued images vertically or horizontally",
+                    isEnabled: true
+                )
+                if let convertAllIdx = updatedActions.firstIndex(where: { $0.id == .convertAll }) {
+                    updatedActions.insert(stitchAction, at: convertAllIdx)
+                } else {
+                    updatedActions.append(stitchAction)
+                }
+            }
+            if hasTargetCompressible {
+                let targetAction = ContextualSmartAction(
+                    id: .targetSizeCompress,
+                    title: "Target Size",
+                    systemImage: "arrow.down.right.and.arrow.up.left",
+                    helpText: "Auto-compress queued files to fit a target file size (10 MB Discord, 25 MB Email, 5 MB, or custom MB)",
+                    isEnabled: true
+                )
+                if let convertAllIdx = updatedActions.firstIndex(where: { $0.id == .convertAll }) {
+                    updatedActions.insert(targetAction, at: convertAllIdx)
+                } else {
+                    updatedActions.append(targetAction)
+                }
+            }
             if hasAudioOrVideo {
                 let transcribeAction = ContextualSmartAction(
                     id: .transcribeSRT,
@@ -287,6 +336,45 @@ enum SmartSuggestionEngine: Sendable {
                 }
             }
             plan = SmartSuggestionPlan(category: .mixed, actions: updatedActions)
+        } else if plan.category == .image {
+            var updatedActions = plan.actions
+            if imageCount >= 2 {
+                updatedActions.append(
+                    ContextualSmartAction(
+                        id: .stitchImages,
+                        title: "Stitch Images",
+                        systemImage: "rectangle.split.2x1",
+                        helpText: "Combine 2 or more queued images vertically or horizontally",
+                        isEnabled: true
+                    )
+                )
+            }
+            if hasTargetCompressible {
+                updatedActions.append(
+                    ContextualSmartAction(
+                        id: .targetSizeCompress,
+                        title: "Target Size",
+                        systemImage: "arrow.down.right.and.arrow.up.left",
+                        helpText: "Auto-compress queued images to fit a target file size (10 MB Discord, 25 MB Email, 5 MB, or custom MB)",
+                        isEnabled: true
+                    )
+                )
+            }
+            plan = SmartSuggestionPlan(category: .image, actions: updatedActions)
+        } else if plan.category == .pdf {
+            var updatedActions = plan.actions
+            if hasTargetCompressible {
+                updatedActions.append(
+                    ContextualSmartAction(
+                        id: .targetSizeCompress,
+                        title: "Target Size",
+                        systemImage: "arrow.down.right.and.arrow.up.left",
+                        helpText: "Auto-compress queued PDFs to fit a target file size (10 MB Discord, 25 MB Email, 5 MB, or custom MB)",
+                        isEnabled: true
+                    )
+                )
+            }
+            plan = SmartSuggestionPlan(category: .pdf, actions: updatedActions)
         }
         return plan
     }
@@ -708,13 +796,190 @@ final class SmartBarTranscriptionCoordinator: ObservableObject {
     }
 }
 
+@MainActor
+final class SmartBarStitchCoordinator: ObservableObject {
+    static let shared = SmartBarStitchCoordinator()
+
+    @Published private(set) var isStitching = false
+
+    func startStitch(
+        direction: ImageStitchDirection,
+        spacing: Int = 0,
+        appState: AppState
+    ) {
+        guard !isStitching else { return }
+        let imageFiles = appState.droppedFiles.filter { $0.detectedFormat?.category == .image }
+        guard imageFiles.count >= 2, let first = imageFiles.first else { return }
+
+        let interactive = appState.resolveInteractiveOutputDirectoryIfNeeded()
+        if interactive.cancelled { return }
+
+        let outputDir = interactive.directory ?? OutputManager.resolveOutputDirectory(
+            for: first.url,
+            preference: appState.outputLocation,
+            customDirectory: appState.customOutputDirectory
+        )
+        guard OutputManager.isOutputDirectoryValid(outputDir) else {
+            appState.showError(
+                message: String(localized: "The destination folder is inaccessible or unwritable."),
+                details: outputDir.path
+            )
+            return
+        }
+
+        let urls = imageFiles.map(\.url)
+        let options = ImageStitchOptions(direction: direction, spacing: spacing)
+        let resolveAppState: @MainActor @Sendable () -> AppState? = { [weak appState] in appState }
+
+        isStitching = true
+        appState.dropFeedbackText = String(localized: "Stitching \(urls.count) images...")
+
+        Task { [weak self] in
+            do {
+                let result = try await ImageStitcherEngine.stitch(
+                    inputURLs: urls,
+                    outputDirectory: outputDir,
+                    options: options
+                )
+                self?.isStitching = false
+                guard let appState = resolveAppState() else { return }
+                appState.dropFeedbackText = String(localized: "Stitched \(result.stitchedCount) images → \(result.outputURL.lastPathComponent)")
+                if AppSettings.shared.saveConversionHistory {
+                    appState.historyManager.addEntry(
+                        ConversionHistoryItem(
+                            inputFilename: first.url.lastPathComponent,
+                            inputFormatName: first.detectedFormat?.displayName ?? "Image",
+                            outputFilename: result.outputURL.lastPathComponent,
+                            outputFormatName: options.outputFormat.displayName,
+                            status: .completed,
+                            inputSizeBytes: first.fileSize,
+                            outputSizeBytes: result.fileSize,
+                            presetName: "Stitch Images (\(direction.rawValue))",
+                            outputURLPath: result.outputURL.path,
+                            inputURLPath: first.url.path,
+                            source: .manual
+                        )
+                    )
+                }
+            } catch {
+                self?.isStitching = false
+                guard let appState = resolveAppState() else { return }
+                appState.showError(message: error.localizedDescription)
+            }
+        }
+    }
+}
+
+@MainActor
+final class SmartBarTargetCompressionCoordinator: ObservableObject {
+    static let shared = SmartBarTargetCompressionCoordinator()
+
+    @Published private(set) var isCompressing = false
+
+    func startCompression(targetBytes: Int64, appState: AppState) {
+        guard !isCompressing, targetBytes > 0 else { return }
+
+        let targets = appState.droppedFiles.filter { file in
+            guard let fmt = file.detectedFormat else { return false }
+            return fmt == .pdf || fmt.category == .image || fmt.category == .video
+        }
+        guard !targets.isEmpty else { return }
+
+        let interactive = appState.resolveInteractiveOutputDirectoryIfNeeded()
+        if interactive.cancelled { return }
+
+        var resolvedTargets: [(file: DroppedFile, outputDir: URL)] = []
+        for file in targets {
+            let dir = interactive.directory ?? OutputManager.resolveOutputDirectory(
+                for: file.url,
+                preference: appState.outputLocation,
+                customDirectory: appState.customOutputDirectory
+            )
+            if OutputManager.isOutputDirectoryValid(dir) {
+                resolvedTargets.append((file, dir))
+            }
+        }
+
+        guard !resolvedTargets.isEmpty else {
+            appState.showError(message: String(localized: "The destination folder is inaccessible or unwritable."))
+            return
+        }
+
+        let snapshotTargets = resolvedTargets
+        let totalCount = snapshotTargets.count
+        let targetLabel = ByteCountFormatter.string(fromByteCount: targetBytes, countStyle: .file)
+        let resolveAppState: @MainActor @Sendable () -> AppState? = { [weak appState] in appState }
+
+        isCompressing = true
+        appState.dropFeedbackText = String(localized: "Compressing \(totalCount) file(s) to ≤ \(targetLabel)...")
+
+        Task { [weak self] in
+            var outputs: [TargetSizeCompressionResult] = []
+            var firstError: Error? = nil
+
+            for (index, item) in snapshotTargets.enumerated() {
+                if Task.isCancelled { break }
+                do {
+                    let result = try await TargetSizeCompressionCoordinator.compress(
+                        inputURL: item.file.url,
+                        targetBytes: targetBytes,
+                        outputDirectory: item.outputDir,
+                        preferredOutputFormat: item.file.selectedOutputFormat
+                    ) { progress in
+                        let itemIndex = index
+                        let statusMessage = progress.statusMessage
+                        Task { @MainActor in
+                            guard let appState = resolveAppState() else { return }
+                            appState.dropFeedbackText = "(\(itemIndex + 1)/\(totalCount)) \(statusMessage)"
+                        }
+                    }
+                    outputs.append(result)
+                    if let appState = resolveAppState(), AppSettings.shared.saveConversionHistory {
+                        appState.historyManager.addEntry(
+                            ConversionHistoryItem(
+                                inputFilename: item.file.url.lastPathComponent,
+                                inputFormatName: item.file.detectedFormat?.displayName ?? "",
+                                outputFilename: result.outputURL.lastPathComponent,
+                                outputFormatName: result.outputFormat.displayName,
+                                status: .completed,
+                                inputSizeBytes: result.originalBytes,
+                                outputSizeBytes: result.finalBytes,
+                                presetName: "Target Size (≤ \(targetLabel))",
+                                outputURLPath: result.outputURL.path,
+                                inputURLPath: item.file.url.path,
+                                source: .manual
+                            )
+                        )
+                    }
+                } catch {
+                    if firstError == nil { firstError = error }
+                    break
+                }
+            }
+
+            self?.isCompressing = false
+            guard let appState = resolveAppState() else { return }
+            if let firstError {
+                appState.showError(message: firstError.localizedDescription)
+            } else if !outputs.isEmpty {
+                let reachedCount = outputs.filter(\.targetReached).count
+                appState.dropFeedbackText = String(localized: "Compressed \(outputs.count) file(s) (\(reachedCount) within \(targetLabel))")
+            }
+        }
+    }
+}
+
 // MARK: - Contextual Smart Suggestion Bar View
 
 struct ContextualSmartBarView: View {
     @EnvironmentObject private var appState: AppState
     @ObservedObject private var presetManager = PresetManager.shared
     @ObservedObject private var transcriptionCoordinator = SmartBarTranscriptionCoordinator.shared
+    @ObservedObject private var stitchCoordinator = SmartBarStitchCoordinator.shared
+    @ObservedObject private var targetSizeCoordinator = SmartBarTargetCompressionCoordinator.shared
     @State private var trimSheetFile: DroppedFile?
+    @State private var showCustomTargetPopover = false
+    @State private var customTargetMBInput = "10"
 
     private var plan: SmartSuggestionPlan {
         SmartSuggestionEngine.suggest(for: appState.droppedFiles)
@@ -808,6 +1073,104 @@ struct ContextualSmartBarView: View {
             .help(action.helpText)
             .accessibilityLabel(action.title)
             .accessibilityIdentifier("smartbar.action.\(action.id.rawValue)")
+
+        case .stitchImages:
+            Menu {
+                Button("Stitch Vertically") {
+                    SmartBarStitchCoordinator.shared.startStitch(direction: .vertical, spacing: 0, appState: appState)
+                }
+                Button("Stitch Horizontally") {
+                    SmartBarStitchCoordinator.shared.startStitch(direction: .horizontal, spacing: 0, appState: appState)
+                }
+                Divider()
+                Button("Stitch Vertically (16 px Gap)") {
+                    SmartBarStitchCoordinator.shared.startStitch(direction: .vertical, spacing: 16, appState: appState)
+                }
+                Button("Stitch Horizontally (16 px Gap)") {
+                    SmartBarStitchCoordinator.shared.startStitch(direction: .horizontal, spacing: 16, appState: appState)
+                }
+            } label: {
+                Label(
+                    stitchCoordinator.isStitching ? "Stitching..." : action.title,
+                    systemImage: action.systemImage
+                )
+                .font(AppTheme.Typography.caption)
+                .lineLimit(1)
+            }
+            .controlSize(.small)
+            .fixedSize(horizontal: true, vertical: false)
+            .disabled(!action.isEnabled || appState.isConverting || stitchCoordinator.isStitching)
+            .help(action.helpText)
+            .accessibilityLabel(action.title)
+            .accessibilityIdentifier("smartbar.action.\(action.id.rawValue)")
+
+        case .targetSizeCompress:
+            Menu {
+                ForEach(TargetSizeQuickPreset.allCases) { preset in
+                    Button(preset.localizedTitle) {
+                        SmartBarTargetCompressionCoordinator.shared.startCompression(
+                            targetBytes: preset.targetBytes,
+                            appState: appState
+                        )
+                    }
+                }
+                Divider()
+                Button("Custom MB...") {
+                    showCustomTargetPopover = true
+                }
+            } label: {
+                Label(
+                    targetSizeCoordinator.isCompressing ? "Compressing..." : action.title,
+                    systemImage: action.systemImage
+                )
+                .font(AppTheme.Typography.caption)
+                .lineLimit(1)
+            }
+            .controlSize(.small)
+            .fixedSize(horizontal: true, vertical: false)
+            .disabled(!action.isEnabled || appState.isConverting || targetSizeCoordinator.isCompressing)
+            .help(action.helpText)
+            .accessibilityLabel(action.title)
+            .accessibilityIdentifier("smartbar.action.\(action.id.rawValue)")
+            .popover(isPresented: $showCustomTargetPopover) {
+                VStack(alignment: .leading, spacing: AppTheme.Spacing.sm) {
+                    Text("Custom Target File Size")
+                        .font(AppTheme.Typography.cardTitle)
+                    HStack(spacing: AppTheme.Spacing.xs) {
+                        TextField("e.g. 8", text: $customTargetMBInput)
+                            .textFieldStyle(.roundedBorder)
+                            .frame(width: 90)
+                        Text("MB")
+                            .font(AppTheme.Typography.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                    HStack {
+                        Spacer()
+                        Button("Cancel") {
+                            showCustomTargetPopover = false
+                        }
+                        .buttonStyle(.bordered)
+                        .controlSize(.small)
+
+                        Button("Compress") {
+                            let normalized = customTargetMBInput
+                                .trimmingCharacters(in: .whitespacesAndNewlines)
+                                .replacingOccurrences(of: ",", with: ".")
+                            if let mb = Double(normalized), mb > 0 {
+                                showCustomTargetPopover = false
+                                SmartBarTargetCompressionCoordinator.shared.startCompression(
+                                    targetBytes: Int64((mb * 1_000_000.0).rounded()),
+                                    appState: appState
+                                )
+                            }
+                        }
+                        .buttonStyle(.borderedProminent)
+                        .controlSize(.small)
+                    }
+                }
+                .padding(AppTheme.Spacing.md)
+                .frame(width: 240)
+            }
 
         case .applySavedPreset:
             Menu {
@@ -906,7 +1269,7 @@ struct ContextualSmartBarView: View {
             SmartBarActionExecutor.runTranscribeSRT(appState: appState)
         case .convertAll:
             appState.convertAll()
-        case .resizeImages, .applySavedPreset:
+        case .resizeImages, .applySavedPreset, .stitchImages, .targetSizeCompress:
             break
         }
     }

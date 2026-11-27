@@ -8,17 +8,23 @@ struct ContentView: View {
     @ObservedObject var undoCoordinator: UndoRedoCoordinator
     @ObservedObject var undoMenu: UndoMenuController
     @ObservedObject var commandPalette: CommandPaletteController
+    @ObservedObject var shortcutsController: KeyboardShortcutsSheetController
+    @ObservedObject var quickQRController: QuickQRGeneratorController
     let metadataManager: MetadataManager
 
     init(
         undoCoordinator: UndoRedoCoordinator = .shared,
         undoMenu: UndoMenuController = .shared,
         commandPalette: CommandPaletteController = .shared,
+        shortcutsController: KeyboardShortcutsSheetController = .shared,
+        quickQRController: QuickQRGeneratorController = .shared,
         metadataManager: MetadataManager = .shared
     ) {
         self.undoCoordinator = undoCoordinator
         self.undoMenu = undoMenu
         self.commandPalette = commandPalette
+        self.shortcutsController = shortcutsController
+        self.quickQRController = quickQRController
         self.metadataManager = metadataManager
     }
 
@@ -41,6 +47,44 @@ struct ContentView: View {
         .appOpaqueWindowChrome(preferredColorScheme: preferredColorScheme)
         .navigationTitle(appState.selectedTab.localizedTitle)
         .toolbar {
+            ToolbarItem(placement: .primaryAction) {
+                Menu {
+                    Menu {
+                        Button("Instant") {
+                            triggerScreenCapture(delay: .instant)
+                        }
+                        Button("3s Timer") {
+                            triggerScreenCapture(delay: .threeSeconds)
+                        }
+                        Button("5s Timer") {
+                            triggerScreenCapture(delay: .fiveSeconds)
+                        }
+                    } label: {
+                        Label("Capture Screen to Markup", systemImage: "camera.viewfinder")
+                    }
+
+                    Button {
+                        quickQRController.open()
+                    } label: {
+                        Label("Quick QR Generator...", systemImage: "qrcode")
+                    }
+
+                    Divider()
+
+                    Button {
+                        shortcutsController.open()
+                    } label: {
+                        Label("Keyboard Shortcuts (⌘/)", systemImage: "keyboard")
+                    }
+                } label: {
+                    Label("Tools", systemImage: "wrench.and.screwdriver")
+                }
+                .help("Screen Capture, Quick QR Generator, and Keyboard Shortcuts")
+                .accessibilityLabel("Quick Tools")
+                .accessibilityHint("Opens Screen Capture, Quick QR Generator, and Keyboard Shortcuts")
+                .accessibilityIdentifier("toolbar.toolsMenu")
+            }
+
             ToolbarItem(placement: .primaryAction) {
                 Button {
                     appState.openMediaViewerEmpty()
@@ -113,6 +157,27 @@ struct ContentView: View {
             MediaViewerSheetView()
                 .environmentObject(appState)
                 .preferredColorScheme(preferredColorScheme)
+        }
+        .sheet(isPresented: $shortcutsController.isPresented) {
+            KeyboardShortcutsSheetView(controller: shortcutsController)
+                .preferredColorScheme(preferredColorScheme)
+        }
+        .sheet(isPresented: $quickQRController.isPresented) {
+            QuickQRGeneratorSheetView(controller: quickQRController)
+                .preferredColorScheme(preferredColorScheme)
+        }
+    }
+
+    private func triggerScreenCapture(delay: ScreenCaptureDelay) {
+        Task { @MainActor in
+            do {
+                _ = try await ScreenCaptureService.shared.captureToMediaViewer(delay: delay, appState: appState)
+            } catch {
+                appState.showError(
+                    title: String(localized: "Screen Capture Failed"),
+                    message: error.localizedDescription
+                )
+            }
         }
     }
     

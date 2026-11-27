@@ -7,6 +7,7 @@ enum CommandPaletteCategory: String, CaseIterable, Identifiable, Sendable, Hasha
     case navigation = "Navigation"
     case mediaViewer = "Media Viewer"
     case audioWorkspace = "Audio Workspace"
+    case tools = "Tools"
     case preset = "Presets"
     case pdfTool = "PDF Toolbox"
     case imageTool = "Image Toolbox"
@@ -18,6 +19,7 @@ enum CommandPaletteCategory: String, CaseIterable, Identifiable, Sendable, Hasha
         case .navigation: return 5
         case .mediaViewer: return 4
         case .audioWorkspace: return 4
+        case .tools: return 4
         case .preset: return 3
         case .pdfTool: return 2
         case .imageTool: return 1
@@ -29,6 +31,7 @@ enum CommandPaletteCategory: String, CaseIterable, Identifiable, Sendable, Hasha
         case .navigation: return AppTheme.Colors.accent
         case .mediaViewer: return .teal
         case .audioWorkspace: return AppTheme.Colors.info
+        case .tools: return .indigo
         case .preset: return AppTheme.Colors.success
         case .pdfTool: return AppTheme.Colors.warning
         case .imageTool: return .purple
@@ -39,6 +42,9 @@ enum CommandPaletteCategory: String, CaseIterable, Identifiable, Sendable, Hasha
 enum CommandPaletteAction: Equatable, Hashable, Sendable {
     case navigationTab(AppNavigationTab)
     case openMediaViewer
+    case captureScreen(ScreenCaptureDelay)
+    case openQuickQRGenerator
+    case openKeyboardShortcuts
     case pdfTool(operationID: String)
     case imageSection(ImageToolboxSection)
     case audioWorkspaceMode(AudioWorkspaceMode)
@@ -277,7 +283,7 @@ enum CommandPaletteCatalog {
             )
         }
 
-        // 2. Unified Media Viewer
+        // 2. Unified Media Viewer & Quick Utilities
         items.append(
             CommandPaletteItem(
                 id: "mediaviewer.open",
@@ -288,6 +294,71 @@ enum CommandPaletteCatalog {
                 keywords: ["media viewer", "photo", "image", "video", "markup", "annotate", "trim", "crop", "player", "preview"],
                 shortcutHint: nil,
                 action: .openMediaViewer
+            )
+        )
+
+        items.append(
+            CommandPaletteItem(
+                id: "tools.capture.instant",
+                title: "Capture Screen to Markup (Instant)",
+                subtitle: "Take an immediate screenshot and open it in Media Viewer",
+                category: .tools,
+                systemImage: "camera.viewfinder",
+                keywords: ["capture", "screenshot", "screen", "markup", "instant", "snap"],
+                shortcutHint: nil,
+                action: .captureScreen(.instant)
+            )
+        )
+
+        items.append(
+            CommandPaletteItem(
+                id: "tools.capture.3s",
+                title: "Capture Screen to Markup (3s Timer)",
+                subtitle: "Wait 3 seconds, capture screenshot, and open in Media Viewer",
+                category: .tools,
+                systemImage: "timer",
+                keywords: ["capture", "screenshot", "screen", "timer", "3s", "delay", "markup"],
+                shortcutHint: nil,
+                action: .captureScreen(.threeSeconds)
+            )
+        )
+
+        items.append(
+            CommandPaletteItem(
+                id: "tools.capture.5s",
+                title: "Capture Screen to Markup (5s Timer)",
+                subtitle: "Wait 5 seconds, capture screenshot, and open in Media Viewer",
+                category: .tools,
+                systemImage: "timer",
+                keywords: ["capture", "screenshot", "screen", "timer", "5s", "delay", "markup"],
+                shortcutHint: nil,
+                action: .captureScreen(.fiveSeconds)
+            )
+        )
+
+        items.append(
+            CommandPaletteItem(
+                id: "tools.quick_qr",
+                title: "Quick QR Generator",
+                subtitle: "Generate an offline QR code PNG for a URL, text, or Wi-Fi network",
+                category: .tools,
+                systemImage: "qrcode",
+                keywords: ["qr", "qr code", "wifi", "url", "barcode", "generator"],
+                shortcutHint: nil,
+                action: .openQuickQRGenerator
+            )
+        )
+
+        items.append(
+            CommandPaletteItem(
+                id: "tools.keyboard_shortcuts",
+                title: "Keyboard Shortcuts Cheatsheet",
+                subtitle: "View all navigation, editing, conversion, and Media Viewer shortcuts",
+                category: .tools,
+                systemImage: "keyboard",
+                keywords: ["shortcuts", "cheatsheet", "hotkeys", "keys", "help"],
+                shortcutHint: "⌘/",
+                action: .openKeyboardShortcuts
             )
         )
 
@@ -763,6 +834,24 @@ enum CommandPaletteRouter {
 
         case .openMediaViewer:
             appState.openMediaViewerEmpty()
+
+        case .captureScreen(let delay):
+            Task { @MainActor in
+                do {
+                    _ = try await ScreenCaptureService.shared.captureToMediaViewer(delay: delay, appState: appState)
+                } catch {
+                    appState.showError(
+                        title: String(localized: "Screen Capture Failed"),
+                        message: error.localizedDescription
+                    )
+                }
+            }
+
+        case .openQuickQRGenerator:
+            QuickQRGeneratorController.shared.open()
+
+        case .openKeyboardShortcuts:
+            KeyboardShortcutsSheetController.shared.open()
 
         case .pdfTool:
             appState.selectedTab = .pdfToolbox

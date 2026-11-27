@@ -570,6 +570,29 @@ struct MenuBarView: View {
             Button("Add Files to Convert...") {
                 openFilePicker()
             }
+
+            Menu("Capture Screen to Markup") {
+                Button("Instant") {
+                    triggerScreenCapture(delay: .instant)
+                }
+                Button("3s Timer") {
+                    triggerScreenCapture(delay: .threeSeconds)
+                }
+                Button("5s Timer") {
+                    triggerScreenCapture(delay: .fiveSeconds)
+                }
+            }
+
+            Button("Quick QR Generator...") {
+                AppLifecycleManager.shared.restoreOrActivateMainWindow(appState: appState)
+                QuickQRGeneratorController.shared.open()
+            }
+
+            Button("Keyboard Shortcuts...") {
+                AppLifecycleManager.shared.restoreOrActivateMainWindow(appState: appState)
+                KeyboardShortcutsSheetController.shared.open()
+            }
+            .keyboardShortcut("/", modifiers: .command)
             
             Divider()
             
@@ -607,6 +630,20 @@ struct MenuBarView: View {
     
     private func activateAppAndShowTab(_ tab: AppNavigationTab) {
         AppLifecycleManager.shared.restoreOrActivateMainWindow(selectTab: tab, appState: appState)
+    }
+
+    private func triggerScreenCapture(delay: ScreenCaptureDelay) {
+        AppLifecycleManager.shared.restoreOrActivateMainWindow(appState: appState)
+        Task { @MainActor in
+            do {
+                _ = try await ScreenCaptureService.shared.captureToMediaViewer(delay: delay, appState: appState)
+            } catch {
+                appState.showError(
+                    title: String(localized: "Screen Capture Failed"),
+                    message: error.localizedDescription
+                )
+            }
+        }
     }
     
     private func openFilePicker() {
@@ -981,6 +1018,28 @@ final class MenuBarManager: NSObject, NSPopoverDelegate {
         let addFilesItem = NSMenuItem(title: String(localized: "Add Files to Convert..."), action: #selector(openFilePicker), keyEquivalent: "")
         addFilesItem.target = self
         menu.addItem(addFilesItem)
+
+        let captureParentItem = NSMenuItem(title: String(localized: "Capture Screen to Markup"), action: nil, keyEquivalent: "")
+        let captureSubmenu = NSMenu()
+        let captureInstant = NSMenuItem(title: String(localized: "Instant"), action: #selector(captureScreenInstant), keyEquivalent: "")
+        captureInstant.target = self
+        captureSubmenu.addItem(captureInstant)
+        let captureThree = NSMenuItem(title: String(localized: "3s Timer"), action: #selector(captureScreenThreeSeconds), keyEquivalent: "")
+        captureThree.target = self
+        captureSubmenu.addItem(captureThree)
+        let captureFive = NSMenuItem(title: String(localized: "5s Timer"), action: #selector(captureScreenFiveSeconds), keyEquivalent: "")
+        captureFive.target = self
+        captureSubmenu.addItem(captureFive)
+        captureParentItem.submenu = captureSubmenu
+        menu.addItem(captureParentItem)
+
+        let quickQRItem = NSMenuItem(title: String(localized: "Quick QR Generator..."), action: #selector(openQuickQRGenerator), keyEquivalent: "")
+        quickQRItem.target = self
+        menu.addItem(quickQRItem)
+
+        let shortcutsItem = NSMenuItem(title: String(localized: "Keyboard Shortcuts..."), action: #selector(openKeyboardShortcuts), keyEquivalent: "/")
+        shortcutsItem.target = self
+        menu.addItem(shortcutsItem)
         
         menu.addItem(NSMenuItem.separator())
         
@@ -1016,6 +1075,43 @@ final class MenuBarManager: NSObject, NSPopoverDelegate {
     
     @objc private func openMainApp() {
         activateAppAndShowTab(.convert)
+    }
+
+    @objc private func captureScreenInstant() {
+        triggerScreenCapture(delay: .instant)
+    }
+
+    @objc private func captureScreenThreeSeconds() {
+        triggerScreenCapture(delay: .threeSeconds)
+    }
+
+    @objc private func captureScreenFiveSeconds() {
+        triggerScreenCapture(delay: .fiveSeconds)
+    }
+
+    @objc private func openQuickQRGenerator() {
+        showMainWindow()
+        QuickQRGeneratorController.shared.open()
+    }
+
+    @objc private func openKeyboardShortcuts() {
+        showMainWindow()
+        KeyboardShortcutsSheetController.shared.open()
+    }
+
+    private func triggerScreenCapture(delay: ScreenCaptureDelay) {
+        guard let appState else { return }
+        showMainWindow()
+        Task { @MainActor in
+            do {
+                _ = try await ScreenCaptureService.shared.captureToMediaViewer(delay: delay, appState: appState)
+            } catch {
+                appState.showError(
+                    title: String(localized: "Screen Capture Failed"),
+                    message: error.localizedDescription
+                )
+            }
+        }
     }
     
     @objc private func openFilePicker() {

@@ -228,9 +228,17 @@ struct FileRowView: View {
                 )
             }
         }
+        .modifier(CompletedRowDragModifier(outputURL: completedOutputURL))
     }
     
     // MARK: - Bindings & Helpers
+
+    private var completedOutputURL: URL? {
+        if case .completed(let result) = findJobStatus() {
+            return result.outputURL
+        }
+        return nil
+    }
     
     private var recentFormatsForFile: [FileFormat] {
         let current = liveFile
@@ -429,6 +437,7 @@ struct FileRowView: View {
             .foregroundStyle(AppTheme.Colors.success)
             .lineLimit(1)
             .fixedSize(horizontal: true, vertical: false)
+            .help("Drag row to export \(result.outputURL.lastPathComponent)")
             .accessibilityLabel("Conversion completed: \(result.outputURL.lastPathComponent)")
     }
 
@@ -491,6 +500,24 @@ struct FileRowView: View {
         .controlSize(.small)
         .help("Show \(result.outputURL.lastPathComponent) in Finder")
         .accessibilityLabel("Show output in Finder")
+    }
+}
+
+// MARK: - Completed Output Drag Modifier
+
+private struct CompletedRowDragModifier: ViewModifier {
+    let outputURL: URL?
+
+    func body(content: Content) -> some View {
+        if let outputURL {
+            content.onDrag {
+                let provider = NSItemProvider(object: outputURL as NSURL)
+                provider.suggestedName = outputURL.lastPathComponent
+                return provider
+            }
+        } else {
+            content
+        }
     }
 }
 

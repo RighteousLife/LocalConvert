@@ -124,7 +124,7 @@ struct PDFToolboxView: View {
     // MARK: - Body
     
     private var isDedicatedProOperation: Bool {
-        ["pageStudio", "annotate", "ocr", "pdfa", "redact", "compare", "forms", "inspectSecurity", "normalizePageSizes"].contains(selectedOperation)
+        ["pageStudio", "powerTools", "annotate", "ocr", "pdfa", "redact", "compare", "forms", "inspectSecurity", "normalizePageSizes"].contains(selectedOperation)
     }
 
     var body: some View {
@@ -159,6 +159,8 @@ struct PDFToolboxView: View {
                 }
 
                 Section {
+                    AppToolboxSidebarRow(String(localized: "Power Tools Studio"), systemImage: "wand.and.rays", isSelected: selectedOperation == "powerTools")
+                        .tag("powerTools")
                     AppToolboxSidebarRow(String(localized: "Annotate & Edit"), systemImage: "pencil.and.outline", isSelected: selectedOperation == "annotate")
                         .tag("annotate")
                     AppToolboxSidebarRow(String(localized: "OCR & Searchable PDF"), systemImage: "text.viewfinder", isSelected: selectedOperation == "ocr")
@@ -608,6 +610,8 @@ struct PDFToolboxView: View {
     @ViewBuilder
     private var proSectionBody: some View {
         switch selectedOperation {
+        case "powerTools":
+            PDFPageOrganizerAndSecurityView(selectedFiles: selectedFiles, password: $pdfPassword)
         case "normalizePageSizes":
             PDFPageNormalizationView(selectedFiles: selectedFiles, password: $pdfPassword) { request, suppliedPassword in
                 guard selectedFiles.count == 1,
@@ -763,6 +767,7 @@ struct PDFToolboxView: View {
     private func operationDisplayName(for op: String) -> String {
         switch op {
         case "pageStudio": return String(localized: "PDF Page Studio")
+        case "powerTools": return String(localized: "PDF Power Tools Studio")
         case "normalizePageSizes": return String(localized: "Normalize PDF Page Sizes")
         case "annotate": return String(localized: "Annotate & Edit PDF")
         case "merge": return String(localized: "Merge PDFs")
@@ -789,6 +794,7 @@ struct PDFToolboxView: View {
     private func operationDescription(for op: String) -> String {
         switch op {
         case "pageStudio": return String(localized: "Visually organize, reorder, move, duplicate, delete, rotate, crop, resize, insert, and split pages.")
+        case "powerTools": return String(localized: "Organize thumbnails, apply true redaction, stamp signatures, flatten forms, number pages, watermark, and lock/unlock PDFs.")
         case "normalizePageSizes": return String(localized: "Fit every source page to a consistent target size while preserving source order.")
         case "annotate": return String(localized: "Add and edit highlights, underlines, strikeouts, sticky notes, callout text, freehand ink, shapes, and arrows.")
         case "merge": return String(localized: "Combine multiple PDF documents into a single sequential file.")

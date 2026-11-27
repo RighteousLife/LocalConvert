@@ -211,6 +211,8 @@
 			</array>
 		</dict>
 	</array>
+	<key>NSScreenCaptureUsageDescription</key>
+	<string>LocalConvert captures screenshots only when you trigger Capture Screen, keeping every image local on your Mac.</string>
 	<key>NSSpeechRecognitionUsageDescription</key>
 	<string>LocalConvert uses on-device speech recognition to transcribe audio and video files locally into text or subtitles without sending data off your Mac.</string>
 </dict>

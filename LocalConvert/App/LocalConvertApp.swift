@@ -243,6 +243,8 @@ struct LocalConvertApp: App {
     @ObservedObject private var undoMenu: UndoMenuController
     @ObservedObject private var urlSchemeCoordinator = URLSchemeHandoffCoordinator.shared
     @ObservedObject private var commandPalette = CommandPaletteController.shared
+    @ObservedObject private var shortcutsController = KeyboardShortcutsSheetController.shared
+    @ObservedObject private var quickQRController = QuickQRGeneratorController.shared
     @StateObject private var escapeMonitor = EscapeCancelMonitor()
 
     private let isUITestingSession: Bool
@@ -355,6 +357,8 @@ struct LocalConvertApp: App {
                 undoCoordinator: undoCoordinator,
                 undoMenu: undoMenu,
                 commandPalette: commandPalette,
+                shortcutsController: shortcutsController,
+                quickQRController: quickQRController,
                 metadataManager: uitestingMetadataManager ?? MetadataManager.shared
             )
                 .environmentObject(appState)
@@ -565,13 +569,54 @@ struct LocalConvertApp: App {
                 }
                 .keyboardShortcut(KeyboardShortcutDescriptor.swiftUIShortcut(forID: "nav_settings"))
             }
+
+            CommandMenu("Tools") {
+                Menu("Capture Screen to Markup") {
+                    Button("Instant") {
+                        triggerScreenCapture(delay: .instant)
+                    }
+                    Button("3s Timer") {
+                        triggerScreenCapture(delay: .threeSeconds)
+                    }
+                    Button("5s Timer") {
+                        triggerScreenCapture(delay: .fiveSeconds)
+                    }
+                }
+
+                Button("Quick QR Generator...") {
+                    AppLifecycleManager.shared.restoreOrActivateMainWindow(appState: appState)
+                    quickQRController.open()
+                }
+            }
+
+            CommandGroup(replacing: .help) {
+                Button("Keyboard Shortcuts...") {
+                    AppLifecycleManager.shared.restoreOrActivateMainWindow(appState: appState)
+                    shortcutsController.toggle()
+                }
+                .keyboardShortcut("/", modifiers: .command)
+            }
+        }
+    }
+
+    private func triggerScreenCapture(delay: ScreenCaptureDelay) {
+        AppLifecycleManager.shared.restoreOrActivateMainWindow(appState: appState)
+        Task { @MainActor in
+            do {
+                _ = try await ScreenCaptureService.shared.captureToMediaViewer(delay: delay, appState: appState)
+            } catch {
+                appState.showError(
+                    title: String(localized: "Screen Capture Failed"),
+                    message: error.localizedDescription
+                )
+            }
         }
     }
 
     private var isEscapeCancelShortcutEnabled: Bool {
         EscapeCancelMonitor.shouldAllowEscapeCancelShortcut(
             isConverting: appState.isConverting,
-            isEscapeBlocked: escapeMonitor.isEscapeBlocked || appState.isMediaViewerPresented,
+            isEscapeBlocked: escapeMonitor.isEscapeBlocked || appState.isMediaViewerPresented || shortcutsController.isPresented || quickQRController.isPresented,
             isTextInputActive: undoMenu.isTextInputActive,
             isEditingHistoryPresented: undoCoordinator.isEditingHistoryPresented,
             isURLConfirmationPresented: urlSchemeCoordinator.isConfirmationPresented,
@@ -583,7 +628,7 @@ struct LocalConvertApp: App {
     private var isPasteToConvertShortcutEnabled: Bool {
         Self.shouldAllowPasteToConvertShortcut(
             isConverting: appState.isConverting,
-            isEscapeBlocked: escapeMonitor.isEscapeBlocked || appState.isMediaViewerPresented,
+            isEscapeBlocked: escapeMonitor.isEscapeBlocked || appState.isMediaViewerPresented || shortcutsController.isPresented || quickQRController.isPresented,
             isTextInputActive: undoMenu.isTextInputActive,
             isEditingHistoryPresented: undoCoordinator.isEditingHistoryPresented,
             isURLConfirmationPresented: urlSchemeCoordinator.isConfirmationPresented,
